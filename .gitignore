@@ -1,0 +1,28 @@
+# Frontend
+FE/node_modules/
+FE/dist/
+FE/.env
+FE/.env.local
+
+# Backend
+BE/target/
+BE/**/target/
+BE/.env
+BE/**/.env
+
+# Environment
+.env
+*.env
+!*.env.example
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
