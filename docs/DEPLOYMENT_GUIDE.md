@@ -1,6 +1,6 @@
 # HƯỚNG DẪN TRIỂN KHAI HỆ THỐNG STYLEMIND (DEPLOYMENT GUIDE)
 
-Tài liệu này hướng dẫn chi tiết cách thiết lập, cấu hình và chạy hệ thống Stylemind ở môi trường phát triển (Local) và chạy đóng gói bằng Docker Compose.
+Tài liệu này hướng dẫn chi tiết cách thiết lập, cấu hình và chạy hệ thống Stylemind ở môi trường phát triển (Local) và chạy đóng gói bằng Docker Compose. **Cơ sở dữ liệu tuân thủ DATA_MODEL_DOCUMENTATION.**
 
 ---
 
@@ -17,19 +17,229 @@ Tài liệu này hướng dẫn chi tiết cách thiết lập, cấu hình và 
 * **MinIO:** Dùng để chạy máy chủ Object Storage local tương thích S3.
 
 ### 1.2. Khởi tạo Cơ sở dữ liệu
-Truy cập PostgreSQL client (PgAdmin hoặc DBeaver) và chạy câu lệnh tạo 8 databases riêng biệt cho từng service:
+Truy cập PostgreSQL client (PgAdmin hoặc DBeaver) và chạy câu lệnh tạo 8 databases riêng biệt cho từng service (theo DATA_MODEL_DOCUMENTATION):
 ```sql
 CREATE DATABASE auth_db;
 CREATE DATABASE user_db;
 CREATE DATABASE product_db;
-CREATE DATABASE inventory_db;
 CREATE DATABASE cart_db;
 CREATE DATABASE order_db;
 CREATE DATABASE payment_db;
 CREATE DATABASE ai_db;
+CREATE DATABASE notification_db;
 ```
 
-### 1.3. Khởi chạy từng Microservice bằng Spring Boot
+### 1.3. Chạy Scripts khởi tạo Schema (Data Model)
+Sau khi tạo databases, chạy theo thứ tự các file SQL tương ứng với từng service (xem chi tiết schema trong **MICROSERVICE_ARCHITECTURE.md - Section 4**):
+
+**auth_db (auth-service):**
+```sql
+CREATE TABLE users (
+    id VARCHAR(50) PRIMARY KEY,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255),
+    full_name VARCHAR(150),
+    provider VARCHAR(20) NOT NULL DEFAULT 'LOCAL',
+    provider_id VARCHAR(100),
+    role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**user_db (user-service):**
+```sql
+CREATE TABLE customer_style_profiles (
+    user_id VARCHAR(50) PRIMARY KEY REFERENCES users(id),
+    gender VARCHAR(20),
+    age INT,
+    height_cm DECIMAL(5, 2),
+    weight_kg DECIMAL(5, 2),
+    body_morphology VARCHAR(50),
+    preferred_fit VARCHAR(30),
+    style_personas JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE delivery_addresses (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id),
+    recipient_name VARCHAR(100) NOT NULL,
+    phone_number VARCHAR(20) NOT NULL,
+    address_line TEXT NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**product_db (product-service):**
+```sql
+CREATE TABLE categories (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    parent_id INT REFERENCES categories(id),
+    slug VARCHAR(150) UNIQUE NOT NULL
+);
+
+CREATE TABLE products (
+    id VARCHAR(50) PRIMARY KEY,
+    category_id INT REFERENCES categories(id),
+    name VARCHAR(200) NOT NULL,
+    description TEXT,
+    base_price DECIMAL(12, 2) NOT NULL,
+    aesthetic_style VARCHAR(50),
+    target_demographic VARCHAR(20),
+    seasonal_property VARCHAR(20),
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE product_variants (
+    id VARCHAR(50) PRIMARY KEY,
+    product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    sku VARCHAR(100) UNIQUE NOT NULL,
+    size VARCHAR(20) NOT NULL,
+    color VARCHAR(50) NOT NULL,
+    material VARCHAR(50),
+    price_override DECIMAL(12, 2)
+);
+
+CREATE TABLE product_images (
+    id SERIAL PRIMARY KEY,
+    product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    image_url VARCHAR(500) NOT NULL,
+    is_primary BOOLEAN DEFAULT FALSE
+);
+```
+
+**cart_db (cart-service):**
+```sql
+CREATE TABLE shopping_carts (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) UNIQUE REFERENCES users(id),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE cart_items (
+    id VARCHAR(50) PRIMARY KEY,
+    cart_id VARCHAR(50) NOT NULL REFERENCES shopping_carts(id) ON DELETE CASCADE,
+    variant_id VARCHAR(50) NOT NULL REFERENCES product_variants(id),
+    quantity INT NOT NULL DEFAULT 1 CHECK (quantity > 0),
+    is_ai_recommended BOOLEAN DEFAULT FALSE,
+    source_bundle_id VARCHAR(50) REFERENCES ai_curated_bundles(id),
+    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**order_db (order-service):**
+```sql
+CREATE TABLE orders (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id),
+    total_amount DECIMAL(12, 2) NOT NULL,
+    order_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+    shipping_address TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE order_items (
+    id VARCHAR(50) PRIMARY KEY,
+    order_id VARCHAR(50) NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    variant_id VARCHAR(50) NOT NULL REFERENCES product_variants(id),
+    quantity INT NOT NULL CHECK (quantity > 0),
+    price_at_purchase DECIMAL(12, 2) NOT NULL,
+    is_ai_conversion BOOLEAN DEFAULT FALSE,
+    source_bundle_id VARCHAR(50) REFERENCES ai_curated_bundles(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**payment_db (payment-service):**
+```sql
+CREATE TABLE transactions (
+    id VARCHAR(50) PRIMARY KEY,
+    order_id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id),
+    amount DECIMAL(12, 2) NOT NULL,
+    method VARCHAR(30) NOT NULL,
+    status VARCHAR(30) NOT NULL,
+    transaction_ref VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**ai_db (ai-agent-service):**
+```sql
+CREATE TABLE chat_sessions (
+    id UUID PRIMARY KEY,
+    user_id VARCHAR(50) REFERENCES users(id),
+    context_weather_temp DECIMAL(4, 1),
+    context_weather_condition VARCHAR(30),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE chat_messages (
+    id VARCHAR(50) PRIMARY KEY,
+    session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    sender_type VARCHAR(10) NOT NULL,
+    message_text TEXT NOT NULL,
+    has_product_block BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE ai_curated_bundles (
+    id VARCHAR(50) PRIMARY KEY,
+    message_id VARCHAR(50) NOT NULL REFERENCES chat_messages(id),
+    justification_summary TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE ai_curated_bundle_items (
+    bundle_id VARCHAR(50) NOT NULL REFERENCES ai_curated_bundles(id) ON DELETE CASCADE,
+    product_id VARCHAR(50) NOT NULL REFERENCES products(id),
+    PRIMARY KEY (bundle_id, product_id)
+);
+
+CREATE TABLE ai_analytics_logs (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL REFERENCES users(id),
+    bundle_id VARCHAR(50) NOT NULL REFERENCES ai_curated_bundles(id),
+    interaction_type VARCHAR(30) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE ai_index_jobs (
+    id VARCHAR(50) PRIMARY KEY,
+    target_type VARCHAR(30) NOT NULL,
+    target_id VARCHAR(50) NOT NULL,
+    operation_type VARCHAR(10) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    retry_count INT DEFAULT 0,
+    last_error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**notification_db (notification-service):**
+```sql
+CREATE TABLE notification_logs (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(50) REFERENCES users(id),
+    type VARCHAR(30) NOT NULL,
+    title VARCHAR(200),
+    content TEXT,
+    status VARCHAR(20) NOT NULL,
+    sent_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 1.4. Khởi chạy từng Microservice bằng Spring Boot
 Với mỗi service trong thư mục `BE/`:
 1. Mở file `src/main/resources/application.yml` và cấu hình kết nối Database, Port và các Service URLs tương ứng.
 2. Mở Command Prompt / Terminal tại thư mục của service đó và chạy lệnh:
@@ -62,7 +272,7 @@ services:
       POSTGRES_PASSWORD: password
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # Tự động tạo 8 databases khi container khởi chạy lần đầu
+      # Tự động tạo 9 databases khi container khởi chạy lần đầu
       - ./init-scripts:/docker-entrypoint-initdb.d
     networks:
       - stylemind-network
@@ -188,21 +398,6 @@ services:
     networks:
       - stylemind-network
 
-  inventory-service:
-    image: stylemind/inventory-service:latest
-    container_name: inventory-service
-    ports:
-      - "8084:8084"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/inventory_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-    depends_on:
-      - postgres
-    networks:
-      - stylemind-network
-
   cart-service:
     image: stylemind/cart-service:latest
     container_name: cart-service
@@ -226,7 +421,6 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      INVENTORY_SERVICE_URL: http://inventory-service:8084
       PAYMENT_SERVICE_URL: http://payment-service:8088
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
     depends_on:
@@ -336,7 +530,7 @@ JWT_SECRET=super-secure-stylemind-secret-key-signature-2026-xyz
 
 # --- AI Model Config ---
 # Đặt API Key của nhà cung cấp LLM (như Gemini từ Google hoặc OpenAI)
-LLM_API_KEY=AIzaSyD_ExampleKey1234567890abcdef
+LLM_API_KEY=AIzaSy...cdef
 
 # --- Internal Security ---
 # Token bí mật phục vụ giao tiếp liên dịch vụ (Service-to-Service)
