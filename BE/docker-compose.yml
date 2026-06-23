@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ----------------------------------------------------
   # 1. Infrastructure: Databases & Message Broker
@@ -47,7 +45,7 @@ services:
     networks:
       - stylemind-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      test: ["CMD-SHELL", "bash -ec ': >/dev/tcp/localhost/6333'"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -102,9 +100,9 @@ services:
     image: stylemind/api-gateway:latest
     container_name: stylemind-gateway
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
-      SERVER_PORT: 3000
+      SERVER_PORT: 3001
       JWT_SECRET: ${JWT_SECRET}
       AUTH_SERVICE_URL: http://auth-service:8081
       PRODUCT_SERVICE_URL: http://product-service:8083
@@ -157,6 +155,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: 8082
       AUTH_SERVICE_URL: http://auth-service:8081
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
@@ -182,6 +181,7 @@ services:
       S3_ACCESS_KEY: admin
       S3_SECRET_KEY: password
       S3_BUCKET: stylemind-products
+      JWT_SECRET: ${JWT_SECRET}
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
       SERVER_PORT: 8083
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
@@ -205,6 +205,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cart_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: 8086
       AUTH_SERVICE_URL: http://auth-service:8081
       PRODUCT_SERVICE_URL: http://product-service:8083
@@ -228,6 +229,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      JWT_SECRET: ${JWT_SECRET}
       PAYMENT_SERVICE_URL: http://payment-service:8088
       CART_SERVICE_URL: http://cart-service:8086
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
@@ -251,6 +253,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      JWT_SECRET: ${JWT_SECRET}
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
       SERVER_PORT: 8088
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
@@ -272,6 +275,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
+      JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: 8089
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     depends_on:
@@ -301,6 +305,7 @@ services:
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: password
       LLM_API_KEY: ${LLM_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
       PRODUCT_SERVICE_URL: http://product-service:8083
       ORDER_SERVICE_URL: http://order-service:8087
@@ -315,24 +320,6 @@ services:
         condition: service_healthy
     networks:
       - stylemind-network
-
-  # ----------------------------------------------------
-  # 5. Frontend (optional, for full stack)
-  # ----------------------------------------------------
-  # stylemind-fe:
-  #   build:
-  #     context: ../FE
-  #     dockerfile: Dockerfile
-  #   image: stylemind/frontend:latest
-  #   container_name: stylemind-fe
-  #   ports:
-  #     - "80:80"
-  #   environment:
-  #     - VITE_API_GATEWAY=http://localhost:3000/api
-  #   depends_on:
-  #     - api-gateway
-  #   networks:
-  #     - stylemind-network
 
 networks:
   stylemind-network:

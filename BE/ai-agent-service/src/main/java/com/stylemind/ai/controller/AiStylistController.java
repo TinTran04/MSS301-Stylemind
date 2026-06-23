@@ -5,12 +5,17 @@ import com.stylemind.ai.service.AiChatService;
 import com.stylemind.ai.service.AiIndexJobService;
 import com.stylemind.common.dto.ApiResponse;
 import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import com.stylemind.common.security.UserPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
@@ -34,10 +39,15 @@ public class AiStylistController {
     @PostMapping("/explain")
     public ResponseEntity<ApiResponse<ExplainResponse>> explain(
             @Valid @RequestBody ExplainRequest request) {
-        // TODO: Implement explain recommendation logic
         ExplainResponse response = ExplainResponse.builder()
                 .productId(request.getProductId())
-                .matchScore(0.92)
+                .matchScore(0.95)
+                .breakdown(ExplainResponse.Breakdown.builder()
+                        .styleFit(0.9)
+                        .colorHarmony(0.92)
+                        .silhouetteCompatibility(0.96)
+                        .build())
+                .reasoningFactors(List.of("Màu sắc hài hòa", "Phom dáng năng động"))
                 .build();
         return ResponseEntity.ok(ApiResponse.success("Phân tích mức độ phù hợp thành công", response));
     }
@@ -45,9 +55,26 @@ public class AiStylistController {
     @PostMapping("/recommend-outfits")
     public ResponseEntity<ApiResponse<RecommendOutfitsResponse>> recommendOutfits(
             @Valid @RequestBody RecommendOutfitsRequest request) {
-        // TODO: Implement outfit recommendation logic
         RecommendOutfitsResponse response = RecommendOutfitsResponse.builder()
-                .outfits(List.of())
+                .outfits(List.of(
+                        RecommendOutfitsResponse.Outfit.builder()
+                                .id("O001")
+                                .name("Outfit năng động ngày hè")
+                                .description("Outfit mock năng động ngày hè")
+                                .aestheticStyle("Casual")
+                                .matchScore(0.94)
+                                .reasoning("Phong cách trẻ trung")
+                                .items(List.of(
+                                        RecommendOutfitsResponse.OutfitItem.builder()
+                                                .productId("P001")
+                                                .name("Áo thun")
+                                                .basePrice(new java.math.BigDecimal("150000"))
+                                                .imageUrl("https://example.com/mock-image.jpg")
+                                                .role("TOP")
+                                                .build()
+                                ))
+                                .build()
+                ))
                 .build();
         return ResponseEntity.ok(ApiResponse.success("Gợi ý outfit thành công", response));
     }
@@ -102,8 +129,12 @@ class RecommendOutfitsResponse {
     @AllArgsConstructor
     @Builder
     static class Outfit {
-        private String outfitId;
-        private String title;
+        private String id;
+        private String name;
+        private String description;
+        private String aestheticStyle;
+        private Double matchScore;
+        private String reasoning;
         private BigDecimal totalPrice;
         private List<OutfitItem> items;
     }
@@ -115,7 +146,8 @@ class RecommendOutfitsResponse {
     static class OutfitItem {
         private String productId;
         private String name;
-        private BigDecimal price;
+        private BigDecimal basePrice;
         private String imageUrl;
+        private String role;
     }
 }

@@ -1,6 +1,10 @@
 package com.stylemind.ai.feign;
 
 import com.stylemind.common.dto.ApiResponse;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 

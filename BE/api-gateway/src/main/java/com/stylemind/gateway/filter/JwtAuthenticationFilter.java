@@ -1,7 +1,7 @@
 package com.stylemind.gateway.filter;
 
-import com.stylemind.common.security.JwtUtil;
-import com.stylemind.common.security.UserPrincipal;
+import com.stylemind.gateway.security.JwtUtil;
+import com.stylemind.gateway.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -29,9 +29,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final List<String> PUBLIC_PATHS = List.of(
             "/api/auth/login",
             "/api/auth/register",
-            "/api/auth/me",
             "/actuator/health",
             "/actuator/info",
+            "/api/products",
+            "/api/categories",
+            "/api/cart",
             "/v3/api-docs",
             "/swagger-ui"
     );
@@ -46,10 +48,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        // Strip any incoming X-User-Id and X-User-Roles headers (security)
         ServerHttpRequest mutatedRequest = request.mutate()
-                .header("X-User-Id", "")
-                .header("X-User-Roles", "")
+                .headers(headers -> {
+                    headers.remove("X-User-Id");
+                    headers.remove("X-User-Roles");
+                    headers.remove("X-User-Email");
+                })
                 .build();
 
         // Extract JWT token
@@ -95,6 +99,9 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isPublicPath(String path) {
+        if (path.startsWith("/api/products") || path.startsWith("/api/categories") || path.startsWith("/api/cart")) {
+            return true;
+        }
         return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
     }
 

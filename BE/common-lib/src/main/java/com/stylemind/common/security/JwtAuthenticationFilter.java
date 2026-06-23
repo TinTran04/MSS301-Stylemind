@@ -1,33 +1,28 @@
 package com.stylemind.common.security;
 
-import com.stylemind.common.exception.BusinessException;
-import com.stylemind.common.constant.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
 
 @RequiredArgsConstructor
 @Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    @Lazy
-    private final UserDetailsService userDetailsService;
+    private final ObjectProvider<UserDetailsService> userDetailsServiceProvider;
 
     @Override
     protected void doFilterInternal(
@@ -54,6 +49,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             final String userEmail = jwtUtil.extractUsername(jwt);
 
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetailsService userDetailsService = userDetailsServiceProvider.getIfAvailable();
+                if (userDetailsService == null) {
+                    log.debug("No UserDetailsService configured; skipping JWT authentication for {}", path);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
 
                 if (jwtUtil.validateToken(jwt, userDetails)) {

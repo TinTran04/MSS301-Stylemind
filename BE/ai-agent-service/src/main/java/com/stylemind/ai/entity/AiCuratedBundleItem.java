@@ -9,7 +9,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@IdClass(AiCuratedBundleItemId.class)
+@IdClass(AiCuratedBundleItem.AiCuratedBundleItemId.class)
 public class AiCuratedBundleItem {
 
     @Id
@@ -19,12 +19,12 @@ public class AiCuratedBundleItem {
     @Id
     @Column(name = "product_id", length = 50, nullable = false)
     private String productId;
-}
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-class AiCuratedBundleItemId implements java.io.Serializable {
-    private String bundleId;
-    private String productId;
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AiCuratedBundleItemId implements java.io.Serializable {
+        private String bundleId;
+        private String productId;
+    }
 }

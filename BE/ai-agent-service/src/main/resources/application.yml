@@ -17,7 +17,7 @@ spring:
       max-lifetime: 1800000
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     show-sql: false
     properties:
       hibernate:
@@ -26,6 +26,11 @@ spring:
   sql:
     init:
       mode: never
+  neo4j:
+    uri: ${NEO4J_URI:bolt://localhost:7687}
+    authentication:
+      username: ${NEO4J_USERNAME:neo4j}
+      password: ${NEO4J_PASSWORD:password}
 
 # Qdrant Configuration
 qdrant:
@@ -52,8 +57,6 @@ internal:
 # Service URLs
 product-service:
   url: ${PRODUCT_SERVICE_URL:http://localhost:8083}
-inventory-service:
-  url: ${INVENTORY_SERVICE_URL:http://localhost:8084}
 order-service:
   url: ${ORDER_SERVICE_URL:http://localhost:8087}
 

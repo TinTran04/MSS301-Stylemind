@@ -3,16 +3,18 @@
 
 -- Categories (hierarchical tree structure)
 CREATE TABLE IF NOT EXISTS categories (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    parent_id INT REFERENCES categories(id),
-    slug VARCHAR(150) UNIQUE NOT NULL
+    parent_id BIGINT REFERENCES categories(id),
+    slug VARCHAR(150) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Products (base product information)
 CREATE TABLE IF NOT EXISTS products (
     id VARCHAR(50) PRIMARY KEY,
-    category_id INT REFERENCES categories(id),
+    category_id BIGINT REFERENCES categories(id),
     name VARCHAR(200) NOT NULL,
     description TEXT,
     base_price DECIMAL(12, 2) NOT NULL,
@@ -39,7 +41,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
 
 -- Product Images
 CREATE TABLE IF NOT EXISTS product_images (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     image_url VARCHAR(500) NOT NULL,
     is_primary BOOLEAN DEFAULT FALSE,
@@ -54,14 +56,14 @@ CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON product_variants(sku);
 CREATE INDEX IF NOT EXISTS idx_product_images_product_id ON product_images(product_id);
 
 -- Insert sample categories
-INSERT INTO categories (id, name, parent_id, slug) VALUES
-(1, 'Áo', NULL, 'ao'),
-(2, 'Quần', NULL, 'quan'),
-(3, 'Đầm', NULL, 'dam'),
-(4, 'Áo khoác', 1, 'ao-khoac'),
-(5, 'Áo sơ mi', 1, 'ao-so-mi'),
-(6, 'Áo thun', 1, 'ao-thun'),
-(7, 'Quần tây', 2, 'quan-tay'),
-(8, 'Quần jean', 2, 'quan-jean'),
-(9, 'Quần short', 2, 'quan-short')
+INSERT INTO categories (name, parent_id, slug) VALUES
+('Áo', NULL, 'ao'),
+('Quần', NULL, 'quan'),
+('Đầm', NULL, 'dam'),
+('Áo khoác', 1, 'ao-khoac'),
+('Áo sơ mi', 1, 'ao-so-mi'),
+('Áo thun', 1, 'ao-thun'),
+('Quần tây', 2, 'quan-tay'),
+('Quần jean', 2, 'quan-jean'),
+('Quần short', 2, 'quan-short')
 ON CONFLICT (slug) DO NOTHING;

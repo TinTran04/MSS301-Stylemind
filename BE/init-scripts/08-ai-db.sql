@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS ai_analytics_logs (
     user_id VARCHAR(50) NOT NULL,
     bundle_id VARCHAR(50) NOT NULL REFERENCES ai_curated_bundles(id),
     interaction_type VARCHAR(30) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- AI Index Jobs (for syncing data to Qdrant/Neo4j)

@@ -33,74 +33,59 @@ public class AiChatService {
     private final OrderClient orderClient;
 
     public ChatResponse chat(ChatRequest request, String userId) {
-        // Get or create session
+        // Return mock data directly for frontend testing
         UUID sessionId = request.getConversationId();
-        ChatSession session = null;
-        
-        if (sessionId != null) {
-            session = sessionRepository.findById(sessionId).orElse(null);
-        }
-        
-        if (session == null) {
-            session = ChatSession.builder()
-                    .id(UUID.randomUUID())
-                    .userId(userId)
-                    .build();
-            session = sessionRepository.save(session);
+        if (sessionId == null) {
+            sessionId = UUID.randomUUID();
         }
 
-        // Save user message
-        ChatMessage userMessage = ChatMessage.builder()
-                .id(StringUtil.generateUniqueId())
-                .sessionId(session.getId())
-                .senderType("USER")
-                .messageText(request.getMessage())
-                .hasProductBlock(false)
-                .build();
-        messageRepository.save(userMessage);
-
-        // Process intent and generate response
-        String intent = detectIntent(request.getMessage());
         List<ChatResponse.RecommendedProduct> recommendations = new ArrayList<>();
         List<String> styleTips = new ArrayList<>();
         ChatResponse.CuratedBundle curatedBundle = null;
+        String intent = detectIntent(request.getMessage());
+        String aiResponse = "";
 
         if ("product_recommendation".equals(intent) || "outfit_recommendation".equals(intent)) {
-            // Hybrid Search: Vector + Keyword + Graph + Metadata Filter
-            List<String> productIds = hybridSearch(request.getMessage(), userId);
+            recommendations.add(ChatResponse.RecommendedProduct.builder()
+                    .productId("P001")
+                    .name("Áo Thun Mock Data")
+                    .basePrice(new BigDecimal("150000"))
+                    .imageUrl("https://example.com/mock-image.jpg")
+                    .reason("Mock data reason")
+                    .matchScore(0.95)
+                    .build());
             
-            recommendations = productIds.stream()
-                    .limit(5)
-                    .map(this::buildRecommendation)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+            styleTips.add("Mock style tip 1");
+            styleTips.add("Mock style tip 2");
 
-            if (!recommendations.isEmpty()) {
-                styleTips = generateStyleTips(request.getMessage(), recommendations);
-                
-                // Create curated bundle
-                curatedBundle = createCuratedBundle(session.getId(), recommendations);
-            }
+            curatedBundle = ChatResponse.CuratedBundle.builder()
+                    .id(StringUtil.generateUniqueId())
+                    .justificationSummary("Mock bundle justification")
+                    .items(recommendations.stream()
+                            .map(rec -> ChatResponse.CuratedBundle.BundleItem.builder()
+                                    .productId(rec.getProductId())
+                                    .build())
+                            .collect(Collectors.toList()))
+                    .build();
+            aiResponse = "Đây là kết quả mock data cho yêu cầu gợi ý sản phẩm.";
         } else if ("order_tracking".equals(intent)) {
-            // Handle order tracking with ownership check
-            String orderId = extractOrderId(request.getMessage());
-            if (orderId != null && userId != null) {
-                try {
-                    var orderResponse = orderClient.getOrder(orderId, userId);
-                    if (orderResponse.isSuccess() && orderResponse.getData() != null) {
-                        String status = orderResponse.getData().getOrderStatus();
-                        String responseText = String.format("Đơn hàng %s hiện tại đang ở trạng thái: %s", orderId, status);
-                        return saveAndReturnAiResponse(session, userMessage, responseText, null, null, null);
-                    }
-                } catch (Exception ex) {
-                    log.warn("Order tracking failed", ex);
-                }
-            }
+            aiResponse = "Đơn hàng mock của bạn đang ở trạng thái: ĐANG_GIAO";
+        } else {
+             aiResponse = "Xin chào! Tôi là AI Stylist mock. Tôi có thể giúp gì cho bạn?";
         }
 
-        String aiResponse = generateResponse(request.getMessage(), intent, recommendations, styleTips);
-        
-        return saveAndReturnAiResponse(session, userMessage, aiResponse, intent, recommendations, curatedBundle);
+
+        return ChatResponse.builder()
+                .conversationId(sessionId)
+                .messageId(StringUtil.generateUniqueId())
+                .senderType("AI")
+                .messageText(aiResponse)
+                .hasProductBlock(!recommendations.isEmpty())
+                .intent(intent)
+                .recommendedProducts(recommendations)
+                .styleTips(styleTips)
+                .curatedBundle(curatedBundle)
+                .build();
     }
 
     private String detectIntent(String message) {
@@ -237,6 +222,7 @@ public class AiChatService {
     private ChatResponse saveAndReturnAiResponse(ChatSession session, ChatMessage userMessage, 
                                                   String responseText, String intent,
                                                   List<ChatResponse.RecommendedProduct> recommendations,
+                                                  List<String> styleTips,
                                                   ChatResponse.CuratedBundle curatedBundle) {
         
         // Save AI message

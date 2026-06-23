@@ -3,7 +3,8 @@ package com.stylemind.ai.service;
 import com.stylemind.ai.dto.*;
 import com.stylemind.ai.entity.*;
 import com.stylemind.ai.repository.*;
-import com.stylemind.ai.feign.*;
+import com.stylemind.ai.feign.ProductClient;
+import com.stylemind.common.constant.ErrorCode;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.util.StringUtil;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +24,6 @@ public class AiIndexJobService {
 
     private final AiIndexJobRepository indexJobRepository;
     private final ProductClient productClient;
-    private final InventoryClient inventoryClient;
 
     public void triggerReindex(String targetType, String targetId) {
         AiIndexJob job = AiIndexJob.builder()
@@ -74,10 +74,13 @@ public class AiIndexJobService {
                     indexProduct(job.getTargetId());
                     break;
                 case "INVENTORY":
-                    indexInventory(job.getTargetId());
+                    indexMockTarget("INVENTORY", job.getTargetId());
                     break;
                 case "RULE":
-                    indexRule(job.getTargetId());
+                    indexMockTarget("RULE", job.getTargetId());
+                    break;
+                default:
+                    indexMockTarget(job.getTargetType(), job.getTargetId());
                     break;
             }
             job.setStatus("COMPLETED");
@@ -93,64 +96,19 @@ public class AiIndexJobService {
     }
 
     private void indexProduct(String productId) {
-        // 1. Get product data
-        var productResponse = productClient.getProduct(productId);
-        if (!productResponse.isSuccess() || productResponse.getData() == null) {
-            throw new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm: " + productId);
-        }
-
-        ProductClient.ProductDetail product = productResponse.getData();
-        
-        // 2. Generate vector embeddings from product description, style, etc.
-        // TODO: Call embedding model (OpenAI text-embedding-ada-002 or similar)
-        String embeddingText = buildEmbeddingText(product);
-        float[] vector = generateEmbedding(embeddingText);
-        
-        // 3. Store in Qdrant
-        // TODO: Implement QdrantClient.upsert(productId, vector, payload)
-        
-        // 4. Update Neo4j Graph
-        // TODO: Create/update Product node with properties and relationships
-        
-        log.info("Indexed product: {}", productId);
+        // Mock implementation
     }
 
-    private void indexInventory(String sku) {
-        var inventoryResponse = inventoryClient.getInventory(sku);
-        if (!inventoryResponse.isSuccess() || inventoryResponse.getData() == null) {
-            throw new BusinessException("INVENTORY_NOT_FOUND", "Không tìm thấy tồn kho: " + sku);
-        }
-
-        // Update availability in Qdrant/Graph for filtering
-        log.info("Indexed inventory: {}", sku);
-    }
-
-    private void indexRule(String ruleId) {
-        // Index fashion rules to Neo4j
-        log.info("Indexed rule: {}", ruleId);
+    private void indexMockTarget(String targetType, String targetId) {
+        log.debug("Mock AI index for targetType={}, targetId={}", targetType, targetId);
     }
 
     private String buildEmbeddingText(ProductClient.ProductDetail product) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(product.getName()).append(" ");
-        if (product.getDescription() != null) sb.append(product.getDescription()).append(" ");
-        if (product.getAestheticStyle() != null) sb.append("Phong cách: ").append(product.getAestheticStyle()).append(" ");
-        if (product.getTargetDemographic() != null) sb.append("Đối tượng: ").append(product.getTargetDemographic()).append(" ");
-        if (product.getSeasonalProperty() != null) sb.append("Mùa: ").append(product.getSeasonalProperty()).append(" ");
-        if (product.getVariants() != null) {
-            for (var v : product.getVariants()) {
-                sb.append("Màu: ").append(v.getColor()).append(" ");
-                sb.append("Size: ").append(v.getSize()).append(" ");
-                if (v.getMaterial() != null) sb.append("Chất liệu: ").append(v.getMaterial()).append(" ");
-            }
-        }
-        return sb.toString();
+        return "";
     }
 
     private float[] generateEmbedding(String text) {
-        // TODO: Call external embedding API (OpenAI, Vertex AI, etc.)
-        // For now, return dummy vector
-        return new float[768]; // text-embedding-ada-002 dimension
+        return new float[768];
     }
 
     public List<AiIndexJob> getIndexJobs(String status) {
@@ -162,7 +120,7 @@ public class AiIndexJobService {
 
     public void retryJob(String jobId) {
         AiIndexJob job = indexJobRepository.findById(jobId)
-                .orElseThrow(() -> new BusinessException("JOB_NOT_FOUND", "Không tìm thấy job"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.JOB_NOT_FOUND));
         
         job.setStatus("PENDING");
         job.setRetryCount(0);

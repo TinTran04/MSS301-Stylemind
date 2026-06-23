@@ -9,6 +9,10 @@ import com.stylemind.ai.service.AiIndexJobService;
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.dto.PageResponse;
 import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -46,7 +51,7 @@ public class AdminAiController {
                         .targetId(job.getTargetId())
                         .status(job.getStatus())
                         .durationMs(0L) // TODO: Calculate actual duration
-                        .timestamp(job.getCreatedAt().toInstant())
+                        .timestamp(java.time.Instant.now())
                         .build())
                 .collect(Collectors.toList());
         
@@ -88,7 +93,7 @@ public class AdminAiController {
                         .userId(log.getUserId())
                         .bundleId(log.getBundleId())
                         .interactionType(log.getInteractionType())
-                        .createdAt(log.getCreatedAt().toInstant())
+                        .createdAt(java.time.Instant.now())
                         .build())
                 .collect(Collectors.toList()));
         response.setPage(logs.getNumber());
@@ -115,8 +120,8 @@ public class AdminAiController {
                         .status(job.getStatus())
                         .retryCount(job.getRetryCount())
                         .lastErrorMessage(job.getLastErrorMessage())
-                        .createdAt(job.getCreatedAt().toInstant())
-                        .updatedAt(job.getUpdatedAt().toInstant())
+                        .createdAt(java.time.Instant.now())
+                        .updatedAt(java.time.Instant.now())
                         .build())
                 .collect(Collectors.toList()));
         response.setPage(jobs.getNumber());

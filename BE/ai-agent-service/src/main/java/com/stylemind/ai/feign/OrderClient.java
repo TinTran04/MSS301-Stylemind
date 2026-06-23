@@ -3,6 +3,8 @@ package com.stylemind.ai.feign;
 import com.stylemind.common.dto.ApiResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
+import lombok.*;
+import java.util.List;
 
 @FeignClient(name = "order-service", url = "${ORDER_SERVICE_URL:http://localhost:8087}")
 public interface OrderClient {

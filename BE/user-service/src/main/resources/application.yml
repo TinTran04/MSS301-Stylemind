@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: user-service
+  main:
+    allow-bean-definition-overriding: true
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/user_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}

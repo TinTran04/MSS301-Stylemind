@@ -18,7 +18,7 @@ public class ChatMessage extends BaseEntity {
     private String id;
 
     @Column(name = "session_id", columnDefinition = "UUID", nullable = false)
-    private UUID sessionId;
+    private java.util.UUID sessionId;
 
     @Column(name = "sender_type", length = 10, nullable = false)
     private String senderType; // USER, AI

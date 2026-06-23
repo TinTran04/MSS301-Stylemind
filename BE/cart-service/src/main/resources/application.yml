@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: cart-service
+  main:
+    allow-bean-definition-overriding: true
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/cart_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
@@ -29,6 +31,11 @@ spring:
 
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
+
+jwt:
+  secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
+  access-token-expiration: 3600000
+  refresh-token-expiration: 604800000
 
 management:
   endpoints:
