@@ -26,3 +26,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+.codegraph/
+.venv/
+.agents/
