@@ -20,17 +20,36 @@ import java.util.function.Function;
 @Slf4j
 public class JwtUtil {
 
+    private static final String DEFAULT_SECRET = "super-secure-stylemind-secret-key-signature-2026-xyz";
+    private static final int MIN_HS256_SECRET_BYTES = 32;
+
     private final SecretKey secretKey;
     private final long accessTokenExpiration;
     private final long refreshTokenExpiration;
 
     public JwtUtil(
-            @Value("${jwt.secret:${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}}") String secret,
+            @Value("${jwt.secret:${JWT_SECRET:" + DEFAULT_SECRET + "}}") String secret,
             @Value("${jwt.access-token-expiration:3600000}") long accessTokenExpiration,
             @Value("${jwt.refresh-token-expiration:604800000}") long refreshTokenExpiration) {
-        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        String resolvedSecret = resolveSecret(secret);
+        this.secretKey = Keys.hmacShaKeyFor(resolvedSecret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiration = accessTokenExpiration;
         this.refreshTokenExpiration = refreshTokenExpiration;
+    }
+
+    private String resolveSecret(String secret) {
+        if (secret == null || secret.isBlank()) {
+            log.warn("JWT secret is blank; using local development default. Set JWT_SECRET for shared environments.");
+            return DEFAULT_SECRET;
+        }
+
+        if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_HS256_SECRET_BYTES) {
+            log.warn("JWT secret is shorter than {} bytes; using local development default. Set a longer JWT_SECRET.",
+                    MIN_HS256_SECRET_BYTES);
+            return DEFAULT_SECRET;
+        }
+
+        return secret;
     }
 
     public String generateAccessToken(UserDetails userDetails, String userId, String role) {

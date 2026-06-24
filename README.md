@@ -49,7 +49,7 @@ Dự án được tổ chức theo hướng:
 ```text
 Frontend ReactJS
         ↓
-API Gateway (Port 3000)
+API Gateway (Port 3001)
         ↓
 Spring Boot Microservices (8 services + 8 DBs)
         ↓
@@ -142,7 +142,7 @@ FE/
 
 ```text
 BE/
-├── api-gateway/           # Port 3000 - Entry point
+├── api-gateway/           # Port 3001 - Entry point
 ├── auth-service/          # Port 8081 - auth_db (users)
 ├── user-service/          # Port 8082 - user_db (customer_style_profiles, delivery_addresses)
 ├── product-service/       # Port 8083 - product_db (categories, products, variants, images)
@@ -286,7 +286,7 @@ npm run build
 Tạo file `.env` trong thư mục `FE/`:
 
 ```env
-VITE_API_BASE_URL=http://localhost:3000/api
+VITE_API_BASE_URL=http://localhost:3001/api
 VITE_APP_NAME=StyleMind
 ```
 
@@ -312,6 +312,68 @@ docker compose up
 Hoặc chạy từng service Spring Boot riêng tùy giai đoạn phát triển.
 
 Xem chi tiết tại [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) và [MICROSERVICE_ARCHITECTURE.md](docs/MICROSERVICE_ARCHITECTURE.md).
+
+---
+
+## Test Swagger / OpenAPI 3
+
+Sau khi backend đã chạy bằng Docker Compose, kiểm tra nhanh gateway và các service:
+
+```bash
+curl http://localhost:3001/actuator/health
+curl http://localhost:8083/actuator/health
+curl http://localhost:8088/actuator/health
+```
+
+Swagger UI của từng service có thể mở trực tiếp trên trình duyệt:
+
+| Service | Swagger UI | OpenAPI JSON |
+| :--- | :--- | :--- |
+| API Gateway | http://localhost:3001/swagger-ui.html | http://localhost:3001/v3/api-docs |
+| Auth Service | http://localhost:8081/swagger-ui.html | http://localhost:8081/v3/api-docs |
+| User Service | http://localhost:8082/swagger-ui.html | http://localhost:8082/v3/api-docs |
+| Product Service | http://localhost:8083/swagger-ui.html | http://localhost:8083/v3/api-docs |
+| AI Agent Service | http://localhost:8085/swagger-ui.html | http://localhost:8085/v3/api-docs |
+| Cart Service | http://localhost:8086/swagger-ui.html | http://localhost:8086/v3/api-docs |
+| Order Service | http://localhost:8087/swagger-ui.html | http://localhost:8087/v3/api-docs |
+| Payment Service | http://localhost:8088/swagger-ui.html | http://localhost:8088/v3/api-docs |
+| Notification Service | http://localhost:8089/swagger-ui.html | http://localhost:8089/v3/api-docs |
+
+Một số API public có thể test ngay không cần token:
+
+```bash
+curl http://localhost:3001/api/products
+curl http://localhost:3001/api/categories
+curl http://localhost:3001/api/cart
+```
+
+Với API cần đăng nhập, tạo một user test rồi đăng nhập qua gateway để lấy JWT:
+
+```bash
+curl -X POST http://localhost:3001/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Swagger Tester","email":"swagger-tester@example.com","password":"swagger123"}'
+
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"swagger-tester@example.com","password":"swagger123"}'
+```
+
+Nếu email test đã tồn tại trong database local, đổi sang email khác rồi chạy lại lệnh `register`.
+
+Sau đó vào Swagger UI của service cần test, bấm **Authorize**, nhập:
+
+```text
+Bearer <accessToken>
+```
+
+Lưu ý khi test:
+
+* Frontend và client nên gọi qua API Gateway `http://localhost:3001/api/...`.
+* Swagger UI của từng service dùng để inspect/test nhanh API nội bộ trong môi trường local.
+* Các endpoint admin cần JWT của user có role `ADMIN`.
+* Nếu Docker Dashboard hiển thị log cũ, kiểm tra trạng thái thật bằng `docker compose -f BE/docker-compose.yml ps -a`.
+* Nếu endpoint cần quyền trả `401` hoặc `403`, kiểm tra lại token JWT và role của user.
 
 ---
 

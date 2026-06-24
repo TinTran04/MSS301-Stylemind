@@ -23,5 +23,9 @@ RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 COPY --from=builder /app/product-service/target/*.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
+ENV SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/product_db
+ENV SPRING_DATASOURCE_USERNAME=postgres
+ENV SPRING_DATASOURCE_PASSWORD=password
+ENV S3_ENDPOINT=http://host.docker.internal:9000
 EXPOSE 8083
 ENTRYPOINT ["java", "-jar", "app.jar"]

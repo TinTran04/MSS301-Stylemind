@@ -1,7 +1,6 @@
 package com.stylemind.order.service;
 
 import com.stylemind.cart.dto.CartItemResponse;
-import com.stylemind.cart.dto.CartMergeRequest;
 import com.stylemind.cart.dto.CartResponse;
 import com.stylemind.order.dto.*;
 import com.stylemind.order.entity.*;
@@ -15,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -84,10 +82,14 @@ public class OrderService {
         order.setOrderStatus("FULFILLED");
         order = orderRepository.save(order);
 
-        // Clear cart
-        cartClient.mergeCart(authHeader, CartMergeRequest.builder()
-                .guestSessionId("") // Will be handled by cart service
-                .build());
+        // FIXME(H2): cart is NOT actually cleared here. The previous code called
+        // mergeCart with an empty guestSessionId, which cart-service treats as a
+        // no-op (no "guest_" cart exists, so it returns early without touching the
+        // user cart). cart-service needs a real "clear cart" endpoint
+        // (e.g. DELETE /api/cart) exposed on CartClient and called here.
+        // See BE/docs/ARCHITECTURE_AND_QUALITY_REVIEW.md (H2). Until then the
+        // customer's cart still contains the purchased items after checkout.
+        log.warn("Cart not cleared after order {} — no clear-cart endpoint wired (see H2)", orderId);
 
         return buildOrderResponse(order, orderItems);
     }
@@ -99,11 +101,6 @@ public class OrderService {
                 .amount(amount)
                 .build();
         paymentClient.processPayment(paymentRequest);
-    }
-
-    private String getVariantSku(String variantId) {
-        ProductClient.VariantDetail variant = productClient.getVariants(List.of(variantId)).getData().get(0);
-        return variant.getSku();
     }
 
     private BigDecimal getVariantPrice(CartItemResponse cartItem) {

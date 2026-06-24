@@ -54,6 +54,15 @@ llm:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
+# Feign timeouts: bound outbound calls (product, order) so a slow/down
+# downstream can't hang ai-agent threads. See ARCHITECTURE_AND_QUALITY_REVIEW.md M1.
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 3000
+        readTimeout: 5000
+
 # Service URLs
 product-service:
   url: ${PRODUCT_SERVICE_URL:http://localhost:8083}

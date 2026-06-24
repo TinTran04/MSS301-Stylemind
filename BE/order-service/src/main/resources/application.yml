@@ -32,6 +32,16 @@ spring:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
+# Feign timeouts: bound every outbound call so a slow/down downstream service
+# (cart, product, payment) can't hang order-service threads indefinitely.
+# Conservative defaults; tune per-client as needed. See ARCHITECTURE_AND_QUALITY_REVIEW.md M1.
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 3000
+        readTimeout: 5000
+
 jwt:
   secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
   access-token-expiration: 3600000
