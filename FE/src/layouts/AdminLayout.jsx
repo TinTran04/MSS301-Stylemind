@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link, useLocation, Outlet } from 'react-router-dom'
-import { 
-  LayoutDashboard, Package, Warehouse, ShoppingCart, Users, 
-  Brain, Network, BarChart3, Settings, Bell, Search, LogOut, ChevronLeft, ChevronRight 
+import {
+  LayoutDashboard, Package, Warehouse, ShoppingCart, Users, UserCog,
+  Brain, Network, BarChart3, Settings, Bell, Search, LogOut, ChevronLeft, ChevronRight
 } from 'lucide-react'
 
 const sidebarLinks = [
@@ -11,6 +11,7 @@ const sidebarLinks = [
   { to: '/admin/inventory', label: 'Inventory', icon: Warehouse },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingCart },
   { to: '/admin/customers', label: 'Customers', icon: Users },
+  { to: '/admin/users', label: 'User Management', icon: UserCog },
   { to: '/admin/ai-pipeline', label: 'AI Pipeline', icon: Brain },
   { to: '/admin/knowledge-graph', label: 'Knowledge Graph', icon: Network },
   { to: '/admin/recommendations', label: 'Recommendations', icon: BarChart3 },

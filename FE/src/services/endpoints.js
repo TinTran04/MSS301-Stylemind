@@ -3,6 +3,7 @@ const API_GATEWAY = import.meta.env.VITE_API_GATEWAY || import.meta.env.VITE_API
 export const ENDPOINTS = {
   AUTH: `${API_GATEWAY}/auth`,
   USERS: `${API_GATEWAY}/users`,
+  ADMIN_USERS: `${API_GATEWAY}/admin/users`,
   CATEGORIES: `${API_GATEWAY}/categories`,
   PRODUCTS: `${API_GATEWAY}/products`,
   INVENTORY: `${API_GATEWAY}/inventory`,
