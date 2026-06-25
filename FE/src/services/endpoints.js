@@ -1,8 +1,9 @@
-const API_GATEWAY = import.meta.env.VITE_API_GATEWAY || import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
+const API_GATEWAY = import.meta.env.VITE_API_GATEWAY || import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api'
 
 export const ENDPOINTS = {
   AUTH: `${API_GATEWAY}/auth`,
   USERS: `${API_GATEWAY}/users`,
+  CATEGORIES: `${API_GATEWAY}/categories`,
   PRODUCTS: `${API_GATEWAY}/products`,
   INVENTORY: `${API_GATEWAY}/inventory`,
   CART: `${API_GATEWAY}/cart`,

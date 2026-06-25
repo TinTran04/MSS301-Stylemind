@@ -2,15 +2,9 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
 import { MapPin, CreditCard, Lock, AlertTriangle, Check, Sparkles, Loader2, ArrowRight, RotateCcw, Banknote } from 'lucide-react'
-import useCartStore from '../../features/cart/cart.store'
 import usePaymentStore from '../../features/payment/payment.store'
 import { useCart } from '../../hooks/useCart'
 import { formatCurrency } from '../../utils/formatCurrency'
-
-const deliveryAddresses = [
-  { id: 'home', label: 'Home', line1: '123 Fashion Ave, Apt 4B', line2: 'New York, NY 10001' },
-  { id: 'office', label: 'Office', line1: '456 Style St, Floor 12', line2: 'New York, NY 10002' },
-]
 
 const paymentMethods = [
   { id: 'cod', label: 'Cash on Delivery', icon: Banknote, description: 'Pay when your order arrives' },
@@ -19,13 +13,11 @@ const paymentMethods = [
 
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart()
-  const addItem = useCartStore((s) => s.addItem)
-  const { status, steps, currentStep, error, method, setMethod, processPayment, reset, lastOrder } = usePaymentStore()
+  const { status, steps, error, method, setMethod, processPayment, reset, lastOrder } = usePaymentStore()
   const navigate = useNavigate()
 
-  const [selectedAddress, setSelectedAddress] = useState('home')
-  const [simulateFailure, setSimulateFailure] = useState(false)
-  const [checkoutStep, setCheckoutStep] = useState(1)
+  const [shippingAddress, setShippingAddress] = useState('')
+  const [addressError, setAddressError] = useState('')
 
   const displayItems = items
   const displaySubtotal = subtotal
@@ -40,21 +32,24 @@ export default function CheckoutPage() {
   }, [items.length, status, navigate])
 
   const handlePlaceOrder = async () => {
+    if (!shippingAddress.trim()) {
+      setAddressError('Please enter a shipping address.')
+      return
+    }
+    setAddressError('')
     const result = await processPayment({
+      shippingAddress: shippingAddress.trim(),
       items: displayItems,
       total,
-      address: deliveryAddresses.find((a) => a.id === selectedAddress),
-      simulateFailure: method === 'online_simulated' ? simulateFailure : false,
     })
 
     if (result.success) {
-      clearCart()
+      await clearCart()
     }
   }
 
   const handleTryAgain = () => {
     reset()
-    setCheckoutStep(1)
   }
 
   if (items.length === 0 && status === 'idle') {
@@ -205,23 +200,16 @@ export default function CheckoutPage() {
                 <MapPin size={18} className="text-primary" />
                 <h2 className="font-title-lg text-primary">Delivery Address</h2>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                {deliveryAddresses.map((addr) => (
-                  <button
-                    key={addr.id}
-                    onClick={() => setSelectedAddress(addr.id)}
-                    className={`text-left rounded-xl p-4 transition-all ${
-                      selectedAddress === addr.id
-                        ? 'border-2 border-tertiary-container bg-surface-container-low'
-                        : 'border border-outline-variant/20 hover:border-outline-variant'
-                    }`}
-                  >
-                    <p className="text-sm font-medium text-primary">{addr.label}</p>
-                    <p className="text-xs text-on-surface-variant mt-1">{addr.line1}</p>
-                    <p className="text-xs text-on-surface-variant">{addr.line2}</p>
-                  </button>
-                ))}
-              </div>
+              <textarea
+                rows={3}
+                value={shippingAddress}
+                onChange={(e) => { setShippingAddress(e.target.value); setAddressError('') }}
+                placeholder="Enter your full shipping address (street, city, postal code)"
+                className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-tertiary-container resize-none transition-colors"
+              />
+              {addressError && (
+                <p className="text-xs text-error mt-2">{addressError}</p>
+              )}
             </div>
 
             {/* Payment Method */}
@@ -259,18 +247,9 @@ export default function CheckoutPage() {
 
               {method === 'online_simulated' && (
                 <div className="mt-4 bg-surface-container-low rounded-xl p-4">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={simulateFailure}
-                      onChange={(e) => setSimulateFailure(e.target.checked)}
-                      className="w-4 h-4 rounded accent-error"
-                    />
-                    <div>
-                      <span className="text-sm text-primary">Simulate payment failure</span>
-                      <p className="text-xs text-on-surface-variant">Enable to test the failure and rollback flow</p>
-                    </div>
-                  </label>
+                  <p className="text-xs text-on-surface-variant">
+                    A secure transaction ID will be generated and processed by our simulated payment gateway.
+                  </p>
                 </div>
               )}
             </div>

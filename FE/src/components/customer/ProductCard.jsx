@@ -6,11 +6,12 @@ import useCartStore from '../../features/cart/cart.store'
 
 export default function ProductCard({ product }) {
   const addItem = useCartStore((s) => s.addItem)
+  const hasVariant = Boolean(product.availableVariantId)
 
   const handleAddToCart = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    addItem(product)
+    if (hasVariant) addItem(product)
   }
 
   return (
@@ -51,10 +52,11 @@ export default function ProductCard({ product }) {
           <p className="text-xs text-on-surface-variant mb-3">{product.material}</p>
           <button
             onClick={handleAddToCart}
-            className="group/btn w-full bg-[#1A1A1A] text-on-primary rounded-lg py-2.5 text-xs font-medium hover:bg-primary active:scale-98 transition-all flex items-center justify-center gap-2"
+            disabled={!hasVariant}
+            className="group/btn w-full bg-[#1A1A1A] text-on-primary rounded-lg py-2.5 text-xs font-medium hover:bg-primary active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ShoppingBag size={14} className="transform group-hover/btn:-translate-y-0.5 transition-transform duration-300" />
-            Add to Bag
+            {hasVariant ? 'Add to Bag' : 'No Variant'}
           </button>
         </div>
       </Link>

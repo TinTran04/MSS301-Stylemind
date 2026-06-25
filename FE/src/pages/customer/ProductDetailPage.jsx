@@ -1,34 +1,63 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ShoppingBag, Heart, Share2, Sparkles, Star, Check } from 'lucide-react'
+import { ShoppingBag, Heart, Share2, Sparkles, Star } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import ProductCard from '../../components/customer/ProductCard'
 import useCartStore from '../../features/cart/cart.store'
 import { getProductById, getProducts } from '../../features/products/product.api'
-import { mockInventory } from '../../data/mockInventory'
 
 export default function ProductDetailPage() {
   const { id } = useParams()
   const [product, setProduct] = useState(null)
   const [recommendations, setRecommendations] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [selectedSize, setSelectedSize] = useState(null)
   const [selectedColor, setSelectedColor] = useState(null)
   const addItem = useCartStore((s) => s.addItem)
 
   useEffect(() => {
-    getProductById(id).then(setProduct)
-    getProducts().then((all) => {
-      setRecommendations(all.filter((p) => p.id !== id).slice(0, 3))
-    })
+    let cancelled = false
+    setLoading(true)
+    setError('')
+
+    Promise.all([
+      getProductById(id),
+      getProducts({ size: 4 }),
+    ])
+      .then(([detail, all]) => {
+        if (cancelled) return
+        setProduct(detail)
+        setSelectedSize(detail?.sizes?.[0] || null)
+        setSelectedColor(detail?.colors?.[0] || null)
+        setRecommendations(all.filter((p) => p.id !== id).slice(0, 3))
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || 'Unable to load product.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
-  if (!product) {
+  if (loading) {
     return <div className="max-w-[1440px] mx-auto px-16 py-20 text-center">Loading...</div>
   }
 
-  const inventory = mockInventory.find((i) => i.productId === id)
-  const availableStock = inventory ? inventory.currentStock - inventory.reservedStock : 0
-  const isOutOfStock = availableStock <= 0
+  if (error || !product) {
+    return (
+      <div className="max-w-[1440px] mx-auto px-6 md:px-16 py-20 text-center">
+        <p className="text-error">{error || 'Product not found.'}</p>
+        <Link to="/shop" className="text-primary hover:underline">Back to shop</Link>
+      </div>
+    )
+  }
+
+  const hasVariant = Boolean(product.availableVariantId)
 
   const handleAddToCart = () => {
     addItem(product, 1, selectedSize || product.sizes[0], selectedColor || product.colors[0])
@@ -108,13 +137,9 @@ export default function ProductDetailPage() {
           </div>
 
           {/* Stock Status */}
-          {isOutOfStock ? (
+          {!hasVariant ? (
             <div className="bg-error-container/50 text-error px-4 py-3 rounded-lg text-sm font-medium">
-              Out of Stock
-            </div>
-          ) : availableStock <= 5 ? (
-            <div className="bg-tertiary-fixed/20 text-tertiary px-4 py-3 rounded-lg text-sm">
-              Low Stock - Only {availableStock} left
+              No variant available
             </div>
           ) : null}
 
@@ -122,11 +147,11 @@ export default function ProductDetailPage() {
           <div className="flex gap-3">
             <button
               onClick={handleAddToCart}
-              disabled={isOutOfStock}
+              disabled={!hasVariant}
               className="group/bag flex-1 bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ShoppingBag size={16} className="transform group-hover/bag:-translate-y-0.5 transition-transform duration-300" />
-              {isOutOfStock ? 'Out of Stock' : 'Add to Bag'}
+              {hasVariant ? 'Add to Bag' : 'No Variant Available'}
             </button>
             <button className="group/btn p-3 rounded-lg border border-outline-variant/20 hover:bg-surface-container-high active:scale-90 transition-all">
               <Heart size={18} className="text-on-surface-variant transform group-hover/btn:scale-110 transition-transform duration-300" />

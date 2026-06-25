@@ -21,10 +21,21 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: '*'
-            allowedMethods: '*'
+            allowedOriginPatterns: '*'
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
             allowedHeaders: '*'
             exposedHeaders: 'X-Request-Id,X-User-Id,X-User-Roles'
+            allowCredentials: false
+      # Strip duplicate CORS headers that downstream services add on top of gateway's own headers.
+      # Without this, browser sees two Access-Control-Allow-Origin values and blocks the response.
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin, RETAIN_FIRST
       routes:
         - id: auth-service
           uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
@@ -66,6 +77,10 @@ spring:
           uri: ${AI_SERVICE_URL:http://ai-agent-service:8085}
           predicates:
             - Path=/api/admin/ai/**
+        - id: admin-users-service
+          uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+          predicates:
+            - Path=/api/admin/users/**
         - id: internal-block
           uri: no://op
           predicates:

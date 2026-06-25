@@ -2,11 +2,14 @@ import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ProductCard from '../../components/customer/ProductCard'
 import ProductFilter from '../../components/customer/ProductFilter'
-import { getProducts } from '../../features/products/product.api'
+import { getCategories, getProducts } from '../../features/products/product.api'
 
 export default function ProductCatalogPage() {
   const [searchParams] = useSearchParams()
   const [products, setProducts] = useState([])
+  const [categories, setCategories] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [filters, setFilters] = useState({
     category: searchParams.get('category') || null,
     minPrice: null,
@@ -19,8 +22,32 @@ export default function ProductCatalogPage() {
   const perPage = 8
 
   useEffect(() => {
-    getProducts(filters).then(setProducts)
+    let cancelled = false
+    setLoading(true)
+    setError('')
+
+    getProducts({ ...filters, size: 100 })
+      .then((result) => {
+        if (!cancelled) {
+          setProducts(result)
+          setCurrentPage(1)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || 'Unable to load products.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [filters])
+
+  useEffect(() => {
+    getCategories().then(setCategories).catch(() => setCategories([]))
+  }, [])
 
   const sortedProducts = useMemo(() => {
     const sorted = [...products]
@@ -51,22 +78,32 @@ export default function ProductCatalogPage() {
       </div>
 
       <div className="flex gap-8">
-        <ProductFilter filters={filters} onFilterChange={setFilters} />
+        <ProductFilter filters={filters} onFilterChange={setFilters} categories={categories} />
 
         <div className="flex-1">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {paginatedProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-
-          {sortedProducts.length === 0 && (
+          {loading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6" aria-busy="true">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div key={idx} className="aspect-[3/4] rounded-[24px] bg-surface-container animate-pulse" />
+              ))}
+            </div>
+          ) : error ? (
+            <div role="alert" className="rounded-xl border border-error/20 bg-error-container/30 p-6 text-sm text-error">
+              {error}
+            </div>
+          ) : sortedProducts.length === 0 ? (
             <div className="text-center py-20">
               <p className="text-on-surface-variant">No products found matching your filters.</p>
             </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {paginatedProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
           )}
 
-          {totalPages > 1 && (
+          {!loading && !error && totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-12">
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                 <button

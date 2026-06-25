@@ -1,31 +1,27 @@
 import { Link } from 'react-router-dom'
-import { ShoppingBag, Sparkles, ArrowRight } from 'lucide-react'
-import Badge from '../../components/common/Badge'
+import { ShoppingBag, ArrowRight } from 'lucide-react'
 import CartItem from '../../components/customer/CartItem'
-import useCartStore from '../../features/cart/cart.store'
 import { useCart } from '../../hooks/useCart'
 import { formatCurrency } from '../../utils/formatCurrency'
-import { mockProducts } from '../../data/mockProducts'
 
 export default function CartPage() {
-  const { items, subtotal } = useCart()
-  const addItem = useCartStore((s) => s.addItem)
+  const { items, subtotal, loading, error } = useCart()
 
   const shipping = subtotal > 200 ? 0 : 15
   const tax = Math.round(subtotal * 0.08 * 100) / 100
   const total = subtotal + shipping + tax
 
-  const curatedOutfit = [mockProducts[0], mockProducts[4]]
-
-  const handleAddOutfit = () => {
-    curatedOutfit.forEach((p) => addItem(p))
-  }
-
   return (
     <div className="max-w-[1440px] mx-auto px-6 md:px-16 py-8">
       <h1 className="font-headline-md text-primary mb-8">Shopping Bag</h1>
 
-      {items.length === 0 ? (
+      {loading && items.length === 0 ? (
+        <div className="py-20 text-center text-on-surface-variant">Loading your bag...</div>
+      ) : error ? (
+        <div role="alert" className="rounded-xl border border-error/20 bg-error-container/30 p-6 text-sm text-error">
+          {error}
+        </div>
+      ) : items.length === 0 ? (
         <div className="text-center py-20">
           <ShoppingBag size={48} className="text-on-surface-variant/30 mx-auto mb-4" />
           <p className="text-on-surface-variant mb-6">Your bag is empty</p>
@@ -37,30 +33,6 @@ export default function CartPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Cart Items */}
           <div className="lg:col-span-8 space-y-6">
-            {/* AI Curated Outfit */}
-            <div className="bg-ai-lavender/20 rounded-2xl p-5 border border-ai-lavender/30">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles size={16} className="text-tertiary" />
-                <span className="font-label-sm uppercase text-on-surface-variant">AI Curated Outfit</span>
-                <Badge variant="ai">Recommended</Badge>
-              </div>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                {curatedOutfit.map((product) => (
-                  <div key={product.id} className="flex gap-3 bg-surface-container-lowest rounded-xl p-3">
-                    <img src={product.images[0]} alt={product.name} className="w-16 h-20 object-cover rounded-lg" />
-                    <div>
-                      <p className="text-sm font-medium text-primary">{product.name}</p>
-                      <p className="text-xs text-on-surface-variant">{product.material}</p>
-                      <p className="text-sm font-semibold text-primary mt-1">${product.price}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <button onClick={handleAddOutfit} className="w-full bg-tertiary-container text-on-primary rounded-lg py-2 text-sm font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
-                <Sparkles size={14} /> Add Outfit to Bag
-              </button>
-            </div>
-
             {/* Cart Items */}
             <div>
               <h2 className="font-title-lg text-primary mb-4">Bag Items ({items.length})</h2>

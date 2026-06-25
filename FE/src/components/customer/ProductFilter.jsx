@@ -13,8 +13,11 @@ const colorPalette = [
   { name: 'Terracotta', value: '#E2725B' },
 ]
 
-export default function ProductFilter({ filters, onFilterChange }) {
+export default function ProductFilter({ filters, onFilterChange, categories = [] }) {
   const [selectedColors, setSelectedColors] = useState([])
+  const displayCategories = categories.length > 0
+    ? categories.map((cat) => ({ label: cat.name, value: String(cat.id) }))
+    : PRODUCT_CATEGORIES.map((cat) => ({ label: cat, value: cat }))
 
   const toggleColor = (color) => {
     const updated = selectedColors.includes(color)
@@ -29,15 +32,15 @@ export default function ProductFilter({ filters, onFilterChange }) {
       <div>
         <h3 className="font-label-md uppercase tracking-wider text-primary mb-3">Categories</h3>
         <div className="space-y-2">
-          {PRODUCT_CATEGORIES.map((cat) => (
-            <label key={cat} className="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
+          {displayCategories.map((cat) => (
+            <label key={cat.value} className="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
               <input
                 type="checkbox"
-                checked={filters.category === cat}
-                onChange={() => onFilterChange({ ...filters, category: filters.category === cat ? null : cat })}
+                checked={filters.category === cat.value}
+                onChange={() => onFilterChange({ ...filters, category: filters.category === cat.value ? null : cat.value })}
                 className="w-4 h-4 rounded border-outline-variant accent-primary"
               />
-              {cat}
+              {cat.label}
             </label>
           ))}
         </div>

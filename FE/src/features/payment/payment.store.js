@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { createOrder } from '../orders/order.api'
 
 const usePaymentStore = create((set, get) => ({
   status: 'idle',
@@ -16,49 +17,58 @@ const usePaymentStore = create((set, get) => ({
 
     const steps = [
       { label: 'Creating order', status: 'pending' },
-      { label: 'Reserving stock', status: 'pending' },
-      { label: 'Processing payment', status: 'pending' },
+      { label: method === 'cod' ? 'Setting payment on delivery' : 'Processing payment', status: 'pending' },
       { label: 'Confirming order', status: 'pending' },
     ]
     set({ steps: [...steps] })
 
-    for (let i = 0; i < steps.length; i++) {
-      set({ currentStep: i })
+    const markProcessing = (index) => {
+      set({ currentStep: index })
       const updated = [...get().steps]
-      updated[i] = { ...updated[i], status: 'processing' }
+      updated[index] = { ...updated[index], status: 'processing' }
       set({ steps: [...updated] })
+    }
 
-      await new Promise((r) => setTimeout(r, 800 + Math.random() * 600))
-
-      if (i === 2 && method === 'online_simulated' && orderData?.simulateFailure) {
-        const failed = [...get().steps]
-        failed[i] = { ...failed[i], status: 'failed' }
-        set({ steps: [...failed], status: 'failed', error: 'Payment was declined. Your card was not charged.' })
-        return { success: false }
-      }
-
+    const markDone = (index) => {
       const done = [...get().steps]
-      done[i] = { ...done[i], status: 'completed' }
+      done[index] = { ...done[index], status: 'completed' }
       set({ steps: [...done] })
     }
 
-    const order = {
-      id: `ORD-${Date.now()}`,
-      date: new Date().toISOString(),
-      status: 'processing',
-      items: orderData.items,
-      total: orderData.total,
-      timeline: [
-        { status: 'pending', date: new Date().toISOString(), completed: true },
-        { status: 'confirmed', date: new Date().toISOString(), completed: true },
-        { status: 'processing', date: new Date().toISOString(), completed: true },
-        { status: 'shipped', date: null, completed: false },
-        { status: 'delivered', date: null, completed: false },
-      ],
+    const markFailed = (index, message) => {
+      const failed = [...get().steps]
+      failed[index] = { ...failed[index], status: 'failed' }
+      set({ steps: [...failed], status: 'failed', error: message })
     }
 
-    set({ status: 'success', lastOrder: order })
-    return { success: true, order }
+    try {
+      markProcessing(0)
+      const shippingAddress = orderData.shippingAddress
+        || [orderData.address?.line1, orderData.address?.line2].filter(Boolean).join(', ')
+
+      const transactionId = method === 'online_simulated'
+        ? (crypto.randomUUID?.() ?? `txn_${Date.now()}`)
+        : undefined
+
+      const order = await createOrder({
+        shippingAddress,
+        paymentMethod: method,
+        ...(transactionId && { transactionId }),
+      })
+      markDone(0)
+
+      markProcessing(1)
+      markDone(1)
+
+      markProcessing(2)
+      markDone(2)
+
+      set({ status: 'success', lastOrder: order })
+      return { success: true, order }
+    } catch (err) {
+      markFailed(Math.max(get().currentStep, 0), err.message || 'Unable to place order.')
+      return { success: false }
+    }
   },
 
   reset: () => set({ status: 'idle', steps: [], currentStep: -1, error: null }),

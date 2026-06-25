@@ -1,11 +1,9 @@
 package com.stylemind.auth.service;
 
-import com.stylemind.auth.dto.LoginRequest;
-import com.stylemind.auth.dto.RegisterRequest;
-import com.stylemind.auth.dto.AuthResponse;
-import com.stylemind.auth.dto.UserResponse;
+import com.stylemind.auth.dto.*;
 import com.stylemind.auth.entity.User;
 import com.stylemind.auth.repository.UserRepository;
+import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.security.JwtUtil;
 import com.stylemind.common.security.UserPrincipal;
@@ -13,6 +11,9 @@ import com.stylemind.common.util.StringUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,7 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -100,6 +101,57 @@ public class AuthService implements UserDetailsService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
         return buildUserResponse(user);
+    }
+
+    // ─── Admin operations ────────────────────────────────────────────────────
+
+    @Transactional(readOnly = true)
+    public PageResponse<AdminUserResponse> listUsers(int page, int size, String search) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<AdminUserResponse> result = userRepository
+                .findAllWithSearch(search, pageable)
+                .map(this::buildAdminUserResponse);
+        return PageResponse.of(result);
+    }
+
+    @Transactional(readOnly = true)
+    public AdminUserResponse getUserById(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
+        return buildAdminUserResponse(user);
+    }
+
+    public AdminUserResponse changeUserRole(String userId, String requesterId, String newRole) {
+        if (userId.equals(requesterId)) {
+            throw new BusinessException("ADMIN_SELF_ROLE_CHANGE", "Không thể tự thay đổi role của mình", 400);
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
+        user.setRole(newRole);
+        return buildAdminUserResponse(userRepository.save(user));
+    }
+
+    public AdminUserResponse changeUserEnabled(String userId, String requesterId, Boolean enabled) {
+        if (userId.equals(requesterId)) {
+            throw new BusinessException("ADMIN_SELF_BAN", "Không thể tự ban chính mình", 400);
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
+        user.setEnabled(enabled);
+        return buildAdminUserResponse(userRepository.save(user));
+    }
+
+    private AdminUserResponse buildAdminUserResponse(User user) {
+        return AdminUserResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .role(user.getRole())
+                .provider(user.getProvider())
+                .enabled(user.getEnabled())
+                .createdAt(user.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
+                .updatedAt(user.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
+                .build();
     }
 
     private UserPrincipal buildUserPrincipal(User user) {

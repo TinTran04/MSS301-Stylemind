@@ -2,17 +2,31 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
 import useAuthStore from '../../features/auth/auth.store'
+import { registerUser } from '../../features/auth/auth.api'
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({ name: '', email: '', password: '' })
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
   const login = useAuthStore((s) => s.login)
+  const loading = useAuthStore((s) => s.loading)
+  const setLoading = useAuthStore((s) => s.setLoading)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    login({ id: '1', name: formData.name, email: formData.email, role: 'customer' })
-    navigate('/style-profile')
+    setError('')
+    setLoading(true)
+
+    try {
+      const session = await registerUser(formData)
+      login(session)
+      navigate('/style-profile')
+    } catch (err) {
+      setError(err.message || 'Unable to create your account.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -35,6 +49,7 @@ export default function RegisterPage() {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
                   className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
                   placeholder="Your name"
                 />
@@ -49,6 +64,7 @@ export default function RegisterPage() {
                   type="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
                   className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
                   placeholder="your@email.com"
                 />
@@ -63,6 +79,8 @@ export default function RegisterPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                  minLength={6}
                   className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 pr-10 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
                   placeholder="Create a password"
                 />
@@ -76,11 +94,18 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {error && (
+              <div role="alert" className="rounded-lg border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-error">
+                {error}
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase mt-8"
+              disabled={loading}
+              className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase mt-8 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Create Account
+              {loading ? 'Creating Account...' : 'Create Account'}
             </button>
 
             <div className="relative my-6">

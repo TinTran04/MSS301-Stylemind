@@ -11,34 +11,41 @@ export default function OrderTrackingPage() {
   const [orders, setOrders] = useState([])
   const [selectedTab, setSelectedTab] = useState('All')
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    getOrders().then((o) => {
-      setOrders(o)
-      if (o.length > 0) setSelectedOrder(o[0])
-    })
+    getOrders()
+      .then((o) => {
+        setOrders(o)
+        if (o.length > 0) setSelectedOrder(o[0])
+      })
+      .catch((err) => setError(err.message || 'Unable to load orders.'))
+      .finally(() => setLoading(false))
   }, [])
 
   const filteredOrders = selectedTab === 'All'
     ? orders
     : orders.filter((o) => o.status === selectedTab.toLowerCase())
 
-  const timelineSteps = [
-    { label: 'Pending', status: 'pending' },
-    { label: 'Confirmed', status: 'confirmed' },
-    { label: 'Processing', status: 'processing' },
-    { label: 'Shipped', status: 'shipped' },
-    { label: 'Delivered', status: 'delivered' },
-  ]
-
-  const getCurrentStepIndex = (order) => {
-    return order.timeline.findIndex((t) => !t.completed)
-  }
-
   return (
     <div className="max-w-[1440px] mx-auto px-6 md:px-16 py-8">
       <h1 className="font-headline-md text-primary mb-8">Order Tracking</h1>
 
+      {loading && <div className="py-20 text-center text-on-surface-variant">Loading orders...</div>}
+      {error && (
+        <div role="alert" className="rounded-xl border border-error/20 bg-error-container/30 p-6 text-sm text-error">
+          {error}
+        </div>
+      )}
+      {!loading && !error && orders.length === 0 && (
+        <div className="py-20 text-center">
+          <Package size={48} className="text-on-surface-variant/30 mx-auto mb-4" />
+          <p className="text-on-surface-variant">You do not have any orders yet.</p>
+        </div>
+      )}
+
+      {!loading && !error && orders.length > 0 && (
       <div className="flex gap-6">
         {/* Left: Order List */}
         <div className="w-full lg:w-5/12 space-y-4">
@@ -112,9 +119,7 @@ export default function OrderTrackingPage() {
               <div className="mb-8">
                 <div className="flex items-center justify-between relative">
                   <div className="absolute top-4 left-4 right-4 h-px bg-outline-variant/30" />
-                  {selectedOrder.timeline.map((step, idx) => {
-                    const stepIdx = timelineSteps.findIndex((s) => s.status === step.status)
-                    return (
+                  {selectedOrder.timeline.map((step, idx) => (
                       <div key={idx} className="relative flex flex-col items-center z-10">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
                           step.completed ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest border-2 border-outline-variant text-on-surface-variant'
@@ -123,8 +128,7 @@ export default function OrderTrackingPage() {
                         </div>
                         <span className="mt-2 text-[10px] text-on-surface-variant whitespace-nowrap">{step.label}</span>
                       </div>
-                    )
-                  })}
+                  ))}
                 </div>
               </div>
 
@@ -158,6 +162,7 @@ export default function OrderTrackingPage() {
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

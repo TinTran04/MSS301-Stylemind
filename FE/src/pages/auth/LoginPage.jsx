@@ -2,18 +2,32 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import useAuthStore from '../../features/auth/auth.store'
+import { loginUser } from '../../features/auth/auth.api'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
   const login = useAuthStore((s) => s.login)
+  const loading = useAuthStore((s) => s.loading)
+  const setLoading = useAuthStore((s) => s.setLoading)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    login({ id: '1', name: 'Guest User', email, role: 'customer' })
-    navigate('/')
+    setError('')
+    setLoading(true)
+
+    try {
+      const session = await loginUser(email, password)
+      login(session)
+      navigate('/')
+    } catch (err) {
+      setError(err.message || 'Unable to sign in. Please check your credentials.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -54,6 +68,7 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                   className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
                   placeholder="your@email.com"
                 />
@@ -70,6 +85,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  required
                   className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 pr-10 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
                   placeholder="Enter password"
                 />
@@ -88,11 +104,18 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {error && (
+              <div role="alert" className="rounded-lg border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-error">
+                {error}
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase"
+              disabled={loading}
+              className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Enter the Atelier
+              {loading ? 'Signing In...' : 'Enter the Atelier'}
             </button>
 
             <div className="relative my-6">

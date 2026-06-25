@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Mail, Sparkles, ShoppingBag } from 'lucide-react'
 import ProductCard from '../../components/customer/ProductCard'
-import { mockProducts } from '../../data/mockProducts'
+import { getProducts } from '../../features/products/product.api'
 
 const categories = [
   { name: 'Women', image: 'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=600&h=800&fit=crop', cols: 'col-span-2 row-span-2' },
@@ -13,9 +13,26 @@ const categories = [
 
 export default function HomePage() {
   const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    setProducts(mockProducts)
+    let cancelled = false
+
+    getProducts({ size: 8, sort: 'createdAt,desc' })
+      .then((result) => {
+        if (!cancelled) setProducts(result)
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || 'Unable to load products.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return (
@@ -107,11 +124,27 @@ export default function HomePage() {
             View All <ArrowRight size={14} />
           </Link>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {products.slice(0, 8).map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6" aria-busy="true">
+            {Array.from({ length: 4 }).map((_, idx) => (
+              <div key={idx} className="aspect-[3/4] rounded-[24px] bg-surface-container animate-pulse" />
+            ))}
+          </div>
+        ) : error ? (
+          <div role="alert" className="rounded-xl border border-error/20 bg-error-container/30 p-6 text-sm text-error">
+            {error}
+          </div>
+        ) : products.length === 0 ? (
+          <div className="rounded-xl border border-outline-variant/20 p-8 text-center text-on-surface-variant">
+            No products are available yet.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {products.slice(0, 8).map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Newsletter CTA */}

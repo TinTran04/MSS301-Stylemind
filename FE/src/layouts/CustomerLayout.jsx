@@ -16,7 +16,7 @@ export default function CustomerLayout() {
   const location = useLocation()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { itemCount } = useCart()
+  const { itemCount, loadCart } = useCart()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -27,6 +27,10 @@ export default function CustomerLayout() {
   useEffect(() => {
     setMobileOpen(false)
   }, [location])
+
+  useEffect(() => {
+    loadCart()
+  }, [loadCart])
 
   return (
     <div className="min-h-screen bg-background">
