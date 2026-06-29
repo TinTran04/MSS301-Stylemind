@@ -46,7 +46,7 @@ const usePaymentStore = create((set, get) => ({
       const shippingAddress = orderData.shippingAddress
         || [orderData.address?.line1, orderData.address?.line2].filter(Boolean).join(', ')
 
-      const transactionId = method === 'online_simulated'
+      const transactionId = method === 'sandbox'
         ? (crypto.randomUUID?.() ?? `txn_${Date.now()}`)
         : undefined
 

@@ -391,7 +391,7 @@ fix/*     → nhánh sửa lỗi
 Ví dụ:
 
 ```bash
-git checkout develop
+git checkout dev
 git checkout -b feature/frontend-ai-stylist
 ```
 

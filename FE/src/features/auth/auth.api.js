@@ -54,3 +54,15 @@ export async function getCurrentUser() {
   const response = await apiClient.get(`${ENDPOINTS.AUTH}/me`)
   return mapUser(response)
 }
+
+export async function forgotPassword(email) {
+  return apiClient.post(`${ENDPOINTS.AUTH}/forgot-password`, { email })
+}
+
+export async function verifyResetOTP(email, otp) {
+  return apiClient.post(`${ENDPOINTS.AUTH}/verify-otp`, { email, otp })
+}
+
+export async function resetPassword(email, newPassword) {
+  return apiClient.post(`${ENDPOINTS.AUTH}/reset-password`, { email, newPassword })
+}

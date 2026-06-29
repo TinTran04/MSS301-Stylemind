@@ -4,6 +4,8 @@ export const ENDPOINTS = {
   AUTH: `${API_GATEWAY}/auth`,
   USERS: `${API_GATEWAY}/users`,
   ADMIN_USERS: `${API_GATEWAY}/admin/users`,
+  ADMIN_PRODUCTS: `${API_GATEWAY}/admin/products`,
+  ADMIN_ORDERS: `${API_GATEWAY}/admin/orders`,
   CATEGORIES: `${API_GATEWAY}/categories`,
   PRODUCTS: `${API_GATEWAY}/products`,
   INVENTORY: `${API_GATEWAY}/inventory`,

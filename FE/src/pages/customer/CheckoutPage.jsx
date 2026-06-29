@@ -8,7 +8,7 @@ import { formatCurrency } from '../../utils/formatCurrency'
 
 const paymentMethods = [
   { id: 'cod', label: 'Cash on Delivery', icon: Banknote, description: 'Pay when your order arrives' },
-  { id: 'online_simulated', label: 'Simulated Online Payment', icon: CreditCard, description: 'Test card ****4242' },
+  { id: 'sandbox', label: 'SANDBOX payment', icon: CreditCard, description: 'Test card ****4242' },
 ]
 
 export default function CheckoutPage() {
@@ -245,7 +245,7 @@ export default function CheckoutPage() {
                 })}
               </div>
 
-              {method === 'online_simulated' && (
+              {method === 'sandbox' && (
                 <div className="mt-4 bg-surface-container-low rounded-xl p-4">
                   <p className="text-xs text-on-surface-variant">
                     A secure transaction ID will be generated and processed by our simulated payment gateway.
