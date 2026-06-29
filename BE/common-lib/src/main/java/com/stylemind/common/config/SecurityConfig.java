@@ -1,9 +1,7 @@
 package com.stylemind.common.config;
 
+import com.stylemind.common.security.HeaderAuthenticationFilter;
 import com.stylemind.common.security.InternalAuthFilter;
-import com.stylemind.common.security.JwtAuthenticationFilter;
-import com.stylemind.common.security.JwtUtil;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -12,7 +10,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -29,16 +26,12 @@ import java.util.List;
 public class SecurityConfig {
 
     private final InternalAuthFilter internalAuthFilter;
+    private final HeaderAuthenticationFilter headerAuthenticationFilter;
 
-    public SecurityConfig(InternalAuthFilter internalAuthFilter) {
+    public SecurityConfig(InternalAuthFilter internalAuthFilter,
+                          HeaderAuthenticationFilter headerAuthenticationFilter) {
         this.internalAuthFilter = internalAuthFilter;
-    }
-
-    @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter(
-            JwtUtil jwtUtil,
-            ObjectProvider<UserDetailsService> userDetailsServiceProvider) {
-        return new JwtAuthenticationFilter(jwtUtil, userDetailsServiceProvider);
+        this.headerAuthenticationFilter = headerAuthenticationFilter;
     }
 
     @Bean
@@ -47,7 +40,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -56,13 +49,20 @@ public class SecurityConfig {
                         // Browser sends OPTIONS preflight with no auth header — must pass before JWT filter
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/swagger-ui/index.html").permitAll()
-                        .requestMatchers("/api/auth/login", "/api/auth/register").permitAll()
+                        .requestMatchers(
+                                "/api/auth/login",
+                                "/api/auth/register",
+                                "/api/auth/password/setup",
+                                "/api/auth/forgot-password",
+                                "/api/auth/forgot-password/verify",
+                                "/api/auth/forgot-password/reset"
+                        ).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**").permitAll()
                         .requestMatchers("/api/cart/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(internalAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(headerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

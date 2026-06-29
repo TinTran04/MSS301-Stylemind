@@ -68,6 +68,16 @@ public class CartController {
         return ResponseEntity.ok(ApiResponse.success("Xóa sản phẩm khỏi giỏ hàng thành công", null));
     }
 
+    @DeleteMapping
+    public ResponseEntity<ApiResponse<Void>> clearCart(
+            @AuthenticationPrincipal UserPrincipal principal,
+            HttpServletRequest request) {
+        String userId = principal != null ? principal.getUserId() : null;
+        String guestSessionId = getGuestSessionId(request);
+        cartService.clearCart(userId, guestSessionId);
+        return ResponseEntity.ok(ApiResponse.success("Xóa toàn bộ giỏ hàng thành công", null));
+    }
+
     @PostMapping("/merge")
     public ResponseEntity<ApiResponse<CartResponse>> mergeCart(
             @AuthenticationPrincipal UserPrincipal principal,

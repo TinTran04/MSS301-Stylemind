@@ -25,5 +25,6 @@ public class ProductVariantRequest {
     @Size(max = 50, message = "Chất liệu tối đa 50 ký tự")
     private String material;
 
+    @DecimalMin(value = "0.0", inclusive = false, message = "Giá thay thế phải lớn hơn 0")
     private BigDecimal priceOverride;
 }

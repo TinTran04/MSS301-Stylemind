@@ -150,6 +150,16 @@ public class CartService {
         return getCart(userId, null);
     }
 
+    public void clearCart(String userId, String guestSessionId) {
+        String cartId = getCartId(userId, guestSessionId);
+
+        List<CartItem> items = cartItemRepository.findByCartId(cartId);
+        if (!items.isEmpty()) {
+            cartItemRepository.deleteAll(items);
+        }
+        cartRepository.findById(cartId).ifPresent(cartRepository::delete);
+    }
+
     private CartResponse buildCartResponse(ShoppingCart cart, List<CartItem> items) {
         List<CartItemResponse> itemResponses = items.stream().map(item ->
             CartItemResponse.builder()

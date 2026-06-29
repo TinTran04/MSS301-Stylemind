@@ -82,14 +82,14 @@ public class OrderService {
         order.setOrderStatus("FULFILLED");
         order = orderRepository.save(order);
 
-        // FIXME(H2): cart is NOT actually cleared here. The previous code called
-        // mergeCart with an empty guestSessionId, which cart-service treats as a
-        // no-op (no "guest_" cart exists, so it returns early without touching the
-        // user cart). cart-service needs a real "clear cart" endpoint
-        // (e.g. DELETE /api/cart) exposed on CartClient and called here.
-        // See BE/docs/ARCHITECTURE_AND_QUALITY_REVIEW.md (H2). Until then the
-        // customer's cart still contains the purchased items after checkout.
-        log.warn("Cart not cleared after order {} — no clear-cart endpoint wired (see H2)", orderId);
+        // Clear the user's cart now that the order is fulfilled (saga step 5).
+        // Best-effort: a clear failure must not fail an already-paid, fulfilled order —
+        // the items are persisted on the order, so the cart is just stale UI state.
+        try {
+            cartClient.clearCart(authHeader);
+        } catch (Exception ex) {
+            log.warn("Failed to clear cart after order {} — cart may still show purchased items", orderId, ex);
+        }
 
         return buildOrderResponse(order, orderItems);
     }

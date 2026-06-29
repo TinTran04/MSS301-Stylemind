@@ -22,7 +22,7 @@ import java.math.BigDecimal;
 @RestController
 @RequestMapping("/api/products")
 @RequiredArgsConstructor
-public class ProductController {
+public class PublicProductController {
 
     private final ProductService productService;
 
@@ -52,51 +52,9 @@ public class ProductController {
         return ResponseEntity.ok(ApiResponse.success("Lấy chi tiết sản phẩm thành công", product));
     }
 
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductResponse>> createProduct(@Valid @RequestBody ProductRequest request) {
-        ProductResponse product = productService.createProduct(request);
-        return ResponseEntity.ok(ApiResponse.success("Tạo sản phẩm thành công", product));
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
-            @PathVariable String id, 
-            @Valid @RequestBody ProductRequest request) {
-        ProductResponse product = productService.updateProduct(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật sản phẩm thành công", product));
-    }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable String id) {
-        productService.deleteProduct(id);
-        return ResponseEntity.ok(ApiResponse.success("Xóa sản phẩm thành công", null));
-    }
-
-    @PostMapping("/{productId}/variants")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductVariantResponse>> addVariant(
-            @PathVariable String productId,
-            @Valid @RequestBody ProductVariantRequest request) {
-        ProductVariantResponse variant = productService.addVariant(productId, request);
-        return ResponseEntity.ok(ApiResponse.success("Thêm biến thể thành công", variant));
-    }
-
     @GetMapping("/{productId}/variants")
     public ResponseEntity<ApiResponse<java.util.List<ProductVariantResponse>>> getVariants(@PathVariable String productId) {
         java.util.List<ProductVariantResponse> variants = productService.getVariants(productId);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách biến thể thành công", variants));
-    }
-
-    @PostMapping(value = "/{productId}/images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<ProductImageResponse>> uploadImage(
-            @PathVariable String productId,
-            @RequestPart("file") MultipartFile file,
-            @RequestParam(defaultValue = "false") boolean isPrimary) {
-        ProductImageResponse image = productService.uploadImage(productId, file, isPrimary);
-        return ResponseEntity.ok(ApiResponse.success("Tải ảnh lên thành công", image));
     }
 }

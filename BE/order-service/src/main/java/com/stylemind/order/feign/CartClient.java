@@ -18,4 +18,7 @@ public interface CartClient {
     ApiResponse<CartResponse> mergeCart(
             @RequestHeader("Authorization") String authHeader,
             @RequestBody CartMergeRequest request);
+
+    @DeleteMapping("/api/cart")
+    ApiResponse<Void> clearCart(@RequestHeader("Authorization") String authHeader);
 }

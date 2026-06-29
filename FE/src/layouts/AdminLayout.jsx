@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Link, useLocation, Outlet } from 'react-router-dom'
+import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, Warehouse, ShoppingCart, Users, UserCog,
-  Brain, Network, BarChart3, Settings, Bell, Search, LogOut, ChevronLeft, ChevronRight
+  Brain, Network, BarChart3, Settings, Bell, Search, LogOut, ChevronLeft, ChevronRight, Store
 } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
+import { getInitials } from '../features/auth/auth.utils'
 
 const sidebarLinks = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -12,6 +14,7 @@ const sidebarLinks = [
   { to: '/admin/orders', label: 'Orders', icon: ShoppingCart },
   { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/users', label: 'User Management', icon: UserCog },
+  { to: '/admin/notifications', label: 'Notifications', icon: Bell },
   { to: '/admin/ai-pipeline', label: 'AI Pipeline', icon: Brain },
   { to: '/admin/knowledge-graph', label: 'Knowledge Graph', icon: Network },
   { to: '/admin/recommendations', label: 'Recommendations', icon: BarChart3 },
@@ -20,7 +23,17 @@ const sidebarLinks = [
 
 export default function AdminLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
+  const { user, logout } = useAuth()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
+  const initials = getInitials(user?.name || user?.fullName || user?.email)
+  const displayName = user?.name || user?.fullName || user?.email || 'Admin'
 
   return (
     <div className="min-h-screen bg-background">
@@ -46,19 +59,19 @@ export default function AdminLayout() {
         <div className={`p-4 border-b border-outline-variant/20 ${collapsed ? 'px-2' : ''}`}>
           {!collapsed && (
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-sm font-semibold">
-                A
+              <div className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center text-sm font-semibold">
+                {initials}
               </div>
               <div className="overflow-hidden">
-                <p className="text-sm font-medium text-on-surface truncate">Admin User</p>
-                <p className="text-xs text-on-surface-variant truncate">Store Owner</p>
+                <p className="text-sm font-medium text-on-surface truncate">{displayName}</p>
+                <p className="text-xs text-on-surface-variant truncate">Administrator</p>
               </div>
             </div>
           )}
           {collapsed && (
             <div className="flex justify-center">
-              <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-sm font-semibold">
-                A
+              <div className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center text-sm font-semibold">
+                {initials}
               </div>
             </div>
           )}
@@ -86,19 +99,30 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        <div className={`p-3 border-t border-outline-variant/20 ${collapsed ? 'px-2' : ''}`}>
+        <div className={`p-3 border-t border-outline-variant/20 space-y-1 ${collapsed ? 'px-2' : ''}`}>
           <Link
             to="/"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm no-underline text-on-surface-variant hover:bg-surface-container-high transition-all ${
               collapsed ? 'justify-center' : ''
             }`}
+            title={collapsed ? 'Back to Store' : undefined}
           >
-            <LogOut size={18} />
+            <Store size={18} />
             {!collapsed && <span>Back to Store</span>}
           </Link>
           <button
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-error hover:bg-error-container/20 transition-all ${
+              collapsed ? 'justify-center' : ''
+            }`}
+            title={collapsed ? 'Sign Out' : undefined}
+          >
+            <LogOut size={18} />
+            {!collapsed && <span>Sign Out</span>}
+          </button>
+          <button
             onClick={() => setCollapsed(!collapsed)}
-            className="w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-all mt-1"
+            className="w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-all"
           >
             {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
             {!collapsed && <span>Collapse</span>}
@@ -121,12 +145,23 @@ export default function AdminLayout() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button className="p-2 rounded-full hover:bg-surface-container-high relative transition-colors">
+            <Link
+              to="/admin/notifications"
+              className="p-2 rounded-full hover:bg-surface-container-high relative transition-colors"
+            >
               <Bell size={20} className="text-on-surface-variant" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-error hover:bg-error-container/20 transition-colors"
+              title="Sign Out"
+            >
+              <LogOut size={16} />
+              <span className="hidden md:inline">Sign Out</span>
             </button>
-            <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container text-sm font-semibold cursor-pointer">
-              A
+            <div className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center text-sm font-semibold">
+              {initials}
             </div>
           </div>
         </header>

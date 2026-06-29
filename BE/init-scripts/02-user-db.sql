@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS delivery_addresses (
     address_line TEXT NOT NULL,
     city VARCHAR(100) NOT NULL,
     is_default BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes

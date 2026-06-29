@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import CustomerLayout from '../layouts/CustomerLayout'
 import AdminLayout from '../layouts/AdminLayout'
 import AuthLayout from '../layouts/AuthLayout'
+import { RequireAuth, RequireAdmin } from './ProtectedRoute'
 
 import HomePage from '../pages/customer/HomePage'
 import ProductCatalogPage from '../pages/customer/ProductCatalogPage'
@@ -24,6 +25,7 @@ import AIPipelinePage from '../pages/admin/AIPipelinePage'
 import KnowledgeGraphPage from '../pages/admin/KnowledgeGraphPage'
 import RecommendationAnalyticsPage from '../pages/admin/RecommendationAnalyticsPage'
 import AdminSettingsPage from '../pages/admin/AdminSettingsPage'
+import NotificationManagementPage from '../pages/admin/NotificationManagementPage'
 
 export default function AppRouter() {
   return (
@@ -42,22 +44,28 @@ export default function AppRouter() {
         <Route path="/products/:id" element={<ProductDetailPage />} />
         <Route path="/ai-stylist" element={<AIStylistChatPage />} />
         <Route path="/cart" element={<CartPage />} />
-        <Route path="/checkout" element={<CheckoutPage />} />
-        <Route path="/orders" element={<OrderTrackingPage />} />
+        {/* Checkout & order tracking require a signed-in user */}
+        <Route element={<RequireAuth />}>
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/orders" element={<OrderTrackingPage />} />
+        </Route>
       </Route>
 
-      {/* Admin Routes */}
-      <Route element={<AdminLayout />}>
-        <Route path="/admin" element={<AdminDashboardPage />} />
-        <Route path="/admin/products" element={<ProductManagementPage />} />
-        <Route path="/admin/inventory" element={<InventoryManagementPage />} />
-        <Route path="/admin/orders" element={<OrderManagementPage />} />
-        <Route path="/admin/customers" element={<CustomerManagementPage />} />
-        <Route path="/admin/users" element={<UserManagementPage />} />
-        <Route path="/admin/ai-pipeline" element={<AIPipelinePage />} />
-        <Route path="/admin/knowledge-graph" element={<KnowledgeGraphPage />} />
-        <Route path="/admin/recommendations" element={<RecommendationAnalyticsPage />} />
-        <Route path="/admin/settings" element={<AdminSettingsPage />} />
+      {/* Admin Routes — admin role only */}
+      <Route element={<RequireAdmin />}>
+        <Route element={<AdminLayout />}>
+          <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/products" element={<ProductManagementPage />} />
+          <Route path="/admin/inventory" element={<InventoryManagementPage />} />
+          <Route path="/admin/orders" element={<OrderManagementPage />} />
+          <Route path="/admin/customers" element={<CustomerManagementPage />} />
+          <Route path="/admin/users" element={<UserManagementPage />} />
+          <Route path="/admin/ai-pipeline" element={<AIPipelinePage />} />
+          <Route path="/admin/knowledge-graph" element={<KnowledgeGraphPage />} />
+          <Route path="/admin/recommendations" element={<RecommendationAnalyticsPage />} />
+          <Route path="/admin/notifications" element={<NotificationManagementPage />} />
+          <Route path="/admin/settings" element={<AdminSettingsPage />} />
+        </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

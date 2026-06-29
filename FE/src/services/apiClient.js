@@ -94,6 +94,13 @@ export function setAuthSession(session) {
 export function clearAuthSession() {
   localStorage.removeItem(AUTH_TOKEN_KEY)
   localStorage.removeItem(AUTH_USER_KEY)
+  sessionStorage.clear()
+  document.cookie.split(';').forEach((cookie) => {
+    const name = cookie.split('=')[0].trim()
+    if (name) {
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`
+    }
+  })
 }
 
 export function getGuestSessionId() {

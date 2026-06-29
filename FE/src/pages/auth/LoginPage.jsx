@@ -22,7 +22,7 @@ export default function LoginPage() {
     try {
       const session = await loginUser(email, password)
       login(session)
-      navigate('/')
+      navigate(session.user?.role === 'admin' ? '/admin' : '/')
     } catch (err) {
       setError(err.message || 'Unable to sign in. Please check your credentials.')
     } finally {

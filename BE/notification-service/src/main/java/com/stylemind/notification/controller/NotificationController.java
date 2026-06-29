@@ -32,9 +32,11 @@ public class NotificationController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<NotificationResponse>>> getNotifications(
-            @RequestParam String userId,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String type,
             @PageableDefault(size = 20) Pageable pageable) {
-        Page<NotificationResponse> notifications = notificationService.getNotifications(userId, pageable);
+        Page<NotificationResponse> notifications = notificationService.getNotifications(userId, status, type, pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách thông báo thành công", notifications));
     }
 

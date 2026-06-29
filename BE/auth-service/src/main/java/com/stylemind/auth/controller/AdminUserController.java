@@ -1,6 +1,7 @@
 package com.stylemind.auth.controller;
 
 import com.stylemind.auth.dto.AdminUserResponse;
+import com.stylemind.auth.dto.AdminCreateUserRequest;
 import com.stylemind.auth.dto.ChangeEnabledRequest;
 import com.stylemind.auth.dto.ChangeRoleRequest;
 import com.stylemind.auth.service.AuthService;
@@ -15,21 +16,32 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin/users")
+@RequestMapping("/api/admin/accounts")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
 
     private final AuthService authService;
 
+    @PostMapping
+    public ResponseEntity<ApiResponse<AdminUserResponse>> createUser(
+            @Valid @RequestBody AdminCreateUserRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        AdminUserResponse user = authService.createUserByAdmin(request, principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.success("Tạo tài khoản thành công và đã gửi email thiết lập mật khẩu", user));
+    }
+
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<AdminUserResponse>>> listUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String search) {
-        PageResponse<AdminUserResponse> result = authService.listUsers(page, size, search);
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Boolean enabled) {
+        PageResponse<AdminUserResponse> result = authService.listUsers(page, size, search, role, enabled);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách người dùng thành công", result));
     }
+
 
     @GetMapping("/{userId}")
     public ResponseEntity<ApiResponse<AdminUserResponse>> getUserById(@PathVariable String userId) {
@@ -37,7 +49,7 @@ public class AdminUserController {
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin người dùng thành công", user));
     }
 
-    @PutMapping("/{userId}/role")
+    @PatchMapping("/{userId}/role")
     public ResponseEntity<ApiResponse<AdminUserResponse>> changeRole(
             @PathVariable String userId,
             @Valid @RequestBody ChangeRoleRequest request,
@@ -46,7 +58,7 @@ public class AdminUserController {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật role thành công", user));
     }
 
-    @PutMapping("/{userId}/enabled")
+    @PatchMapping("/{userId}/status")
     public ResponseEntity<ApiResponse<AdminUserResponse>> changeEnabled(
             @PathVariable String userId,
             @Valid @RequestBody ChangeEnabledRequest request,

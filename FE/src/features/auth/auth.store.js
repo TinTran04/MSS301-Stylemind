@@ -14,8 +14,9 @@ const useAuthStore = create((set) => ({
   login: (sessionOrUser) => {
     const user = sessionOrUser?.user || sessionOrUser
     const token = sessionOrUser?.token || getAuthToken()
+    const role = user?.role?.toLowerCase() || null
     setAuthSession({ user, token })
-    set({ user, token, isAuthenticated: Boolean(user && token), role: user?.role || null })
+    set({ user, token, isAuthenticated: Boolean(user && token), role })
   },
   logout: () => {
     clearAuthSession()
@@ -23,7 +24,7 @@ const useAuthStore = create((set) => ({
   },
   setUser: (user) => {
     setAuthSession({ user, token: getAuthToken() })
-    set({ user, role: user?.role || null })
+    set({ user, role: user?.role?.toLowerCase() || null })
   },
   setLoading: (loading) => set({ loading }),
 }))

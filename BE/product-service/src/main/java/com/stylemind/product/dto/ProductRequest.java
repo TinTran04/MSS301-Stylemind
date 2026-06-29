@@ -31,7 +31,7 @@ public class ProductRequest {
     @Size(max = 20, message = "Mùa tối đa 20 ký tự")
     private String seasonalProperty;
 
-    @Size(max = 20, message = "Trạng thái tối đa 20 ký tự")
+    @Pattern(regexp = "ACTIVE|INACTIVE|DISCONTINUED", message = "Trạng thái phải là ACTIVE, INACTIVE hoặc DISCONTINUED")
     @Builder.Default
     private String status = "ACTIVE";
 }

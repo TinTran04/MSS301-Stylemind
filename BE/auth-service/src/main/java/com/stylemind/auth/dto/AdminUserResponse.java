@@ -15,6 +15,7 @@ public class AdminUserResponse {
     private String role;
     private String provider;
     private Boolean enabled;
+    private Boolean passwordSetupRequired;
     private Instant createdAt;
     private Instant updatedAt;
 }

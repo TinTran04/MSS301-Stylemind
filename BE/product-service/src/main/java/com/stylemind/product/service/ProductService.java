@@ -38,6 +38,10 @@ public class ProductService {
 
     // Product CRUD
     public ProductResponse createProduct(ProductRequest request) {
+        if (request.getCategoryId() != null && !categoryRepository.existsById(request.getCategoryId())) {
+            throw new BusinessException("CATEGORY_NOT_FOUND", "Danh mục không tồn tại", 400);
+        }
+        
         Product product = Product.builder()
                 .id(StringUtil.generateUniqueId())
                 .categoryId(request.getCategoryId())
@@ -58,6 +62,10 @@ public class ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
 
+        if (request.getCategoryId() != null && !categoryRepository.existsById(request.getCategoryId())) {
+            throw new BusinessException("CATEGORY_NOT_FOUND", "Danh mục không tồn tại", 400);
+        }
+
         product.setCategoryId(request.getCategoryId());
         product.setName(request.getName());
         product.setDescription(request.getDescription());
@@ -75,46 +83,39 @@ public class ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
         
-        // Delete images from S3
-        List<ProductImage> images = imageRepository.findByProductId(id);
-        for (ProductImage img : images) {
-            try {
-                String key = extractS3Key(img.getImageUrl());
-                s3Client.deleteObject(b -> b.bucket(bucket).key(key));
-            } catch (Exception e) {
-                log.warn("Failed to delete image from S3: {}", img.getImageUrl(), e);
-            }
-        }
-        
-        productRepository.delete(product);
+        product.setStatus("INACTIVE");
+        productRepository.save(product);
     }
 
     public ProductResponse getProduct(String id) {
-        Product product = productRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
+        Product product = productRepository.findByIdAndStatus(id, "ACTIVE")
+                .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm hoặc sản phẩm không hoạt động", 404));
         return mapToResponse(product);
     }
 
     public PageResponse<ProductResponse> getProducts(Long categoryId, String search, BigDecimal minPrice, 
                                              BigDecimal maxPrice, String sort, Pageable pageable) {
-        Page<Product> page;
-        
-        if (search != null && !search.isBlank()) {
-            // Simplified search - in production use FullTextSearch or Qdrant
-            page = productRepository.findByStatus("ACTIVE", pageable);
-        } else if (categoryId != null) {
-            page = productRepository.findByCategoryIdAndStatus(categoryId, "ACTIVE", pageable);
-        } else {
-            page = productRepository.findByStatus("ACTIVE", pageable);
-        }
-        
+        String keyword = (search != null && !search.isBlank()) ? search : null;
+        Page<Product> page = productRepository.searchAndFilter(keyword, categoryId, minPrice, maxPrice, pageable);
         return PageResponse.of(page.map(this::mapToResponse));
+    }
+
+    public ProductResponse updateProductStatus(String id, String status) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
+        product.setStatus(status);
+        product = productRepository.save(product);
+        return mapToResponse(product);
     }
 
     // Variants
     public ProductVariantResponse addVariant(String productId, ProductVariantRequest request) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
+
+        if (variantRepository.findBySku(request.getSku()).isPresent()) {
+            throw new BusinessException("SKU_EXISTS", "SKU đã tồn tại: " + request.getSku(), 400);
+        }
 
         ProductVariant variant = ProductVariant.builder()
                 .id(StringUtil.generateUniqueId())
@@ -175,6 +176,83 @@ public class ProductService {
         return mapToImageResponse(image);
     }
 
+    public ProductVariantResponse updateVariant(String productId, String variantId, ProductVariantRequest request) {
+        ProductVariant variant = variantRepository.findById(variantId)
+                .orElseThrow(() -> new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể", 404));
+        
+        if (!variant.getProductId().equals(productId)) {
+            throw new BusinessException("VARIANT_MISMATCH", "Biến thể không thuộc sản phẩm này", 400);
+        }
+
+        if (!variant.getSku().equals(request.getSku()) && variantRepository.findBySku(request.getSku()).isPresent()) {
+            throw new BusinessException("SKU_EXISTS", "SKU đã tồn tại: " + request.getSku(), 400);
+        }
+
+        variant.setSku(request.getSku());
+        variant.setSize(request.getSize());
+        variant.setColor(request.getColor());
+        variant.setMaterial(request.getMaterial());
+        variant.setPriceOverride(request.getPriceOverride());
+
+        variant = variantRepository.save(variant);
+        return mapToVariantResponse(variant);
+    }
+
+    public void deleteVariant(String productId, String variantId) {
+        ProductVariant variant = variantRepository.findById(variantId)
+                .orElseThrow(() -> new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể", 404));
+        if (!variant.getProductId().equals(productId)) {
+            throw new BusinessException("VARIANT_MISMATCH", "Biến thể không thuộc sản phẩm này", 400);
+        }
+        variantRepository.delete(variant);
+    }
+
+    public void deleteImage(String productId, Long imageId) {
+        ProductImage image = imageRepository.findById(imageId)
+                .orElseThrow(() -> new BusinessException("IMAGE_NOT_FOUND", "Không tìm thấy ảnh", 404));
+        if (!image.getProductId().equals(productId)) {
+            throw new BusinessException("IMAGE_MISMATCH", "Ảnh không thuộc sản phẩm này", 400);
+        }
+
+        try {
+            String key = extractS3Key(image.getImageUrl());
+            s3Client.deleteObject(b -> b.bucket(bucket).key(key));
+        } catch (Exception e) {
+            log.warn("Failed to delete image from S3: {}", image.getImageUrl(), e);
+        }
+
+        imageRepository.delete(image);
+    }
+
+    @Transactional(readOnly = true)
+    public VariantSnapshotResponse getVariantSnapshot(String variantId) {
+        ProductVariant variant = variantRepository.findById(variantId)
+                .orElseThrow(() -> new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể", 404));
+        Product product = productRepository.findById(variant.getProductId())
+                .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
+
+        BigDecimal effectivePrice = variant.getPriceOverride() != null
+                ? variant.getPriceOverride()
+                : product.getBasePrice();
+
+        String primaryImageUrl = imageRepository.findByProductIdAndIsPrimaryTrue(product.getId())
+                .map(ProductImage::getImageUrl)
+                .orElse(null);
+
+        return VariantSnapshotResponse.builder()
+                .variantId(variant.getId())
+                .productId(product.getId())
+                .productName(product.getName())
+                .sku(variant.getSku())
+                .size(variant.getSize())
+                .color(variant.getColor())
+                .material(variant.getMaterial())
+                .effectivePrice(effectivePrice)
+                .status(product.getStatus())
+                .primaryImageUrl(primaryImageUrl)
+                .build();
+    }
+
     private ProductResponse mapToResponse(Product product) {
         List<ProductImageResponse> images = imageRepository.findByProductId(product.getId()).stream()
                 .map(this::mapToImageResponse)
@@ -222,6 +300,13 @@ public class ProductService {
     }
 
     private String extractS3Key(String url) {
-        return url.substring(url.lastIndexOf("/") + 1);
+        try {
+            java.net.URL parsed = new java.net.URL(url);
+            String path = parsed.getPath();
+            return path.startsWith("/") ? path.substring(1) : path;
+        } catch (Exception e) {
+            log.warn("Could not parse S3 URL: {}", url);
+            return url;
+        }
     }
 }

@@ -11,6 +11,15 @@ CREATE TABLE IF NOT EXISTS users (
     provider_id VARCHAR(100),
     role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER',
     enabled BOOLEAN NOT NULL DEFAULT true,
+    password_setup_required BOOLEAN NOT NULL DEFAULT false,
+    password_setup_token_hash VARCHAR(255),
+    password_setup_token_expires_at TIMESTAMP,
+    password_reset_otp_hash VARCHAR(255),
+    password_reset_otp_expires_at TIMESTAMP,
+    password_reset_otp_attempts INTEGER NOT NULL DEFAULT 0,
+    password_reset_requested_at TIMESTAMP,
+    password_reset_token_hash VARCHAR(255),
+    password_reset_token_expires_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

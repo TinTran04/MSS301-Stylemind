@@ -14,5 +14,6 @@ public class UserResponse {
     private String fullName;
     private String role;
     private String provider;
+    private Boolean enabled;
     private Instant createdAt;
 }
