@@ -4,6 +4,8 @@ import com.stylemind.common.constant.ErrorCode;
 import com.stylemind.common.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import java.util.HashMap;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +18,6 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @Slf4j
 @RestControllerAdvice
@@ -42,23 +41,23 @@ public class GlobalExceptionHandler {
         });
         log.warn("Validation error: {}", errors);
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR.name(), "Dữ liệu đầu vào không hợp lệ"));
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR.name(), "Invalid request data"));
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleConstraintViolation(
             ConstraintViolationException ex, HttpServletRequest request) {
-        log.warn("Constraint violation: {}", ex.getMessage());
+        log.warn("Constraint violation: {}", ex.getClass().getSimpleName());
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR.name(), ex.getMessage()));
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR.name(), "Invalid request data"));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(
             BadCredentialsException ex, HttpServletRequest request) {
-        log.warn("Bad credentials: {}", ex.getMessage());
+        log.warn("Bad credentials");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(ErrorCode.AUTH_INVALID_CREDENTIALS.name(), ex.getMessage()));
+                .body(ApiResponse.error(ErrorCode.AUTH_INVALID_CREDENTIALS.name(), "Invalid credentials"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -66,21 +65,21 @@ public class GlobalExceptionHandler {
             AccessDeniedException ex, HttpServletRequest request) {
         log.warn("Access denied: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error(ErrorCode.AUTH_ACCESS_DENIED.name(), "Không có quyền truy cập tài nguyên này"));
+                .body(ApiResponse.error(ErrorCode.AUTH_ACCESS_DENIED.name(), "Access denied"));
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MissingServletRequestParameterException.class,
             MethodArgumentTypeMismatchException.class})
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception ex, HttpServletRequest request) {
-        log.warn("Bad request: {}", ex.getMessage());
+        log.warn("Bad request: {}", ex.getClass().getSimpleName());
         return ResponseEntity.badRequest()
-                .body(ApiResponse.error(ErrorCode.INVALID_REQUEST.name(), "Yêu cầu không hợp lệ: " + ex.getMessage()));
+                .body(ApiResponse.error(ErrorCode.INVALID_REQUEST.name(), "Invalid request"));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex, HttpServletRequest request) {
         log.error("Unexpected error: ", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.error(ErrorCode.INTERNAL_ERROR.name(), "Lỗi hệ thống, vui lòng thử lại sau"));
+                .body(ApiResponse.error(ErrorCode.INTERNAL_ERROR.name(), "Internal server error"));
     }
 }

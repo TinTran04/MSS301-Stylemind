@@ -1,5 +1,6 @@
 package com.stylemind.auth.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 
 @Data
@@ -15,7 +16,13 @@ public class AuthResponse {
     @AllArgsConstructor
     @Builder
     public static class LoginResponse {
-        private String token;
+        private String accessToken;
+        private String tokenType;
+        private long expiresInSeconds;
+        @JsonIgnore
+        private String refreshToken;
+        @JsonIgnore
+        private long refreshExpiresInSeconds;
         private UserResponse user;
     }
 }

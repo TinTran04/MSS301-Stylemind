@@ -10,5 +10,8 @@ import java.util.Optional;
 @Repository
 public interface DeliveryAddressRepository extends JpaRepository<DeliveryAddress, String> {
     List<DeliveryAddress> findByUserId(String userId);
+
+    Optional<DeliveryAddress> findByIdAndUserId(String id, String userId);
+
     Optional<DeliveryAddress> findByUserIdAndIsDefaultTrue(String userId);
 }

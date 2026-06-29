@@ -14,7 +14,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @RequiredArgsConstructor
 public class FeignClientConfig {
 
-    @Value("${internal.token:sm-secret-internal-service-token-key-2026}")
+    @Value("${internal.token:${INTERNAL_SERVICE_SECRET:${INTERNAL_TOKEN:change-me-local-internal-service-secret}}}")
     private String internalToken;
 
     @Bean
@@ -24,6 +24,7 @@ public class FeignClientConfig {
             public void apply(RequestTemplate template) {
                 // Add internal token for service-to-service calls
                 template.header("X-Internal-Token", internalToken);
+                template.header("X-Internal-Request", "true");
                 
                 // Propagate X-Request-Id for distributed tracing
                 ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();

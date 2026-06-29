@@ -1,0 +1,647 @@
+openapi: 3.0.3
+info:
+  title: StyleMind User Profile Service API
+  version: 1.0.0
+  description: Contract for profile identity and address management.
+servers:
+  - url: http://localhost:3000
+    description: Local API Gateway
+tags:
+  - name: UserProfile
+  - name: Address
+  - name: AdminProfile
+paths:
+  /api/users/me:
+    get:
+      tags:
+        - UserProfile
+      summary: Get the authenticated user's profile.
+      operationId: getMyProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - UserProfile
+      summary: Update the authenticated user's profile.
+      operationId: updateMyProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfilePatchRequest'
+      responses:
+        '200':
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/users/me/addresses:
+    get:
+      tags:
+        - Address
+      summary: List addresses for the authenticated user.
+      operationId: listMyAddresses
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Address list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressListResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags:
+        - Address
+      summary: Create an address for the authenticated user.
+      operationId: createMyAddress
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressCreateRequest'
+      responses:
+        '201':
+          description: Created address.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/users/me/addresses/{addressId}:
+    patch:
+      tags:
+        - Address
+      summary: Update an address for the authenticated user.
+      operationId: updateMyAddress
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AddressId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressPatchRequest'
+      responses:
+        '200':
+          description: Updated address.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Address
+      summary: Delete an address for the authenticated user.
+      operationId: deleteMyAddress
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AddressId'
+      responses:
+        '200':
+          description: Address deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAddressResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/users/me/addresses/{addressId}/default:
+    put:
+      tags:
+        - Address
+      summary: Set an address as default for the authenticated user.
+      operationId: setMyDefaultAddress
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AddressId'
+      responses:
+        '200':
+          description: Default address updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DefaultAddressResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/admin/users:
+    get:
+      tags:
+        - AdminProfile
+      summary: List user profiles for admin views.
+      operationId: adminListUserProfiles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        '200':
+          description: Paged user profile list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserPageResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/users/{userId}:
+    get:
+      tags:
+        - AdminProfile
+      summary: Get a user profile and addresses for admin views.
+      operationId: adminGetUserProfile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User profile detail.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetailResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 50
+    AddressId:
+      name: addressId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 50
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: Authentication failed or is required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Forbidden:
+      description: Access denied.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: USER_PROFILE_NOT_FOUND
+        message:
+          type: string
+          example: User profile was not found.
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - error
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - false
+        error:
+          $ref: '#/components/schemas/Error'
+        requestId:
+          type: string
+          format: uuid
+    UserProfile:
+      type: object
+      required:
+        - userId
+        - fullName
+        - createdAt
+        - updatedAt
+      properties:
+        userId:
+          type: string
+          maxLength: 50
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 30
+          nullable: true
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ProfilePatchRequest:
+      type: object
+      minProperties: 1
+      properties:
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 150
+        phone:
+          type: string
+          maxLength: 30
+          nullable: true
+        avatarUrl:
+          type: string
+          format: uri
+          nullable: true
+        dateOfBirth:
+          type: string
+          format: date
+          nullable: true
+    Address:
+      type: object
+      required:
+        - addressId
+        - receiverName
+        - receiverPhone
+        - province
+        - district
+        - ward
+        - streetAddress
+        - isDefault
+      properties:
+        addressId:
+          type: string
+          format: uuid
+        receiverName:
+          type: string
+          minLength: 1
+          maxLength: 150
+        receiverPhone:
+          type: string
+          minLength: 1
+          maxLength: 20
+        province:
+          type: string
+          minLength: 1
+          maxLength: 100
+        district:
+          type: string
+          minLength: 1
+          maxLength: 100
+        ward:
+          type: string
+          minLength: 1
+          maxLength: 100
+        streetAddress:
+          type: string
+          minLength: 1
+          maxLength: 500
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+    AddressCreateRequest:
+      type: object
+      required:
+        - receiverName
+        - receiverPhone
+        - province
+        - district
+        - ward
+        - streetAddress
+      properties:
+        receiverName:
+          type: string
+          minLength: 1
+          maxLength: 150
+        receiverPhone:
+          type: string
+          minLength: 1
+          maxLength: 20
+        province:
+          type: string
+          minLength: 1
+          maxLength: 100
+        district:
+          type: string
+          minLength: 1
+          maxLength: 100
+        ward:
+          type: string
+          minLength: 1
+          maxLength: 100
+        streetAddress:
+          type: string
+          minLength: 1
+          maxLength: 500
+        isDefault:
+          type: boolean
+          default: false
+    AddressPatchRequest:
+      type: object
+      minProperties: 1
+      properties:
+        receiverName:
+          type: string
+          minLength: 1
+          maxLength: 150
+        receiverPhone:
+          type: string
+          minLength: 1
+          maxLength: 20
+        province:
+          type: string
+          minLength: 1
+          maxLength: 100
+        district:
+          type: string
+          minLength: 1
+          maxLength: 100
+        ward:
+          type: string
+          minLength: 1
+          maxLength: 100
+        streetAddress:
+          type: string
+          minLength: 1
+          maxLength: 500
+        isDefault:
+          type: boolean
+    DeletedData:
+      type: object
+      required:
+        - deleted
+      properties:
+        deleted:
+          type: boolean
+    DefaultAddressData:
+      type: object
+      required:
+        - addressId
+        - isDefault
+      properties:
+        addressId:
+          type: string
+        isDefault:
+          type: boolean
+          enum:
+            - true
+    AdminUserPage:
+      type: object
+      required:
+        - items
+        - page
+        - size
+        - totalItems
+        - totalPages
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProfile'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalItems:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+    AdminUserDetail:
+      type: object
+      required:
+        - profile
+        - addresses
+      properties:
+        profile:
+          $ref: '#/components/schemas/UserProfile'
+        addresses:
+          type: array
+          items:
+            $ref: '#/components/schemas/Address'
+    ProfileResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/UserProfile'
+        requestId:
+          type: string
+          format: uuid
+    AddressResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/Address'
+        requestId:
+          type: string
+          format: uuid
+    AddressListResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Address'
+        requestId:
+          type: string
+          format: uuid
+    DeleteAddressResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/DeletedData'
+        requestId:
+          type: string
+          format: uuid
+    DefaultAddressResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/DefaultAddressData'
+        requestId:
+          type: string
+          format: uuid
+    AdminUserPageResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/AdminUserPage'
+        requestId:
+          type: string
+          format: uuid
+    AdminUserDetailResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/AdminUserDetail'
+        requestId:
+          type: string
+          format: uuid

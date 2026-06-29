@@ -1,345 +1,232 @@
-version: '3.8'
-
 services:
   # ----------------------------------------------------
-  # 1. Infrastructure: Databases & Message Broker
-  # ----------------------------------------------------
-  postgres:
-    image: postgres:15-alpine
-    container_name: stylemind-postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./init-scripts:/docker-entrypoint-initdb.d
-    networks:
-      - stylemind-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7-alpine
-    container_name: stylemind-redis
-    ports:
-      - "6379:6379"
-    networks:
-      - stylemind-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: stylemind-qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - qdrant_data:/qdrant/storage
-    networks:
-      - stylemind-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  neo4j:
-    image: neo4j:5-community
-    container_name: stylemind-neo4j
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      NEO4J_AUTH: neo4j/password
-      NEO4J_PLUGINS: '["apoc"]'
-      NEO4J_dbms_memory_heap_max__size: 1G
-    volumes:
-      - neo4j_data:/data
-    networks:
-      - stylemind-network
-    healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "password", "RETURN 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-
-  minio:
-    image: minio/minio:latest
-    container_name: stylemind-minio
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_data:/data
-    networks:
-      - stylemind-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ----------------------------------------------------
-  # 2. API Gateway & Auth Service
+  # Public entrypoint
   # ----------------------------------------------------
   api-gateway:
     build:
       context: .
       dockerfile: api-gateway/Dockerfile
-    image: stylemind/api-gateway:latest
-    container_name: stylemind-gateway
+    image: stylemind/api-gateway:local
+    container_name: stylemind-api-gateway
     ports:
-      - "3000:3000"
+      - "${API_GATEWAY_PORT:-3000}:3000"
     environment:
       SERVER_PORT: 3000
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:-change-me-local-jwt-secret-at-least-32-characters}
+      JWT_KEY_PATH: ${JWT_KEY_PATH:-}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-change-me-local-internal-secret}
+      INTERNAL_TOKEN: ${INTERNAL_SERVICE_SECRET:-change-me-local-internal-secret}
+      REDIS_URL: redis://redis:6379
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-stylemind}:${RABBITMQ_PASSWORD:-stylemind}@rabbitmq:5672/${RABBITMQ_VHOST:-stylemind}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-stylemind}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-stylemind}
+      SPRING_RABBITMQ_VIRTUAL_HOST: ${RABBITMQ_VHOST:-stylemind}
       AUTH_SERVICE_URL: http://auth-service:8081
-      PRODUCT_SERVICE_URL: http://product-service:8083
-      USER_SERVICE_URL: http://user-service:8082
-      CART_SERVICE_URL: http://cart-service:8086
-      ORDER_SERVICE_URL: http://order-service:8087
-      AI_SERVICE_URL: http://ai-agent-service:8085
-      PAYMENT_SERVICE_URL: http://payment-service:8088
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      USER_PROFILE_SERVICE_URL: http://user-profile-service:8082
+      USER_SERVICE_URL: http://user-profile-service:8082
     depends_on:
-      postgres:
+      redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      user-profile-service:
+        condition: service_started
     networks:
-      - stylemind-network
+      - stylemind-internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/actuator/health || wget -qO- http://localhost:3000/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
+  # ----------------------------------------------------
+  # Internal services
+  # ----------------------------------------------------
   auth-service:
     build:
       context: .
       dockerfile: auth-service/Dockerfile
-    image: stylemind/auth-service:latest
-    container_name: auth-service
-    ports:
-      - "8081:8081"
+    image: stylemind/auth-service:local
+    container_name: stylemind-auth-service
+    expose:
+      - "8081"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: 8081
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: ${AUTH_DB_USER:-auth_user}
+      SPRING_DATASOURCE_PASSWORD: ${AUTH_DB_PASSWORD:-auth_password}
+      DATABASE_URL: jdbc:postgresql://auth-postgres:5432/auth_db
+      REDIS_URL: redis://redis:6379
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-stylemind}:${RABBITMQ_PASSWORD:-stylemind}@rabbitmq:5672/${RABBITMQ_VHOST:-stylemind}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-stylemind}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-stylemind}
+      SPRING_RABBITMQ_VIRTUAL_HOST: ${RABBITMQ_VHOST:-stylemind}
+      JWT_SECRET: ${JWT_SECRET:-change-me-local-jwt-secret-at-least-32-characters}
+      JWT_KEY_PATH: ${JWT_KEY_PATH:-}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-change-me-local-internal-secret}
+      INTERNAL_TOKEN: ${INTERNAL_SERVICE_SECRET:-change-me-local-internal-secret}
       SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
     depends_on:
-      postgres:
+      auth-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
-      - stylemind-network
+      - stylemind-internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health || wget -qO- http://localhost:8081/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
-  # ----------------------------------------------------
-  # 3. Business Services
-  # ----------------------------------------------------
-  user-service:
+  user-profile-service:
     build:
       context: .
       dockerfile: user-service/Dockerfile
-    image: stylemind/user-service:latest
-    container_name: user-service
-    ports:
-      - "8082:8082"
+    image: stylemind/user-profile-service:local
+    container_name: stylemind-user-profile-service
+    expose:
+      - "8082"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
       SERVER_PORT: 8082
+      SPRING_APPLICATION_NAME: user-profile-service
+      SPRING_DATASOURCE_URL: jdbc:postgresql://user-profile-postgres:5432/user_profile_db
+      SPRING_DATASOURCE_USERNAME: ${USER_PROFILE_DB_USER:-user_profile_user}
+      SPRING_DATASOURCE_PASSWORD: ${USER_PROFILE_DB_PASSWORD:-user_profile_password}
+      DATABASE_URL: jdbc:postgresql://user-profile-postgres:5432/user_profile_db
+      REDIS_URL: redis://redis:6379
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER:-stylemind}:${RABBITMQ_PASSWORD:-stylemind}@rabbitmq:5672/${RABBITMQ_VHOST:-stylemind}
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: ${RABBITMQ_USER:-stylemind}
+      SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-stylemind}
+      SPRING_RABBITMQ_VIRTUAL_HOST: ${RABBITMQ_VHOST:-stylemind}
+      JWT_SECRET: ${JWT_SECRET:-change-me-local-jwt-secret-at-least-32-characters}
+      JWT_KEY_PATH: ${JWT_KEY_PATH:-}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:-change-me-local-internal-secret}
+      INTERNAL_TOKEN: ${INTERNAL_SERVICE_SECRET:-change-me-local-internal-secret}
       AUTH_SERVICE_URL: http://auth-service:8081
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     depends_on:
-      postgres:
+      user-profile-postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
-      - stylemind-network
-
-  product-service:
-    build:
-      context: .
-      dockerfile: product-service/Dockerfile
-    image: stylemind/product-service:latest
-    container_name: product-service
-    ports:
-      - "8083:8083"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/product_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: admin
-      S3_SECRET_KEY: password
-      S3_BUCKET: stylemind-products
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      SERVER_PORT: 8083
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - stylemind-network
-
-  cart-service:
-    build:
-      context: .
-      dockerfile: cart-service/Dockerfile
-    image: stylemind/cart-service:latest
-    container_name: cart-service
-    ports:
-      - "8086:8086"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cart_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      SERVER_PORT: 8086
-      AUTH_SERVICE_URL: http://auth-service:8081
-      PRODUCT_SERVICE_URL: http://product-service:8083
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - stylemind-network
-
-  order-service:
-    build:
-      context: .
-      dockerfile: order-service/Dockerfile
-    image: stylemind/order-service:latest
-    container_name: order-service
-    ports:
-      - "8087:8087"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      PAYMENT_SERVICE_URL: http://payment-service:8088
-      CART_SERVICE_URL: http://cart-service:8086
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      SERVER_PORT: 8087
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - stylemind-network
-
-  payment-service:
-    build:
-      context: .
-      dockerfile: payment-service/Dockerfile
-    image: stylemind/payment-service:latest
-    container_name: payment-service
-    ports:
-      - "8088:8088"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      SERVER_PORT: 8088
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - stylemind-network
-
-  notification-service:
-    build:
-      context: .
-      dockerfile: notification-service/Dockerfile
-    image: stylemind/notification-service:latest
-    container_name: notification-service
-    ports:
-      - "8089:8089"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      SERVER_PORT: 8089
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - stylemind-network
+      - stylemind-internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health || wget -qO- http://localhost:8082/actuator/health || exit 1"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   # ----------------------------------------------------
-  # 4. AI Services
+  # Internal infrastructure
   # ----------------------------------------------------
-  ai-agent-service:
-    build:
-      context: .
-      dockerfile: ai-agent-service/Dockerfile
-    image: stylemind/ai-agent-service:latest
-    container_name: ai-agent-service
-    ports:
-      - "8085:8085"
+  auth-postgres:
+    image: postgres:15-alpine
+    container_name: stylemind-auth-postgres
+    expose:
+      - "5432"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ai_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
-      NEO4J_URI: bolt://neo4j:7687
-      NEO4J_USERNAME: neo4j
-      NEO4J_PASSWORD: password
-      LLM_API_KEY: ${LLM_API_KEY}
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      PRODUCT_SERVICE_URL: http://product-service:8083
-      ORDER_SERVICE_URL: http://order-service:8087
-      SERVER_PORT: 8085
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-    depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      neo4j:
-        condition: service_healthy
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${AUTH_DB_USER:-auth_user}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD:-auth_password}
+    volumes:
+      - auth_pgdata:/var/lib/postgresql/data
+      - ./init-scripts/01-auth-db.sql:/docker-entrypoint-initdb.d/01-auth-db.sql:ro
     networks:
-      - stylemind-network
+      - stylemind-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_DB_USER:-auth_user} -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
-  # ----------------------------------------------------
-  # 5. Frontend (optional, for full stack)
-  # ----------------------------------------------------
-  # stylemind-fe:
-  #   build:
-  #     context: ../FE
-  #     dockerfile: Dockerfile
-  #   image: stylemind/frontend:latest
-  #   container_name: stylemind-fe
-  #   ports:
-  #     - "80:80"
-  #   environment:
-  #     - VITE_API_GATEWAY=http://localhost:3000/api
-  #   depends_on:
-  #     - api-gateway
-  #   networks:
-  #     - stylemind-network
+  user-profile-postgres:
+    image: postgres:15-alpine
+    container_name: stylemind-user-profile-postgres
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_DB: user_profile_db
+      POSTGRES_USER: ${USER_PROFILE_DB_USER:-user_profile_user}
+      POSTGRES_PASSWORD: ${USER_PROFILE_DB_PASSWORD:-user_profile_password}
+    volumes:
+      - user_profile_pgdata:/var/lib/postgresql/data
+      - ./init-scripts/02-user-db.sql:/docker-entrypoint-initdb.d/01-user-profile-db.sql:ro
+    networks:
+      - stylemind-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${USER_PROFILE_DB_USER:-user_profile_user} -d user_profile_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: stylemind-rabbitmq
+    expose:
+      - "5672"
+      - "15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-stylemind}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-stylemind}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-stylemind}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - stylemind-internal
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: stylemind-redis
+    expose:
+      - "6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - stylemind-internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 networks:
-  stylemind-network:
+  stylemind-internal:
     driver: bridge
 
 volumes:
-  pgdata:
-  qdrant_data:
-  neo4j_data:
-  minio_data:
+  auth_pgdata:
+  user_profile_pgdata:
+  rabbitmq_data:
+  redis_data:

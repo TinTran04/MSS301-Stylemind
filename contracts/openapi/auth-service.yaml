@@ -1,0 +1,797 @@
+openapi: 3.0.3
+info:
+  title: StyleMind Auth Service API
+  version: 1.0.0
+  description: Contract for authentication, token lifecycle, account status, and role management.
+servers:
+  - url: http://localhost:3000
+    description: Local API Gateway
+tags:
+  - name: Auth
+  - name: AdminAuth
+paths:
+  /api/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new customer account.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login with email and password.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Logged in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Exchange a refresh token for a new token pair.
+      operationId: refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Revoke the current refresh token/session.
+      operationId: logout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Logged out.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/logout-all:
+    post:
+      tags:
+        - Auth
+      summary: Revoke all refresh tokens for the authenticated user.
+      operationId: logoutAll
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All sessions revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutAllResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/change-password:
+    put:
+      tags:
+        - Auth
+      summary: Change password for the authenticated user.
+      operationId: changePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password changed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooleanActionResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/forgot-password:
+    post:
+      tags:
+        - Auth
+      summary: Start password reset flow.
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '202':
+          description: Reset request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/reset-password:
+    post:
+      tags:
+        - Auth
+      summary: Reset password with a reset token.
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BooleanActionResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/verify-email:
+    post:
+      tags:
+        - Auth
+      summary: Verify email with a verification token.
+      operationId: verifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+      responses:
+        '200':
+          description: Email verified.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyEmailResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/admin/users/{userId}/status:
+    patch:
+      tags:
+        - AdminAuth
+      summary: Change account status.
+      operationId: updateAccountStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccountStatusRequest'
+      responses:
+        '200':
+          description: Account status updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountStatusResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/admin/users/{userId}/role:
+    patch:
+      tags:
+        - AdminAuth
+      summary: Change account role.
+      operationId: updateAccountRole
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: Account role updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 50
+  responses:
+    BadRequest:
+      description: Invalid request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: Authentication failed or is required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Forbidden:
+      description: Access denied.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Conflict:
+      description: Resource conflict.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    Role:
+      type: string
+      enum:
+        - CUSTOMER
+        - STAFF
+        - ADMIN
+    AccountStatus:
+      type: string
+      enum:
+        - PENDING
+        - ACTIVE
+        - LOCKED
+        - DISABLED
+    TokenType:
+      type: string
+      enum:
+        - access
+        - refresh
+        - password_reset
+        - email_verification
+    JwtPayload:
+      type: object
+      required:
+        - sub
+        - role
+        - type
+        - jti
+        - iat
+        - exp
+      properties:
+        sub:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        type:
+          $ref: '#/components/schemas/TokenType'
+        jti:
+          type: string
+          format: uuid
+        iat:
+          type: integer
+          format: int64
+        exp:
+          type: integer
+          format: int64
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: AUTH_INVALID_CREDENTIALS
+        message:
+          type: string
+          example: Email or password is incorrect.
+    ErrorEnvelope:
+      type: object
+      required:
+        - success
+        - error
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - false
+        error:
+          $ref: '#/components/schemas/Error'
+        requestId:
+          type: string
+          format: uuid
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - fullName
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          format: password
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 150
+          description: Passed through to USER_REGISTERED. Auth does not persist this as profile source of truth.
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 100
+        password:
+          type: string
+          minLength: 1
+          maxLength: 100
+          format: password
+    RefreshRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          minLength: 1
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          nullable: true
+    ChangePasswordRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 100
+          format: password
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 100
+          format: password
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 100
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 100
+          format: password
+    VerifyEmailRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          minLength: 1
+    AuthUser:
+      type: object
+      required:
+        - userId
+        - email
+        - role
+        - accountStatus
+      properties:
+        userId:
+          type: string
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+        accountStatus:
+          $ref: '#/components/schemas/AccountStatus'
+    RegisterData:
+      type: object
+      required:
+        - id
+        - email
+        - role
+        - status
+        - emailVerified
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+        status:
+          $ref: '#/components/schemas/AccountStatus'
+        emailVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    TokenPair:
+      type: object
+      required:
+        - accessToken
+        - tokenType
+        - expiresInSeconds
+      properties:
+        accessToken:
+          type: string
+          nullable: true
+        refreshToken:
+          type: string
+          nullable: true
+          writeOnly: true
+          description: Returned to web clients as an HttpOnly refresh cookie; omitted from JSON by the current implementation.
+        tokenType:
+          type: string
+          example: Bearer
+        expiresInSeconds:
+          type: integer
+          format: int64
+          example: 900
+    AuthTokenData:
+      allOf:
+        - $ref: '#/components/schemas/TokenPair'
+        - type: object
+          required:
+            - user
+          properties:
+            user:
+              $ref: '#/components/schemas/AuthUser'
+    LogoutData:
+      type: object
+      required:
+        - revoked
+      properties:
+        revoked:
+          type: boolean
+    LogoutAllData:
+      type: object
+      required:
+        - revokedSessions
+      properties:
+        revokedSessions:
+          type: integer
+          minimum: 0
+    BooleanActionData:
+      type: object
+      properties:
+        changed:
+          type: boolean
+        reset:
+          type: boolean
+    AcceptedData:
+      type: object
+      required:
+        - accepted
+      properties:
+        accepted:
+          type: boolean
+    VerifyEmailData:
+      type: object
+      required:
+        - verified
+        - accountStatus
+      properties:
+        verified:
+          type: boolean
+        accountStatus:
+          $ref: '#/components/schemas/AccountStatus'
+    UpdateAccountStatusRequest:
+      type: object
+      required:
+        - accountStatus
+      properties:
+        accountStatus:
+          $ref: '#/components/schemas/AccountStatus'
+        reason:
+          type: string
+          maxLength: 500
+          nullable: true
+    UpdateRoleRequest:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+        reason:
+          type: string
+          maxLength: 500
+          nullable: true
+    AccountStatusData:
+      type: object
+      required:
+        - userId
+        - accountStatus
+      properties:
+        userId:
+          type: string
+        accountStatus:
+          $ref: '#/components/schemas/AccountStatus'
+    RoleData:
+      type: object
+      required:
+        - userId
+        - role
+      properties:
+        userId:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+    AuthTokenResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/AuthTokenData'
+        requestId:
+          type: string
+          format: uuid
+    RegisterResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/RegisterData'
+        requestId:
+          type: string
+          format: uuid
+    TokenPairResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/TokenPair'
+        requestId:
+          type: string
+          format: uuid
+    LogoutResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/LogoutData'
+        requestId:
+          type: string
+          format: uuid
+    LogoutAllResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/LogoutAllData'
+        requestId:
+          type: string
+          format: uuid
+    BooleanActionResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/BooleanActionData'
+        requestId:
+          type: string
+          format: uuid
+    AcceptedResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/AcceptedData'
+        requestId:
+          type: string
+          format: uuid
+    VerifyEmailResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/VerifyEmailData'
+        requestId:
+          type: string
+          format: uuid
+    AccountStatusResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/AccountStatusData'
+        requestId:
+          type: string
+          format: uuid
+    RoleResponseEnvelope:
+      type: object
+      required:
+        - success
+        - data
+        - requestId
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+        data:
+          $ref: '#/components/schemas/RoleData'
+        requestId:
+          type: string
+          format: uuid

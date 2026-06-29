@@ -26,6 +26,43 @@ spring:
   sql:
     init:
       mode: never
+  flyway:
+    enabled: true
+    locations: classpath:db/migration,classpath:db/{vendor}
+    validate-on-migrate: true
+  rabbitmq:
+    host: ${SPRING_RABBITMQ_HOST:localhost}
+    port: ${SPRING_RABBITMQ_PORT:5672}
+    username: ${SPRING_RABBITMQ_USERNAME:guest}
+    password: ${SPRING_RABBITMQ_PASSWORD:guest}
+    virtual-host: ${SPRING_RABBITMQ_VIRTUAL_HOST:/}
+    listener:
+      simple:
+        acknowledge-mode: auto
+
+jwt:
+  secret: ${JWT_SECRET:change-me-local-jwt-secret-at-least-32-characters}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+
+app:
+  rabbitmq:
+    exchange: ${RABBITMQ_EVENTS_EXCHANGE:stylemind.events}
+    dlx: ${RABBITMQ_EVENTS_DLX:stylemind.events.dlx}
+    user-registered:
+      routing-key: ${RABBITMQ_USER_REGISTERED_ROUTING_KEY:user.registered}
+      queue: ${RABBITMQ_USER_REGISTERED_QUEUE:user-profile.user-registered}
+      dlq: ${RABBITMQ_USER_REGISTERED_DLQ:user-profile.user-registered.dlq}
+      dlq-routing-key: ${RABBITMQ_USER_REGISTERED_DLQ_ROUTING_KEY:user.registered.dlq}
+
+user-profile:
+  events:
+    consumer:
+      enabled: ${USER_PROFILE_EVENTS_CONSUMER_ENABLED:true}
+      retry-attempts: ${USER_PROFILE_EVENTS_RETRY_ATTEMPTS:3}
+      retry-initial-interval-ms: ${USER_PROFILE_EVENTS_RETRY_INITIAL_INTERVAL_MS:1000}
+      retry-multiplier: ${USER_PROFILE_EVENTS_RETRY_MULTIPLIER:2.0}
+      retry-max-interval-ms: ${USER_PROFILE_EVENTS_RETRY_MAX_INTERVAL_MS:10000}
 
 management:
   endpoints:

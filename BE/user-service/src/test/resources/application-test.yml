@@ -1,0 +1,30 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:user_service_test;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+jwt:
+  secret: test-stylemind-secret-key-signature-2026-abcdef
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
+
+internal:
+  token: test-internal-token
+
+user-profile:
+  events:
+    consumer:
+      enabled: false

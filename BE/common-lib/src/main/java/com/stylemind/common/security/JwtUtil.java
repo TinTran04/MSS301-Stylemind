@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Component
@@ -26,7 +27,7 @@ public class JwtUtil {
 
     public JwtUtil(
             @Value("${jwt.secret}") String secret,
-            @Value("${jwt.access-token-expiration:3600000}") long accessTokenExpiration,
+            @Value("${jwt.access-token-expiration:900000}") long accessTokenExpiration,
             @Value("${jwt.refresh-token-expiration:604800000}") long refreshTokenExpiration) {
         this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.accessTokenExpiration = accessTokenExpiration;
@@ -35,9 +36,10 @@ public class JwtUtil {
 
     public String generateAccessToken(UserDetails userDetails, String userId, String role) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId);
         claims.put("role", role);
-        return createToken(claims, userDetails.getUsername(), accessTokenExpiration);
+        claims.put("type", "access");
+        claims.put("jti", UUID.randomUUID().toString());
+        return createToken(claims, userId, accessTokenExpiration);
     }
 
     public String generateRefreshToken(UserDetails userDetails) {
@@ -60,7 +62,7 @@ public class JwtUtil {
     }
 
     public String extractUserId(String token) {
-        return extractClaim(token, claims -> claims.get("userId", String.class));
+        return extractClaim(token, Claims::getSubject);
     }
 
     public String extractRole(String token) {
@@ -69,6 +71,22 @@ public class JwtUtil {
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    public String extractTokenType(String token) {
+        return extractClaim(token, claims -> claims.get("type", String.class));
+    }
+
+    public String extractJti(String token) {
+        return extractClaim(token, claims -> claims.get("jti", String.class));
+    }
+
+    public long getAccessTokenExpiration() {
+        return accessTokenExpiration;
+    }
+
+    public long getRefreshTokenExpiration() {
+        return refreshTokenExpiration;
     }
 
     public Date extractExpiration(String token) {
@@ -88,7 +106,11 @@ public class JwtUtil {
     }
 
     public boolean validateToken(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        final String subject = extractUsername(token);
+        boolean subjectMatches = subject.equals(userDetails.getUsername());
+        if (!subjectMatches && userDetails instanceof UserPrincipal principal) {
+            subjectMatches = subject.equals(principal.getUserId());
+        }
+        return subjectMatches && !isTokenExpired(token);
     }
 }

@@ -1,422 +1,284 @@
-# MSS301 - StyleMind
+# StyleMind
 
-**StyleMind** là nền tảng thương mại điện tử thời trang tích hợp **AI Stylist**, được xây dựng với **ReactJS** cho Frontend và **Spring Boot Microservices** cho Backend.
+StyleMind là hệ thống thương mại điện tử thời trang theo kiến trúc microservice. Repository này là monorepo gồm frontend React/Vite và backend Java/Spring Boot.
 
-Hệ thống hỗ trợ khách hàng mua sắm sản phẩm thời trang, tạo hồ sơ phong cách cá nhân, trò chuyện với AI để nhận gợi ý phối đồ, thêm sản phẩm vào giỏ hàng, đặt hàng và theo dõi đơn hàng. Đồng thời, Admin có thể quản lý sản phẩm, đơn hàng, khách hàng, pipeline AI, Knowledge Graph và các chỉ số phân tích hiệu quả gợi ý của AI.
+Tài liệu dành cho developer mới:
 
-Mục tiêu chính của hệ thống là cung cấp trải nghiệm **tư vấn thời trang cá nhân hóa**, đồng thời đảm bảo AI chỉ gợi ý các sản phẩm **thật sự tồn tại và còn hàng trong hệ thống** (chống ảo giác).
+- [Development Guide](docs/development.md)
+- [Architecture](docs/architecture.md)
+- [Auth Flow](docs/auth-flow.md)
+- [API Contract](docs/api-contract.md)
+- [Error Codes](docs/error-codes.md)
+- [Local Infrastructure](docs/local-infrastructure.md)
+- [Deployment Checklist](docs/deployment-checklist.md)
 
-**📋 Source of Truth:** Mô hình dữ liệu chuẩn được định nghĩa trong **[DATA_MODEL_DOCUMENTATION](docs/DATA_MODEL_DOCUMENTATION)** - tất cả tài liệu khác phải tuân thủ tài liệu này.
-
----
-
-## Tính năng chính
-
-### Khách hàng
-
-* Đăng ký và đăng nhập (`auth-service`: users, JWT, provider LOCAL/GOOGLE/FACEBOOK)
-* Tạo và cập nhật hồ sơ phong cách cá nhân (`user-service`: customer_style_profiles, delivery_addresses)
-* Xem danh mục sản phẩm thời trang (cây danh mục đệ quy: `categories` với parent_id, slug)
-* Tìm kiếm, lọc và sắp xếp sản phẩm
-* Xem chi tiết sản phẩm (variants: sku, size, color, material, price_override)
-* Chat với AI Stylist để được tư vấn phối đồ (`ai-agent-service`: chat_sessions, chat_messages)
-* Nhận gợi ý outfit từ các sản phẩm còn hàng (`ai_curated_bundles`, `ai_curated_bundle_items`)
-* Thêm từng sản phẩm hoặc toàn bộ outfit AI đề xuất vào giỏ hàng (`cart_items`: is_ai_recommended, source_bundle_id)
-* Quản lý giỏ hàng (`shopping_carts`, `cart_items` với variant_id FK)
-* Checkout và thanh toán giả lập (`payment-service`: transactions)
-* Tạo đơn hàng với snapshot giá (`orders`: order_status PENDING/PROCESSING/COMPENSATING_ROLLBACK/FULFILLED/CANCELLED; `order_items`: price_at_purchase, is_ai_conversion, source_bundle_id)
-* Theo dõi trạng thái đơn hàng
-* Xem lịch sử mua hàng
-
-### Admin / Chủ cửa hàng
-
-* Xem dashboard tổng quan
-* Quản lý sản phẩm (CRUD products, variants, images, categories tree)
-* Quản lý biến thể sản phẩm như size, màu sắc, SKU, material, price_override
-* Quản lý đơn hàng (status: PENDING, PROCESSING, COMPENSATING_ROLLBACK, FULFILLED, CANCELLED)
-* Quản lý khách hàng (xem Style Profile, Addresses)
-* Theo dõi trạng thái đồng bộ AI Pipeline (`ai_index_jobs`)
-* Quản lý Knowledge Graph / luật thời trang (Neo4j nodes & relationships)
-* Xem báo cáo phân tích hiệu quả gợi ý của AI (`ai_analytics_logs` funnel)
-* Cấu hình hệ thống ở mức giao diện quản trị
-
----
-
-## Kiến trúc hệ thống
-
-Dự án được tổ chức theo hướng:
+## Tổng Quan Kiến Trúc
 
 ```text
-Frontend ReactJS
-        ↓
-API Gateway (Port 3000)
-        ↓
-Spring Boot Microservices (8 services + 8 DBs)
-        ↓
-Database / Message Broker / AI Services (PostgreSQL, Qdrant, Neo4j, MinIO, Redis)
+Browser / Frontend
+        |
+        v
+API Gateway (Spring Cloud Gateway, WebFlux)
+        |
+        +--> Auth Service (Spring MVC, JPA, auth_db)
+        |
+        +--> User Profile Service (Spring MVC, JPA, user_profile_db)
+
+Shared infrastructure:
+- PostgreSQL per service database
+- RabbitMQ for USER_REGISTERED events
+- Redis for Gateway rate limiting
 ```
 
-Frontend chỉ giao tiếp với **API Gateway**, không gọi trực tiếp từng service backend.
+Frontend chỉ gọi API Gateway. Auth Service và User Profile Service không expose public khi chạy bằng Docker Compose.
 
----
+## Trách Nhiệm Service
 
-## Công nghệ sử dụng
+| Service | Port local | Public qua Docker | Trách nhiệm |
+| --- | --- | --- | --- |
+| `api-gateway` | `3000` | Có | Routing, JWT validation, authorization, request id, CORS, rate limiting, timeout, standardized gateway errors |
+| `auth-service` | `8081` | Không | Register, login, refresh token lifecycle, logout, change password, email verification, forgot/reset password, account role/status, outbox events |
+| `user-profile-service` (`BE/user-service`) | `8082` | Không | User profile, shipping addresses, consume `USER_REGISTERED`, processed event idempotency |
+| `auth-postgres` | `5432` internal | Không | Database riêng của Auth Service: `auth_db` |
+| `user-profile-postgres` | `5432` internal | Không | Database riêng của User Profile Service: `user_profile_db` |
+| `rabbitmq` | `5672`, `15672` internal | Không | Event broker và DLQ |
+| `redis` | `6379` internal | Không | Rate limiting/cache infrastructure |
 
-### Frontend
+Boundary quan trọng:
 
-* ReactJS
-* Vite
-* React Router
-* Zustand
-* Axios
-* Tailwind CSS / CSS
-* Recharts
-* Lucide React
-* Framer Motion
+- Auth Service sở hữu `email`, `password_hash`, `role`, `account status`, `refresh token`.
+- User Profile Service sở hữu `fullName`, `phone`, `avatarUrl`, `gender`, `dateOfBirth`, `address`.
+- Không service nào truy cập database của service khác.
+- Không tạo foreign key xuyên database.
+- `USER_REGISTERED` không chứa password, phone, address hoặc refresh token.
 
-### Backend
+## Yêu Cầu Môi Trường
 
-* Spring Boot 3.x
-* Spring Cloud Gateway
-* Spring Security (JWT, RBAC)
-* Spring Data JPA
-* PostgreSQL (8 databases: auth_db, user_db, product_db, cart_db, order_db, payment_db, ai_db, notification_db)
-* Eureka Discovery Service (optional)
-* REST API (OpenFeign for service-to-service)
-* Docker
+- Git
+- Node.js 18+ và npm
+- Java 17
+- Maven 3.9+
+- Docker Desktop hoặc Docker Engine có Docker Compose v2
+- OpenSSL, dùng để tạo JWT key pair local khi cần kiểm thử asymmetric JWT
 
-### AI / Recommendation
+## Clone Và Cấu Hình Environment
 
-* AI Stylist Service (`ai-agent-service`)
-* Vector Search (Qdrant)
-* Knowledge Graph (Neo4j)
-* Recommendation System (Hybrid Search: Vector + Keyword + Graph + Personalization)
-* Runtime API Fetching (Function Calling) - Anti-Hallucination
+```powershell
+git clone <repo-url>
+cd MSS301-Stylemind
 
----
-
-## Cấu trúc thư mục
-
-```text
-MSS301-Stylemind/
-├── FE/
-│   └── ReactJS + Vite Frontend
-│
-├── BE/
-│   └── Spring Boot Microservices Backend
-│
-├── docs/
-│   ├── DATA_MODEL_DOCUMENTATION    # 📋 SOURCE OF TRUTH - Data model chuẩn
-│   ├── MICROSERVICE_ARCHITECTURE.md # Kiến trúc chi tiết + Schema DB
-│   ├── API_CONTRACT.md             # API spec toàn hệ thống
-│   ├── DEPLOYMENT_GUIDE.md         # Hướng dẫn deploy local & Docker
-│   ├── MIGRATION_ROADMAP.md        # Lộ trình 7 bước chuyển đổi
-│   ├── PROJECT_ANALYSIS.md         # Phân tích hiện trạng FE
-│   └── README.md                   # File này
-│
-├── .gitignore
-└── README.md
+Copy-Item BE\.env.example BE\.env
+Copy-Item BE\api-gateway\.env.example BE\api-gateway\.env
+Copy-Item BE\auth-service\.env.example BE\auth-service\.env
+Copy-Item BE\user-service\.env.example BE\user-service\.env
 ```
 
-### Frontend
+Các file `.env` chỉ dùng local và không được commit. Thay các giá trị `change-me-*` bằng secret local riêng của bạn.
 
-```text
-FE/
-├── public/
-├── src/
-│   ├── app/
-│   ├── layouts/
-│   ├── pages/
-│   ├── components/
-│   ├── features/
-│   ├── services/
-│   ├── hooks/
-│   ├── utils/
-│   └── data/
-├── package.json
-├── vite.config.js
-└── index.html
-```
+## JWT Local
 
-### Backend (8 Microservices)
+Local hiện đang dùng `JWT_SECRET` cho signing/verification mặc định. Gateway cũng có cấu hình đọc public key để chuẩn bị cho asymmetric JWT.
 
-```text
-BE/
-├── api-gateway/           # Port 3000 - Entry point
-├── auth-service/          # Port 8081 - auth_db (users)
-├── user-service/          # Port 8082 - user_db (customer_style_profiles, delivery_addresses)
-├── product-service/       # Port 8083 - product_db (categories, products, variants, images)
-├── cart-service/          # Port 8086 - cart_db (shopping_carts, cart_items)
-├── order-service/         # Port 8087 - order_db (orders, order_items)
-├── payment-service/       # Port 8088 - payment_db (transactions)
-├── ai-agent-service/      # Port 8085 - ai_db + Qdrant + Neo4j (chat_sessions, messages, bundles, analytics, index_jobs)
-├── notification-service/  # Port 8089 - notification_db (notification_logs)
-└── common-lib/            # Shared DTOs, exceptions, configs
-```
-
----
-
-## Các service backend & Data Ownership (theo DATA_MODEL_DOCUMENTATION)
-
-| Service | Database | Tables Owned | Trách nhiệm chính |
-| :--- | :--- | :--- | :--- |
-| `auth-service` | `auth_db` | `users` | Đăng ký, đăng nhập, JWT, roles (CUSTOMER/ADMIN), provider SSO |
-| `user-service` | `user_db` | `customer_style_profiles`, `delivery_addresses` | Hồ sơ sinh trắc học, gu thẩm mỹ (style_personas JSONB), sổ địa chỉ |
-| `product-service` | `product_db` | `categories`, `products`, `product_variants`, `product_images` | Danh mục cây, sản phẩm (base_price, aesthetic_style, target_demographic, seasonal_property), biến thể (sku, size, color, material, price_override), ảnh |
-| `cart-service` | `cart_db` | `shopping_carts`, `cart_items` | Giỏ hàng (Guest/User), tracking AI (is_ai_recommended, source_bundle_id) |
-| `order-service` | `order_db` | `orders`, `order_items` | Đơn hàng (Saga), snapshot giá (price_at_purchase), AI conversion tracking |
-| `payment-service` | `payment_db` | `transactions` | Thanh toán online/COD, refund |
-| `ai-agent-service` | `ai_db` + Qdrant + Neo4j | `chat_sessions`, `chat_messages`, `ai_curated_bundles`, `ai_curated_bundle_items`, `ai_analytics_logs`, `ai_index_jobs` | Chat log, AI bundles, analytics, index jobs. **KHÔNG sở hữu dữ liệu gốc sản phẩm/khách hàng.** |
-| `notification-service` | `notification_db` | `notification_logs` | Email, SMS, push notifications |
-
----
-
-## Luồng người dùng chính
-
-```text
-Khách hàng truy cập hệ thống
-→ Đăng ký / đăng nhập
-→ Tạo Style Profile (body_morphology, preferred_fit, style_personas...)
-→ Duyệt sản phẩm hoặc chat với AI Stylist
-→ Nhận gợi ý outfit từ sản phẩm còn hàng (inventory-aware)
-→ Thêm sản phẩm vào giỏ hàng (variant_id, is_ai_recommended)
-→ Checkout (shipping_address snapshot)
-→ Thanh toán giả lập
-→ Tạo đơn hàng (order_status: PENDING → PROCESSING → FULFILLED)
-→ Theo dõi trạng thái đơn hàng
-```
-
----
-
-## Luồng Admin chính
-
-```text
-Admin đăng nhập (role=ADMIN)
-→ Vào Dashboard
-→ Quản lý sản phẩm (categories tree, products, variants, images)
-→ Quản lý đơn hàng (status: PENDING/PROCESSING/COMPENSATING_ROLLBACK/FULFILLED/CANCELLED)
-→ Theo dõi AI Pipeline (ai_index_jobs: PENDING/PROCESSING/COMPLETED/FAILED)
-→ Quản lý Knowledge Graph (Neo4j: Product, Category, Color, Material, Style, Occasion, Season, BodyType, Outfit)
-→ Xem Recommendation Analytics (ai_analytics_logs funnel: IMPRESSION → CLICK → ADD_TO_CART)
-```
-
----
-
-## AI Stylist (Chống ảo giác - Anti-Hallucination)
-
-AI Stylist là chức năng nổi bật của hệ thống. Người dùng có thể nhập yêu cầu tự nhiên:
-
-```text
-Tôi cần một outfit lịch sự nhưng thoáng mát để đi phỏng vấn mùa hè.
-```
-
-Hệ thống xử lý dựa trên **Runtime API Fetching (Function Calling)**:
-
-```text
-Style Profile (user_db)
-+ Product Metadata (product_db)
-+ Vector Search (Qdrant)
-+ Knowledge Graph Rules (Neo4j)
-+ Recommendation Signal
-```
-
-**Nguyên tắc cốt lõi:** AI **KHÔNG** được tự tạo ra giá/tồn kho. Mọi thông tin động đều được lấy realtime qua Internal API:
-- `GET /internal/products/:id` → giá chính xác
-- `GET /internal/orders/:id` → trạng thái đơn (kèm ownership check)
-
-Kết quả trả về:
-* Lời tư vấn phối đồ (`chat_messages.message_text`)
-* Danh sách sản phẩm phù hợp (`recommended_products` với match_score)
-* Product cards trong chat (`has_product_block: true`)
-* Lý do vì sao outfit phù hợp (`ai_curated_bundles.justification_summary`)
-* Nút thêm từng sản phẩm hoặc toàn bộ outfit vào giỏ hàng (`cart_items.is_ai_recommended`, `source_bundle_id`)
-
----
-
-## Saga / Checkout Flow
-
-Hệ thống có thiết kế luồng checkout theo hướng xử lý giao dịch phân tán (Saga Orchestrator-based):
-
-Ví dụ luồng thành công:
-```text
-Tạo đơn hàng (order_status: PENDING)
-→ Xử lý thanh toán (transactions: COMPLETED)
-→ Xác nhận đơn hàng (order_status: FULFILLED)
-```
-
-Nếu thanh toán thất bại:
-```text
-Tạo đơn hàng (order_status: PENDING)
-→ Thanh toán thất bại (transactions: FAILED)
-→ Rollback: Hủy đơn hàng (order_status: CANCELLED / COMPENSATING_ROLLBACK)
-```
-
----
-
-## Cài đặt và chạy Frontend
-
-Di chuyển vào thư mục FE:
+Tạo key pair local:
 
 ```bash
+mkdir -p BE/secrets/local
+openssl genrsa -out BE/secrets/local/jwt-private.pem 2048
+openssl rsa -in BE/secrets/local/jwt-private.pem -pubout -out BE/secrets/local/jwt-public.pem
+```
+
+Khi service Auth được cấu hình asymmetric signing, dùng private key cho Auth và public key cho Gateway. Không commit thư mục `BE/secrets`.
+
+Ví dụ biến môi trường Gateway:
+
+```env
+JWT_PUBLIC_KEY_PATH=/run/secrets/jwt-public.pem
+```
+
+Nếu chưa bật asymmetric signing trong Auth Service, giữ `JWT_SECRET` giống nhau giữa Auth Service và API Gateway.
+
+## Chạy Docker Compose
+
+```powershell
+cd BE
+docker compose --env-file .env up --build
+```
+
+Chạy nền:
+
+```powershell
+docker compose --env-file .env up -d --build
+```
+
+Dừng và giữ volume:
+
+```powershell
+docker compose down
+```
+
+Dừng và xóa dữ liệu local:
+
+```powershell
+docker compose down -v
+```
+
+## Migration
+
+Backend dùng Flyway. Migration tự chạy khi service start vì `spring.flyway.enabled=true`.
+
+Chạy riêng migration cho Auth bằng cách start service với database đang chạy:
+
+```powershell
+cd BE
+docker compose --env-file .env up -d auth-postgres rabbitmq redis
+mvn -pl auth-service -am spring-boot:run
+```
+
+Chạy riêng migration cho User Profile:
+
+```powershell
+cd BE
+docker compose --env-file .env up -d user-profile-postgres rabbitmq redis
+mvn -pl user-service -am spring-boot:run
+```
+
+## Chạy Từng Service
+
+Khi chạy ngoài Docker, cần đảm bảo PostgreSQL/RabbitMQ/Redis đang chạy và env trỏ về host phù hợp.
+
+```powershell
+cd BE
+mvn -pl api-gateway -am spring-boot:run
+mvn -pl auth-service -am spring-boot:run
+mvn -pl user-service -am spring-boot:run
+```
+
+Frontend:
+
+```powershell
 cd FE
-```
-
-Cài đặt dependencies:
-
-```bash
 npm install
-```
-
-Chạy project:
-
-```bash
 npm run dev
 ```
 
-Build project:
+## Test
 
-```bash
+Chạy toàn bộ backend test suite:
+
+```powershell
+cd BE
+mvn test
+```
+
+Chạy ba service trong phạm vi Auth/Gateway/User Profile:
+
+```powershell
+cd BE
+mvn -pl api-gateway,auth-service,user-service -am test
+```
+
+Frontend:
+
+```powershell
+cd FE
+npm install
 npm run build
 ```
 
----
+## Swagger / OpenAPI
 
-## Cấu hình môi trường Frontend
+Khi chạy trực tiếp từng service:
 
-Tạo file `.env` trong thư mục `FE/`:
+- API Gateway: `http://localhost:3000/swagger-ui.html`
+- Auth Service: `http://localhost:8081/swagger-ui.html`
+- User Profile Service: `http://localhost:8082/swagger-ui.html`
 
-```env
-VITE_API_BASE_URL=http://localhost:3000/api
-VITE_APP_NAME=StyleMind
+Khi chạy Docker Compose mặc định, chỉ Gateway expose public. Auth/User Swagger không truy cập trực tiếp từ host trừ khi bạn tạm map port để debug local.
+
+Static contract:
+
+- `contracts/openapi/auth-service.yaml`
+- `contracts/openapi/user-profile-service.yaml`
+- `contracts/events/user-registered.schema.json`
+
+## Health Endpoint
+
+```powershell
+curl http://localhost:3000/actuator/health
 ```
 
-Lưu ý:
+Nếu chạy service trực tiếp ngoài Docker:
+
+```powershell
+curl http://localhost:8081/actuator/health
+curl http://localhost:8082/actuator/health
+```
+
+Trong Docker Compose, Auth/User là internal. Có thể kiểm tra qua container:
+
+```powershell
+docker compose exec auth-service curl -fsS http://localhost:8081/actuator/health
+docker compose exec user-profile-service curl -fsS http://localhost:8082/actuator/health
+```
+
+## RabbitMQ Management UI
+
+Docker Compose hiện chỉ expose RabbitMQ trong internal network. Để mở UI local khi debug, tạm map port `15672:15672` cho service `rabbitmq`, rồi mở:
+
 ```text
-Không commit file .env lên GitHub.
-Chỉ commit file .env.example nếu cần.
+http://localhost:15672
 ```
 
----
+User/password lấy từ `BE/.env`. Không dùng credential production cho local.
 
-## Chạy Backend
+## Curl Nhanh
 
-Backend sẽ được phát triển bằng Spring Boot Microservices (8 services).
-
-Dự kiến chạy local bằng Docker Compose:
+Register:
 
 ```bash
-cd BE
-docker compose up
+curl -i -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"customer@example.com","password":"StrongPassword123!","fullName":"Nguyen Van A"}'
 ```
 
-Hoặc chạy từng service Spring Boot riêng tùy giai đoạn phát triển.
-
-Xem chi tiết tại [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) và [MICROSERVICE_ARCHITECTURE.md](docs/MICROSERVICE_ARCHITECTURE.md).
-
----
-
-## Branch workflow
-
-Dự án sử dụng workflow cơ bản:
-
-```text
-main      → bản ổn định để deploy
-develop   → bản đang phát triển và test
-feature/* → nhánh phát triển chức năng
-fix/*     → nhánh sửa lỗi
-```
-
-Ví dụ:
+Login và lưu cookie refresh token:
 
 ```bash
-git checkout develop
-git checkout -b feature/frontend-ai-stylist
+curl -i -c cookies.txt -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"customer@example.com","password":"StrongPassword123!"}'
 ```
 
-Commit message nên viết rõ ràng:
+Refresh:
 
-```text
-feat: add AI stylist chat page
-feat: implement product catalog filters
-fix: update cart quantity logic
-docs: update project README
-chore: initialize FE and BE structure
+```bash
+curl -i -b cookies.txt -c cookies.txt -X POST http://localhost:3000/api/auth/refresh
 ```
 
----
+Get profile:
 
-## Deploy dự kiến
-
-### Frontend
-
-Frontend có thể deploy lên:
-
-* Netlify
-* Vercel
-
-Cấu hình deploy:
-
-```text
-Root directory: FE
-Build command: npm run build
-Publish directory: dist
+```bash
+curl -i http://localhost:3000/api/users/me \
+  -H "Authorization: Bearer <access-token>"
 ```
 
-### Backend
+Create address:
 
-Backend có thể deploy lên:
-
-* Render
-* Railway
-* VPS với Docker Compose
-
-Frontend sẽ gọi backend thông qua API Gateway:
-
-```env
-VITE_API_BASE_URL=https://your-api-gateway-url/api
+```bash
+curl -i -X POST http://localhost:3000/api/users/me/addresses \
+  -H "Authorization: Bearer <access-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"receiverName":"Nguyen Van A","receiverPhone":"+84901234567","province":"Ho Chi Minh","district":"District 1","ward":"Ben Nghe","streetAddress":"1 Le Loi"}'
 ```
 
----
+## Lỗi Thường Gặp
 
-## Trạng thái hiện tại
+- `401 INVALID_ACCESS_TOKEN`: token sai chữ ký, hết hạn, thiếu claim, hoặc dùng refresh token làm access token.
+- `401 INVALID_CREDENTIALS`: email hoặc password sai. Auth cố tình không tiết lộ email có tồn tại hay không.
+- `429 RATE_LIMIT_EXCEEDED`: Gateway rate limit đang chặn request. Chờ hết window hoặc reset Redis local.
+- `PROFILE_NOT_FOUND`: profile chưa được tạo. Kiểm tra consumer `USER_REGISTERED`, RabbitMQ và outbox publisher.
+- Service không connect database: kiểm tra `SPRING_DATASOURCE_URL`, user/password và container health.
+- RabbitMQ không nhận event: kiểm tra exchange/queue/DLQ trong cấu hình `RABBITMQ_*`.
+- CORS bị chặn: kiểm tra `CORS_ALLOWED_ORIGINS`, không dùng wildcard khi bật credentials.
 
-* [x] Khởi tạo repository
-* [x] Tạo cấu trúc FE và BE
-* [x] Thêm ReactJS frontend
-* [x] **DATA_MODEL_DOCUMENTATION** - Complete (Source of Truth)
-* [x] **MICROSERVICE_ARCHITECTURE.md** - Aligned with Data Model
-* [x] **API_CONTRACT.md** - Aligned with Data Model
-* [x] **DEPLOYMENT_GUIDE.md** - Aligned with Data Model
-* [x] **MIGRATION_ROADMAP.md** - Aligned with Data Model
-* [ ] Xây dựng Spring Boot backend services (8 services)
-* [ ] Kết nối Frontend với Backend API
-* [ ] Tích hợp AI Stylist Service (Qdrant + Neo4j + Function Calling)
-* [ ] Hoàn thiện deploy
-
----
-
-## Thành viên nhóm
-
-> Cập nhật tên thành viên nhóm tại đây.
-
-```text
-1. ...
-2. ...
-3. ...
-4. ...
-```
-
----
-
-## Ghi chú
-
-Dự án được phát triển phục vụ học tập và nghiên cứu kiến trúc **Microservices**, kết hợp với ứng dụng **AI trong thương mại điện tử thời trang**.
-
-Mục tiêu không chỉ là xây dựng một website bán hàng, mà còn là mô phỏng một hệ thống có khả năng tư vấn thời trang cá nhân hóa, quản lý thông minh và phân tích hiệu quả gợi ý của AI.
-
-**Tài liệu tham khảo chính:**
-* [DATA_MODEL_DOCUMENTATION](docs/DATA_MODEL_DOCUMENTATION) - Single Source of Truth cho data model
-* [MICROSERVICE_ARCHITECTURE.md](docs/MICROSERVICE_ARCHITECTURE.md) - Kiến trúc, DB schema, State machines, API Gateway, AI design
-* [API_CONTRACT.md](docs/API_CONTRACT.md) - Chi tiết request/response cho tất cả API
-* [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) - Hướng dẫn chạy local & Docker
-* [MIGRATION_ROADMAP.md](docs/MIGRATION_ROADMAP.md) - Lộ trình 7 bước từ Mock → Production
+Xem hướng dẫn chi tiết hơn trong [docs/development.md](docs/development.md).

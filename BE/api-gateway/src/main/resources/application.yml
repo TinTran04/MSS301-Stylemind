@@ -4,28 +4,50 @@ server:
 spring:
   application:
     name: api-gateway
+  main:
+    web-application-type: reactive
   cloud:
     gateway:
+      httpclient:
+        connect-timeout: ${GATEWAY_CONNECT_TIMEOUT_MS:3000}
+        response-timeout: ${GATEWAY_RESPONSE_TIMEOUT:5s}
+      default-filters:
+        - name: Retry
+          args:
+            retries: ${GATEWAY_RETRY_SAFE_RETRIES:1}
+            methods: GET,HEAD,OPTIONS
+            statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
       globalcors:
+        add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowedOrigins: "*"
-            allowedMethods: "*"
-            allowedHeaders: "*"
-            exposedHeaders: "X-Request-Id,X-User-Id,X-User-Roles"
+            allowedOrigins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+            allowedMethods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+            allowedHeaders: Authorization,Content-Type,Accept,X-Request-Id,X-Requested-With
+            exposedHeaders: "X-Request-Id"
+            allowCredentials: ${CORS_ALLOW_CREDENTIALS:true}
+            maxAge: ${CORS_MAX_AGE_SECONDS:3600}
       routes:
         - id: auth-service
-          uri: lb://auth-service
+          uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
           predicates:
             - Path=/api/auth/**
-          filters:
-            - StripPrefix=1
-        - id: user-service
-          uri: lb://user-service
+        - id: auth-admin-status-service
+          uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+          predicates:
+            - Path=/api/admin/users/*/status
+        - id: auth-admin-role-service
+          uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+          predicates:
+            - Path=/api/admin/users/*/role
+        - id: user-profile-admin-service
+          uri: ${USER_PROFILE_SERVICE_URL:${USER_SERVICE_URL:http://user-profile-service:8082}}
+          predicates:
+            - Path=/api/admin/users/**
+        - id: user-profile-service
+          uri: ${USER_PROFILE_SERVICE_URL:${USER_SERVICE_URL:http://user-profile-service:8082}}
           predicates:
             - Path=/api/users/**
-          filters:
-            - StripPrefix=1
         - id: product-service
           uri: lb://product-service
           predicates:
@@ -81,6 +103,13 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
 
 logging:
   level:
@@ -88,3 +117,45 @@ logging:
     org.springframework.cloud.gateway: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n"
+
+jwt:
+  secret: ${JWT_SECRET:change-me-local-jwt-secret-at-least-32-characters}
+
+gateway:
+  security:
+    internal-service-secret: ${INTERNAL_SERVICE_SECRET:${INTERNAL_TOKEN:change-me-local-internal-service-secret}}
+    jwt:
+      public-key: ${JWT_PUBLIC_KEY:}
+      public-key-path: ${JWT_PUBLIC_KEY_PATH:${JWT_KEY_PATH:}}
+      secret: ${JWT_SECRET:change-me-local-jwt-secret-at-least-32-characters}
+  rate-limit:
+    enabled: ${GATEWAY_RATE_LIMIT_ENABLED:true}
+    fail-open: ${GATEWAY_RATE_LIMIT_FAIL_OPEN:true}
+    redis-timeout: ${GATEWAY_RATE_LIMIT_REDIS_TIMEOUT:250ms}
+    login-ip:
+      limit: ${GATEWAY_RATE_LIMIT_LOGIN_IP_LIMIT:10}
+      window: ${GATEWAY_RATE_LIMIT_LOGIN_IP_WINDOW:60s}
+    login-identifier:
+      limit: ${GATEWAY_RATE_LIMIT_LOGIN_IDENTIFIER_LIMIT:10}
+      window: ${GATEWAY_RATE_LIMIT_LOGIN_IDENTIFIER_WINDOW:300s}
+    register-ip:
+      limit: ${GATEWAY_RATE_LIMIT_REGISTER_IP_LIMIT:5}
+      window: ${GATEWAY_RATE_LIMIT_REGISTER_IP_WINDOW:60s}
+    forgot-password-ip:
+      limit: ${GATEWAY_RATE_LIMIT_FORGOT_PASSWORD_IP_LIMIT:5}
+      window: ${GATEWAY_RATE_LIMIT_FORGOT_PASSWORD_IP_WINDOW:60s}
+    forgot-password-identifier:
+      limit: ${GATEWAY_RATE_LIMIT_FORGOT_PASSWORD_IDENTIFIER_LIMIT:5}
+      window: ${GATEWAY_RATE_LIMIT_FORGOT_PASSWORD_IDENTIFIER_WINDOW:900s}
+    reset-password-ip:
+      limit: ${GATEWAY_RATE_LIMIT_RESET_PASSWORD_IP_LIMIT:5}
+      window: ${GATEWAY_RATE_LIMIT_RESET_PASSWORD_IP_WINDOW:60s}
+    reset-password-token:
+      limit: ${GATEWAY_RATE_LIMIT_RESET_PASSWORD_TOKEN_LIMIT:5}
+      window: ${GATEWAY_RATE_LIMIT_RESET_PASSWORD_TOKEN_WINDOW:900s}
+    refresh-ip:
+      limit: ${GATEWAY_RATE_LIMIT_REFRESH_IP_LIMIT:30}
+      window: ${GATEWAY_RATE_LIMIT_REFRESH_IP_WINDOW:60s}
+    ai-chat:
+      limit: ${GATEWAY_RATE_LIMIT_AI_CHAT_LIMIT:5}
+      window: ${GATEWAY_RATE_LIMIT_AI_CHAT_WINDOW:60s}

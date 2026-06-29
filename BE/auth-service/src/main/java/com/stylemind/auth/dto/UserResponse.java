@@ -11,7 +11,6 @@ import java.time.Instant;
 public class UserResponse {
     private String id;
     private String email;
-    private String fullName;
     private String role;
     private String provider;
     private Instant createdAt;

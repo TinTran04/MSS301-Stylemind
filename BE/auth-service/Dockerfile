@@ -11,7 +11,6 @@ COPY order-service/pom.xml order-service/pom.xml
 COPY payment-service/pom.xml payment-service/pom.xml
 COPY notification-service/pom.xml notification-service/pom.xml
 COPY ai-agent-service/pom.xml ai-agent-service/pom.xml
-COPY inventory-service/pom.xml inventory-service/pom.xml
 RUN mvn dependency:go-offline -B
 
 COPY common-lib/src common-lib/src
