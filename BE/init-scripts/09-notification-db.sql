@@ -7,10 +7,10 @@ CREATE TABLE IF NOT EXISTS notification_logs (
     user_id VARCHAR(50),
     recipient_email VARCHAR(150),
     type VARCHAR(30) NOT NULL,
-    channel VARCHAR(20) NOT NULL DEFAULT 'EMAIL',
+    channel VARCHAR(20) NOT NULL DEFAULT 'EMAIL' CHECK (channel IN ('EMAIL', 'IN_APP')),
     title VARCHAR(200),
     content TEXT,
-    status VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL CHECK (status IN ('PENDING', 'SENT', 'FAILED', 'SKIPPED')),
     error_message VARCHAR(500),
     sent_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -19,5 +19,6 @@ CREATE TABLE IF NOT EXISTS notification_logs (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_notification_logs_user_id ON notification_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_type ON notification_logs(type);
 CREATE INDEX IF NOT EXISTS idx_notification_logs_status ON notification_logs(status);
 CREATE INDEX IF NOT EXISTS idx_notification_logs_created_at ON notification_logs(created_at);

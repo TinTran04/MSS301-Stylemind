@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class NotificationRequest {
+    @Size(max = 50, message = "ID nguoi dung toi da 50 ky tu")
     private String userId;
 
     @Email(message = "Email người nhận không hợp lệ")
@@ -21,11 +22,13 @@ public class NotificationRequest {
     private String type;
 
     @Builder.Default
+    @Size(max = 20, message = "Kenh thong bao toi da 20 ky tu")
     private String channel = "EMAIL";
 
     @Size(max = 200, message = "Tiêu đề tối đa 200 ký tự")
     private String title;
 
+    @Size(max = 10000, message = "Noi dung toi da 10000 ky tu")
     private String content;
 
     @Size(max = 20, message = "Trạng thái tối đa 20 ký tự")

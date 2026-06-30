@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 @Builder
 public class InternalEmailRequest {
 
+    @Size(max = 50, message = "ID nguoi dung toi da 50 ky tu")
     private String userId;
 
     @NotBlank(message = "Email người nhận không được để trống")
@@ -28,7 +29,12 @@ public class InternalEmailRequest {
     @Size(max = 200, message = "Tiêu đề tối đa 200 ký tự")
     private String title;
 
+    @Size(max = 10000, message = "Noi dung toi da 10000 ky tu")
     private String content;
 
+    @Size(max = 10000, message = "Noi dung HTML toi da 10000 ky tu")
     private String htmlContent;
+
+    /** Sensitive delivery value for templates; never persisted or logged. */
+    private String actualOtp;
 }

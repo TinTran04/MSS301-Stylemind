@@ -3,18 +3,16 @@
 
 -- Categories (hierarchical tree structure)
 CREATE TABLE IF NOT EXISTS categories (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    parent_id BIGINT REFERENCES categories(id),
-    slug VARCHAR(150) UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+                                          id SERIAL PRIMARY KEY,
+                                          name VARCHAR(100) NOT NULL,
+    parent_id INT REFERENCES categories(id),
+    slug VARCHAR(150) UNIQUE NOT NULL
+    );
 
 -- Products (base product information)
 CREATE TABLE IF NOT EXISTS products (
-    id VARCHAR(50) PRIMARY KEY,
-    category_id BIGINT REFERENCES categories(id),
+                                        id VARCHAR(50) PRIMARY KEY,
+    category_id INT REFERENCES categories(id),
     name VARCHAR(200) NOT NULL,
     description TEXT,
     base_price DECIMAL(12, 2) NOT NULL,
@@ -24,11 +22,11 @@ CREATE TABLE IF NOT EXISTS products (
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    );
 
 -- Product Variants (SKU-level variants with size, color, material)
 CREATE TABLE IF NOT EXISTS product_variants (
-    id VARCHAR(50) PRIMARY KEY,
+                                                id VARCHAR(50) PRIMARY KEY,
     product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     sku VARCHAR(100) UNIQUE NOT NULL,
     size VARCHAR(20) NOT NULL,
@@ -37,16 +35,16 @@ CREATE TABLE IF NOT EXISTS product_variants (
     price_override DECIMAL(12, 2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    );
 
 -- Product Images
 CREATE TABLE IF NOT EXISTS product_images (
-    id BIGSERIAL PRIMARY KEY,
-    product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+                                              id SERIAL PRIMARY KEY,
+                                              product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     image_url VARCHAR(500) NOT NULL,
     is_primary BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    );
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
@@ -56,14 +54,14 @@ CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON product_variants(sku);
 CREATE INDEX IF NOT EXISTS idx_product_images_product_id ON product_images(product_id);
 
 -- Insert sample categories
-INSERT INTO categories (name, parent_id, slug) VALUES
-('Áo', NULL, 'ao'),
-('Quần', NULL, 'quan'),
-('Đầm', NULL, 'dam'),
-('Áo khoác', 1, 'ao-khoac'),
-('Áo sơ mi', 1, 'ao-so-mi'),
-('Áo thun', 1, 'ao-thun'),
-('Quần tây', 2, 'quan-tay'),
-('Quần jean', 2, 'quan-jean'),
-('Quần short', 2, 'quan-short')
-ON CONFLICT (slug) DO NOTHING;
+INSERT INTO categories (id, name, parent_id, slug) VALUES
+                                                       (1, 'Áo', NULL, 'ao'),
+                                                       (2, 'Quần', NULL, 'quan'),
+                                                       (3, 'Đầm', NULL, 'dam'),
+                                                       (4, 'Áo khoác', 1, 'ao-khoac'),
+                                                       (5, 'Áo sơ mi', 1, 'ao-so-mi'),
+                                                       (6, 'Áo thun', 1, 'ao-thun'),
+                                                       (7, 'Quần tây', 2, 'quan-tay'),
+                                                       (8, 'Quần jean', 2, 'quan-jean'),
+                                                       (9, 'Quần short', 2, 'quan-short')
+    ON CONFLICT (slug) DO NOTHING;
