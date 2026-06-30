@@ -12,3 +12,8 @@ dist/
 # Downloaded Harness CLI binary for installed project instances.
 scripts/bin/harness-cli
 scripts/bin/harness-cli.exe
+
+# Environment variables
+.env
+.env.local
+.env.docker

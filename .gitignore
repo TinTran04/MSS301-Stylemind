@@ -30,3 +30,5 @@ Thumbs.db
 .codegraph/
 .venv/
 .agents/
+HIOS
+.agent/*

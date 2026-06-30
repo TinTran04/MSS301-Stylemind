@@ -1,0 +1,2 @@
+SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
+AUTH_SERVICE_URL: http://auth-service:8081

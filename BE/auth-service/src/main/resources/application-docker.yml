@@ -1,0 +1,2 @@
+SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+NOTIFICATION_SERVICE_URL: http://notification-service:8089

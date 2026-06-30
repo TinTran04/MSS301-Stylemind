@@ -1,0 +1,2 @@
+SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/product_db
+S3_ENDPOINT: http://minio:9000

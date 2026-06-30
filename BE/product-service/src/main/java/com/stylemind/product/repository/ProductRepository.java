@@ -23,9 +23,9 @@ public interface ProductRepository extends JpaRepository<Product, String> {
            "(:categoryId IS NULL OR p.categoryId = :categoryId) AND " +
            "(:minPrice IS NULL OR p.basePrice >= :minPrice) AND " +
            "(:maxPrice IS NULL OR p.basePrice <= :maxPrice) AND " +
-           "(:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           " LOWER(p.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           " LOWER(p.aestheticStyle) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+           "(:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')) OR " +
+           " LOWER(p.description) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')) OR " +
+           " LOWER(p.aestheticStyle) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')))")
     Page<Product> searchAndFilter(
             @org.springframework.data.repository.query.Param("keyword") String keyword,
             @org.springframework.data.repository.query.Param("categoryId") Long categoryId,

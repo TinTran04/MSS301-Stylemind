@@ -1,0 +1,9 @@
+AUTH_SERVICE_URL: http://localhost:8081
+USER_SERVICE_URL: http://localhost:8082
+PRODUCT_SERVICE_URL: http://localhost:8083
+AI_SERVICE_URL: http://localhost:8085
+CART_SERVICE_URL: http://localhost:8086
+ORDER_SERVICE_URL: http://localhost:8087
+PAYMENT_SERVICE_URL: http://localhost:8088
+NOTIFICATION_SERVICE_URL: http://localhost:8089
+REDIS_HOST: localhost
