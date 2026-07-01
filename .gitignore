@@ -31,6 +31,6 @@ Thumbs.db
 .codegraph/
 .venv/
 .agents/
-HIOS
-.agent/*
-.claude/*
+.claude/
+HIOS/
+change/
