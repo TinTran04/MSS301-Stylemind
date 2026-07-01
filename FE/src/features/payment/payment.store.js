@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createOrder } from '../orders/order.api'
+import { confirmOrderPayment, createOrder } from '../orders/order.api'
 
 const usePaymentStore = create((set, get) => ({
   status: 'idle',
@@ -17,8 +17,8 @@ const usePaymentStore = create((set, get) => ({
 
     const steps = [
       { label: 'Creating order', status: 'pending' },
-      { label: method === 'cod' ? 'Setting payment on delivery' : 'Processing payment', status: 'pending' },
-      { label: 'Confirming order', status: 'pending' },
+      { label: method === 'cod' ? 'Setting payment on delivery' : 'Creating sandbox transaction', status: 'pending' },
+      { label: method === 'cod' ? 'Confirming order' : 'Waiting for sandbox code', status: 'pending' },
     ]
     set({ steps: [...steps] })
 
@@ -46,19 +46,20 @@ const usePaymentStore = create((set, get) => ({
       const shippingAddress = orderData.shippingAddress
         || [orderData.address?.line1, orderData.address?.line2].filter(Boolean).join(', ')
 
-      const transactionId = method === 'sandbox'
-        ? (crypto.randomUUID?.() ?? `txn_${Date.now()}`)
-        : undefined
-
       const order = await createOrder({
         shippingAddress,
         paymentMethod: method,
-        ...(transactionId && { transactionId }),
       })
       markDone(0)
 
       markProcessing(1)
       markDone(1)
+
+      if (method === 'online_simulated') {
+        markProcessing(2)
+        set({ status: 'awaiting_confirmation', lastOrder: order })
+        return { success: true, requiresConfirmation: true, order }
+      }
 
       markProcessing(2)
       markDone(2)
@@ -71,7 +72,51 @@ const usePaymentStore = create((set, get) => ({
     }
   },
 
-  reset: () => set({ status: 'idle', steps: [], currentStep: -1, error: null }),
+  confirmSandboxPayment: async (verificationCode) => {
+    const { lastOrder } = get()
+    if (!lastOrder?.id || !lastOrder?.paymentTransactionId) {
+      set({ status: 'failed', error: 'Missing sandbox transaction. Please place the order again.' })
+      return { success: false }
+    }
+
+    try {
+      const order = await confirmOrderPayment(lastOrder.id, {
+        transactionId: lastOrder.paymentTransactionId,
+        verificationCode,
+      })
+
+      const steps = [...get().steps]
+      if (steps[2]) {
+        steps[2] = {
+          ...steps[2],
+          status: order.orderStatus === 'CANCELLED' ? 'failed' : 'completed',
+        }
+      }
+
+      if (order.orderStatus === 'CANCELLED') {
+        set({
+          status: 'failed',
+          steps,
+          error: 'Sandbox payment failed.',
+          lastOrder: order,
+        })
+        return { success: false, order }
+      }
+
+      set({ status: 'success', steps, error: null, lastOrder: order })
+      return { success: true, order }
+    } catch (err) {
+      if (err.errorCode === 'INVALID_SANDBOX_CODE') {
+        set({ status: 'awaiting_confirmation', error: err.message || 'Invalid sandbox code.' })
+        return { success: false, retryable: true, message: err.message || 'Invalid sandbox code.' }
+      }
+
+      set({ status: 'failed', error: err.message || 'Unable to confirm sandbox payment.' })
+      return { success: false }
+    }
+  },
+
+  reset: () => set({ status: 'idle', steps: [], currentStep: -1, error: null, lastOrder: null }),
 }))
 
 export default usePaymentStore

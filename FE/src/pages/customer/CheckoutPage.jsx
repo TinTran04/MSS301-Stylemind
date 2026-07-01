@@ -8,16 +8,18 @@ import { formatCurrency } from '../../utils/formatCurrency'
 
 const paymentMethods = [
   { id: 'cod', label: 'Cash on Delivery', icon: Banknote, description: 'Pay when your order arrives' },
-  { id: 'sandbox', label: 'SANDBOX payment', icon: CreditCard, description: 'Test card ****4242' },
+  { id: 'online_simulated', label: 'SANDBOX payment', icon: CreditCard, description: 'Use 123456 for success or 000000 for failed' },
 ]
 
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart()
-  const { status, steps, error, method, setMethod, processPayment, reset, lastOrder } = usePaymentStore()
+  const { status, steps, error, method, setMethod, processPayment, confirmSandboxPayment, reset, lastOrder } = usePaymentStore()
   const navigate = useNavigate()
 
   const [shippingAddress, setShippingAddress] = useState('')
   const [addressError, setAddressError] = useState('')
+  const [sandboxCode, setSandboxCode] = useState('')
+  const [sandboxError, setSandboxError] = useState('')
 
   const displayItems = items
   const displaySubtotal = subtotal
@@ -43,6 +45,23 @@ export default function CheckoutPage() {
       total,
     })
 
+    if (result.success && !result.requiresConfirmation) {
+      await clearCart()
+    }
+  }
+
+  const handleConfirmSandbox = async () => {
+    if (!sandboxCode.trim()) {
+      setSandboxError('Please enter the sandbox code.')
+      return
+    }
+
+    setSandboxError('')
+    const result = await confirmSandboxPayment(sandboxCode.trim())
+    if (result.retryable) {
+      setSandboxError(result.message)
+      return
+    }
     if (result.success) {
       await clearCart()
     }
@@ -100,6 +119,73 @@ export default function CheckoutPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Sandbox Confirmation State */}
+      {status === 'awaiting_confirmation' && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.35 }}
+          className="max-w-2xl mx-auto py-12"
+        >
+          <div className="bg-surface-container-lowest rounded-xl p-8 ambient-shadow mb-6">
+            <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CreditCard size={28} className="text-primary" />
+            </div>
+            <h2 className="font-headline-md text-primary text-center mb-2">Sandbox Payment</h2>
+            <p className="text-sm text-on-surface-variant text-center mb-4">
+              Enter 123456 to complete payment or 000000 to simulate a failed payment.
+            </p>
+            <p className="text-xs text-on-surface-variant text-center mb-6">
+              Transaction ID: <span className="font-mono text-primary">{lastOrder?.paymentTransactionId}</span>
+            </p>
+
+            <div className="space-y-3">
+              <input
+                value={sandboxCode}
+                onChange={(event) => {
+                  setSandboxCode(event.target.value)
+                  setSandboxError('')
+                }}
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="123456"
+                className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-center text-lg font-mono tracking-[0.25em] text-primary placeholder:text-on-surface-variant/40 focus:outline-none focus:border-tertiary-container"
+              />
+              {sandboxError && <p className="text-xs text-error text-center">{sandboxError}</p>}
+              <button
+                onClick={handleConfirmSandbox}
+                className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase flex items-center justify-center gap-2"
+              >
+                <Lock size={14} /> Confirm Payment
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow">
+            <div className="space-y-4">
+              {steps.map((step, idx) => (
+                <div key={idx} className="flex items-center gap-4">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${
+                    step.status === 'completed' ? 'bg-green-status text-white'
+                    : step.status === 'processing' ? 'bg-primary text-on-primary animate-pulse'
+                    : step.status === 'failed' ? 'bg-error text-white'
+                    : 'bg-surface-container-high text-on-surface-variant'
+                  }`}>
+                    {step.status === 'completed' ? <Check size={14} /> : idx + 1}
+                  </div>
+                  <span className={`text-sm font-medium ${
+                    step.status === 'completed' ? 'text-green-status'
+                    : step.status === 'processing' ? 'text-primary'
+                    : step.status === 'failed' ? 'text-error'
+                    : 'text-on-surface-variant'
+                  }`}>{step.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
       )}
 
       {/* Success State */}
@@ -245,10 +331,10 @@ export default function CheckoutPage() {
                 })}
               </div>
 
-              {method === 'sandbox' && (
+              {method === 'online_simulated' && (
                 <div className="mt-4 bg-surface-container-low rounded-xl p-4">
                   <p className="text-xs text-on-surface-variant">
-                    A secure transaction ID will be generated and processed by our simulated payment gateway.
+                    After placing the order, enter sandbox code 123456 to complete or 000000 to fail.
                   </p>
                 </div>
               )}

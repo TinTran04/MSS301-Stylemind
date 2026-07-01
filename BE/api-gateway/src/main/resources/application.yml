@@ -36,8 +36,6 @@ spring:
       # Without this, browser sees two Access-Control-Allow-Origin values and blocks the response.
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin, RETAIN_FIRST
-        - RemoveRequestHeader=X-User-Id
-        - RemoveRequestHeader=X-User-Roles
       routes:
         - id: auth-service
           uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
@@ -63,6 +61,10 @@ spring:
           uri: ${ORDER_SERVICE_URL:http://order-service:8087}
           predicates:
             - Path=/api/orders/**
+        - id: admin-order-service
+          uri: ${ORDER_SERVICE_URL:http://order-service:8087}
+          predicates:
+            - Path=/api/admin/orders/**
         - id: payment-service
           uri: ${PAYMENT_SERVICE_URL:http://payment-service:8088}
           predicates:

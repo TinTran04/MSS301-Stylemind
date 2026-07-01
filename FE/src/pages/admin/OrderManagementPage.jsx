@@ -36,26 +36,36 @@ export default function OrderManagementPage() {
 
   const sagaSteps = ['Order Created', 'Stock Reserved', 'Payment Processing', 'Completed']
 
+  const getOrderStatus = (order) => String(order?.orderStatus || order?.status || 'PENDING').toUpperCase()
+
+  const getBadgeStatus = (order) => {
+    const status = getOrderStatus(order).toLowerCase()
+    if (status === 'fulfilled') return 'completed'
+    if (status === 'cancelled') return 'failed'
+    return status
+  }
+
   const getSagaIndex = (state) => {
-    const map = { completed: 3, processing: 2, stock_reserved: 1, payment_pending: 0.5, pending: 0, confirmed: 0.5, shipped: 2.5, delivered: 3 }
+    const map = { completed: 3, fulfilled: 3, processing: 2, stock_reserved: 1, pending_payment: 0.5, payment_pending: 0.5, pending: 0, cancelled: 0 }
     return map[state?.toLowerCase()] ?? 0
   }
 
-  const statusFlow = ['pending', 'confirmed', 'processing', 'shipped', 'delivered']
+  const statusFlow = ['PENDING', 'PROCESSING', 'FULFILLED']
 
   const advanceStatus = async (orderId, currentStatus) => {
-    const currentIdx = statusFlow.indexOf(currentStatus?.toLowerCase())
+    const normalizedStatus = String(currentStatus || 'PENDING').toUpperCase()
+    const currentIdx = Math.max(statusFlow.indexOf(normalizedStatus), 0)
     const nextIdx = Math.min(currentIdx + 1, statusFlow.length - 1)
-    const newStatus = statusFlow[nextIdx].toUpperCase()
+    const newStatus = statusFlow[nextIdx]
 
     try {
-      await updateAdminOrderStatus(orderId, { status: newStatus })
+      await updateAdminOrderStatus(orderId, { orderStatus: newStatus })
       fetchOrders()
       showToast(`Order status updated to ${newStatus}`)
       
       // Update selected order view if it's open
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder(prev => ({ ...prev, status: newStatus }))
+        setSelectedOrder(prev => ({ ...prev, orderStatus: newStatus, status: newStatus }))
       }
     } catch (err) {
       showToast('Error updating order: ' + err.message)
@@ -113,8 +123,8 @@ export default function OrderManagementPage() {
                   <td className="px-4 py-3 text-sm text-on-surface">{order.customerName || order.userId || 'Guest'}</td>
                   <td className="px-4 py-3 text-sm text-on-surface-variant">{formatDate(order.createdAt || order.date)}</td>
                   <td className="px-4 py-3 text-sm text-primary font-medium">{formatCurrency(order.totalAmount || order.total || 0)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={order.status?.toLowerCase() || 'pending'} /></td>
-                  <td className="px-4 py-3"><StatusBadge status={order.sagaState?.toLowerCase() || 'pending'} /></td>
+                  <td className="px-4 py-3"><StatusBadge status={getBadgeStatus(order)} /></td>
+                  <td className="px-4 py-3"><StatusBadge status={(order.sagaState || getOrderStatus(order)).toLowerCase()} /></td>
                   <td className="px-4 py-3"><button className="p-1.5 rounded hover:bg-surface-container-high"><Eye size={14} className="text-on-surface-variant" /></button></td>
                 </tr>
               ))}
@@ -136,7 +146,7 @@ export default function OrderManagementPage() {
               <h4 className="font-label-sm uppercase text-on-surface-variant mb-3">Saga Timeline</h4>
               <div className="space-y-3">
                 {sagaSteps.map((step, idx) => {
-                  const completed = idx <= getSagaIndex(selectedOrder.sagaState)
+                  const completed = idx <= getSagaIndex(selectedOrder.sagaState || getOrderStatus(selectedOrder))
                   return (
                     <div key={idx} className="flex items-center gap-3">
                       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
@@ -152,21 +162,24 @@ export default function OrderManagementPage() {
             </div>
 
             <div className="border-t border-outline-variant/20 pt-4">
-              <StatusBadge status={selectedOrder.sagaState?.toLowerCase() || 'pending'} />
+              <StatusBadge status={(selectedOrder.sagaState || getOrderStatus(selectedOrder)).toLowerCase()} />
             </div>
 
             <div className="flex gap-2 pt-2">
-              {selectedOrder.status?.toLowerCase() === 'pending' && (
-                <button onClick={() => advanceStatus(selectedOrder.id, 'pending')} className="flex-1 bg-primary text-on-primary rounded-lg py-2 text-xs font-medium hover:opacity-90">Confirm</button>
+              {getOrderStatus(selectedOrder) === 'PENDING' && (
+                <button onClick={() => advanceStatus(selectedOrder.id, getOrderStatus(selectedOrder))} className="flex-1 bg-primary text-on-primary rounded-lg py-2 text-xs font-medium hover:opacity-90">Start Processing</button>
               )}
-              {selectedOrder.status?.toLowerCase() === 'confirmed' && (
-                <button onClick={() => advanceStatus(selectedOrder.id, 'confirmed')} className="flex-1 bg-primary text-on-primary rounded-lg py-2 text-xs font-medium hover:opacity-90">Ship</button>
+              {getOrderStatus(selectedOrder) === 'PROCESSING' && (
+                <button onClick={() => advanceStatus(selectedOrder.id, getOrderStatus(selectedOrder))} className="flex-1 bg-primary text-on-primary rounded-lg py-2 text-xs font-medium hover:opacity-90">Fulfill</button>
               )}
-              {(selectedOrder.status?.toLowerCase() === 'processing' || selectedOrder.status?.toLowerCase() === 'shipped') && (
-                <button onClick={() => advanceStatus(selectedOrder.id, 'shipped')} className="flex-1 bg-primary text-on-primary rounded-lg py-2 text-xs font-medium hover:opacity-90">Complete</button>
+              {getOrderStatus(selectedOrder) === 'PENDING_PAYMENT' && (
+                <span className="text-sm text-on-surface-variant font-medium">Waiting for payment</span>
               )}
-              {selectedOrder.status?.toLowerCase() === 'delivered' && (
+              {getOrderStatus(selectedOrder) === 'FULFILLED' && (
                 <span className="text-sm text-green-status font-medium">Order completed</span>
+              )}
+              {getOrderStatus(selectedOrder) === 'CANCELLED' && (
+                <span className="text-sm text-error font-medium">Order cancelled</span>
               )}
             </div>
           </div>

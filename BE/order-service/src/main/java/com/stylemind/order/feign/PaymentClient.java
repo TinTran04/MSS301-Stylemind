@@ -12,8 +12,7 @@ public interface PaymentClient {
     @PostMapping("/api/payment/checkout")
     ApiResponse<PaymentResponse> checkout(@RequestBody CheckoutRequest request);
 
-    // Internal endpoints
-    @PostMapping("/internal/payment/process")
+    @PostMapping("/api/payment/process")
     ApiResponse<PaymentResponse> processPayment(@RequestBody ProcessPaymentRequest request);
 
     @lombok.Data
@@ -34,6 +33,7 @@ public interface PaymentClient {
         private String transactionId;
         private String orderId;
         private BigDecimal amount;
+        private String verificationCode;
     }
 
     @lombok.Data

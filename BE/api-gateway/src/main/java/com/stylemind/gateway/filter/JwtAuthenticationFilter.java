@@ -43,11 +43,6 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().value();
 
-        // Skip JWT validation for public paths
-        if (isPublicPath(path)) {
-            return chain.filter(exchange);
-        }
-
         ServerHttpRequest mutatedRequest = request.mutate()
                 .headers(headers -> {
                     headers.remove("X-User-Id");
@@ -56,9 +51,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                 })
                 .build();
 
-        // Extract JWT token
         String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
+            if (isPublicPath(path)) {
+                return chain.filter(exchange.mutate().request(mutatedRequest).build());
+            }
             return unauthorizedResponse(exchange.getResponse(), "Missing or invalid Authorization header");
         }
 

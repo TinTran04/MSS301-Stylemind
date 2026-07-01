@@ -5,64 +5,31 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @FeignClient(name = "product-service", url = "${PRODUCT_SERVICE_URL:http://localhost:8083}")
 public interface ProductClient {
 
-    @GetMapping("/internal/products/{id}")
-    ApiResponse<ProductDetail> getProduct(@PathVariable String id);
+    @GetMapping("/internal/products/variants/{variantId}")
+    ApiResponse<VariantSnapshot> getVariantSnapshot(@PathVariable String variantId);
 
-    @GetMapping("/internal/products/variants")
-    ApiResponse<List<VariantDetail>> getVariants(@RequestParam List<String> variantIds);
-
-    class ProductDetail {
-        private String id;
-        private String name;
-        private String description;
-        private BigDecimal basePrice;
-        private String aestheticStyle;
-        private String targetDemographic;
-        private String seasonalProperty;
-        private String status;
-        private List<ImageDetail> images;
-        private List<VariantDetail> variants;
-
-        public String getId() { return id; }
-        public void setId(String id) { this.id = id; }
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
-        public String getDescription() { return description; }
-        public void setDescription(String description) { this.description = description; }
-        public BigDecimal getBasePrice() { return basePrice; }
-        public void setBasePrice(BigDecimal basePrice) { this.basePrice = basePrice; }
-        public String getAestheticStyle() { return aestheticStyle; }
-        public void setAestheticStyle(String aestheticStyle) { this.aestheticStyle = aestheticStyle; }
-        public String getTargetDemographic() { return targetDemographic; }
-        public void setTargetDemographic(String targetDemographic) { this.targetDemographic = targetDemographic; }
-        public String getSeasonalProperty() { return seasonalProperty; }
-        public void setSeasonalProperty(String seasonalProperty) { this.seasonalProperty = seasonalProperty; }
-        public String getStatus() { return status; }
-        public void setStatus(String status) { this.status = status; }
-        public List<ImageDetail> getImages() { return images; }
-        public void setImages(List<ImageDetail> images) { this.images = images; }
-        public List<VariantDetail> getVariants() { return variants; }
-        public void setVariants(List<VariantDetail> variants) { this.variants = variants; }
-    }
-
-    class VariantDetail {
-        private String id;
+    class VariantSnapshot {
+        private String variantId;
         private String productId;
+        private String productName;
         private String sku;
         private String size;
         private String color;
         private String material;
-        private BigDecimal priceOverride;
+        private BigDecimal effectivePrice;
+        private String status;
+        private String primaryImageUrl;
 
-        public String getId() { return id; }
-        public void setId(String id) { this.id = id; }
+        public String getVariantId() { return variantId; }
+        public void setVariantId(String variantId) { this.variantId = variantId; }
         public String getProductId() { return productId; }
         public void setProductId(String productId) { this.productId = productId; }
+        public String getProductName() { return productName; }
+        public void setProductName(String productName) { this.productName = productName; }
         public String getSku() { return sku; }
         public void setSku(String sku) { this.sku = sku; }
         public String getSize() { return size; }
@@ -71,17 +38,11 @@ public interface ProductClient {
         public void setColor(String color) { this.color = color; }
         public String getMaterial() { return material; }
         public void setMaterial(String material) { this.material = material; }
-        public BigDecimal getPriceOverride() { return priceOverride; }
-        public void setPriceOverride(BigDecimal priceOverride) { this.priceOverride = priceOverride; }
-    }
-
-    class ImageDetail {
-        private String imageUrl;
-        private Boolean isPrimary;
-
-        public String getImageUrl() { return imageUrl; }
-        public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
-        public Boolean getIsPrimary() { return isPrimary; }
-        public void setIsPrimary(Boolean isPrimary) { this.isPrimary = isPrimary; }
+        public BigDecimal getEffectivePrice() { return effectivePrice; }
+        public void setEffectivePrice(BigDecimal effectivePrice) { this.effectivePrice = effectivePrice; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+        public String getPrimaryImageUrl() { return primaryImageUrl; }
+        public void setPrimaryImageUrl(String primaryImageUrl) { this.primaryImageUrl = primaryImageUrl; }
     }
 }

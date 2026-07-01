@@ -15,6 +15,8 @@ public class OrderResponse {
     private String userId;
     private BigDecimal totalAmount;
     private String orderStatus;
+    private String paymentTransactionId;
+    private String paymentStatus;
     private String shippingAddress;
     private List<OrderItemResponse> items;
     private Instant createdAt;
@@ -28,6 +30,10 @@ public class OrderResponse {
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    public String getPaymentTransactionId() { return paymentTransactionId; }
+    public void setPaymentTransactionId(String paymentTransactionId) { this.paymentTransactionId = paymentTransactionId; }
+    public String getPaymentStatus() { return paymentStatus; }
+    public void setPaymentStatus(String paymentStatus) { this.paymentStatus = paymentStatus; }
     public String getShippingAddress() { return shippingAddress; }
     public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
     public List<OrderItemResponse> getItems() { return items; }

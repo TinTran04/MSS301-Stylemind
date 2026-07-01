@@ -13,8 +13,7 @@ export async function getAdminOrders(filters = {}) {
 }
 
 export async function updateAdminOrderStatus(id, statusPayload) {
-  // Assuming the backend endpoint accepts PUT to update status
-  return apiClient.put(`${ENDPOINTS.ADMIN_ORDERS}/${id}`, statusPayload)
+  return apiClient.put(`${ENDPOINTS.ADMIN_ORDERS}/${id}/status`, statusPayload)
 }
 
 export async function getAdminOrderAnalytics() {

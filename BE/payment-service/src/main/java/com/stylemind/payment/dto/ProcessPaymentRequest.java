@@ -10,15 +10,18 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class ProcessPaymentRequest {
-    @NotBlank(message = "Transaction ID không được để trống")
+    @NotBlank(message = "Transaction ID is required")
     private String transactionId;
 
-    @NotBlank(message = "Order ID không được để trống")
+    @NotBlank(message = "Order ID is required")
     private String orderId;
 
-    @NotNull(message = "Số tiền không được để trống")
-    @DecimalMin(value = "0.0", inclusive = false, message = "Số tiền phải lớn hơn 0")
+    @NotNull(message = "Amount is required")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Amount must be greater than 0")
     private BigDecimal amount;
+
+    @NotBlank(message = "Verification code is required")
+    private String verificationCode;
 
     public String getTransactionId() { return transactionId; }
     public void setTransactionId(String transactionId) { this.transactionId = transactionId; }
@@ -26,4 +29,6 @@ public class ProcessPaymentRequest {
     public void setOrderId(String orderId) { this.orderId = orderId; }
     public BigDecimal getAmount() { return amount; }
     public void setAmount(BigDecimal amount) { this.amount = amount; }
+    public String getVerificationCode() { return verificationCode; }
+    public void setVerificationCode(String verificationCode) { this.verificationCode = verificationCode; }
 }
