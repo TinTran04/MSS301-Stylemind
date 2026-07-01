@@ -1,5 +1,0 @@
-SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ai_db
-QDRANT_HOST: qdrant
-NEO4J_URI: bolt://neo4j:7687
-PRODUCT_SERVICE_URL: http://product-service:8083
-ORDER_SERVICE_URL: http://order-service:8087

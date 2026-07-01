@@ -9,6 +9,7 @@ BE/target/
 BE/**/target/
 BE/.env
 BE/**/.env
+BE/.claude   
 
 # Environment
 .env
@@ -32,3 +33,4 @@ Thumbs.db
 .agents/
 HIOS
 .agent/*
+.claude/*
