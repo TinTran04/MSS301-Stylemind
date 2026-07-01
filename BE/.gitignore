@@ -4,6 +4,7 @@ harness.db-wal
 harness.db-shm
 .harness/
 .codegraph/
+docs/
 
 # Rust build output for harness tooling.
 target/
