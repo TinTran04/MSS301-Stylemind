@@ -10,11 +10,11 @@ export const ENDPOINTS = {
   INVENTORY: '/api/v1/inventory',
   CART: '/api/v1/cart',
   ORDERS: '/api/v1/orders',
-  PAYMENT: '/api/v1/payment',
   AI_STYLIST: '/api/v1/ai-stylist',
   VECTOR_SEARCH: '/api/v1/vector-search',
   KNOWLEDGE_GRAPH: '/api/v1/knowledge-graph',
   RECOMMENDATIONS: '/api/v1/recommendations',
   ANALYTICS: '/api/v1/analytics',
   NOTIFICATIONS: '/api/v1/notifications',
+  ADMIN_NOTIFICATIONS: '/api/v1/admin/notifications',
 }

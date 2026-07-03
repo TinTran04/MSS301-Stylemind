@@ -51,11 +51,6 @@ export async function createOrder(payload) {
   return mapOrder(response)
 }
 
-export async function confirmOrderPayment(orderId, payload) {
-  const response = await apiClient.post(`${ENDPOINTS.ORDERS}/${orderId}/payment/confirm`, payload)
-  return mapOrder(response)
-}
-
 export async function getOrders() {
   const response = await apiClient.get(ENDPOINTS.ORDERS)
   return Array.isArray(response) ? response.map(mapOrder).filter(Boolean) : []

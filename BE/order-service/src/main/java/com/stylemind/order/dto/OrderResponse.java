@@ -15,8 +15,13 @@ public class OrderResponse {
     private String userId;
     private BigDecimal totalAmount;
     private String orderStatus;
+    private List<String> availableTransitions;
     private String paymentTransactionId;
     private String paymentStatus;
+    private String qrContent;
+    private String qrImageUrl;
+    private String transferContent;
+    private Instant paymentExpiresAt;
     private String shippingAddress;
     private List<OrderItemResponse> items;
     private Instant createdAt;
@@ -30,10 +35,20 @@ public class OrderResponse {
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    public List<String> getAvailableTransitions() { return availableTransitions; }
+    public void setAvailableTransitions(List<String> availableTransitions) { this.availableTransitions = availableTransitions; }
     public String getPaymentTransactionId() { return paymentTransactionId; }
     public void setPaymentTransactionId(String paymentTransactionId) { this.paymentTransactionId = paymentTransactionId; }
     public String getPaymentStatus() { return paymentStatus; }
     public void setPaymentStatus(String paymentStatus) { this.paymentStatus = paymentStatus; }
+    public String getQrContent() { return qrContent; }
+    public void setQrContent(String qrContent) { this.qrContent = qrContent; }
+    public String getQrImageUrl() { return qrImageUrl; }
+    public void setQrImageUrl(String qrImageUrl) { this.qrImageUrl = qrImageUrl; }
+    public String getTransferContent() { return transferContent; }
+    public void setTransferContent(String transferContent) { this.transferContent = transferContent; }
+    public Instant getPaymentExpiresAt() { return paymentExpiresAt; }
+    public void setPaymentExpiresAt(Instant paymentExpiresAt) { this.paymentExpiresAt = paymentExpiresAt; }
     public String getShippingAddress() { return shippingAddress; }
     public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
     public List<OrderItemResponse> getItems() { return items; }

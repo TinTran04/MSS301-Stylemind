@@ -9,12 +9,14 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
     List<NotificationLog> findByUserId(String userId);
     Page<NotificationLog> findByUserId(String userId, Pageable pageable);
     List<NotificationLog> findByStatus(String status);
+    Optional<NotificationLog> findByIdAndUserId(Long id, String userId);
 
     @Query("""
             SELECT n FROM NotificationLog n

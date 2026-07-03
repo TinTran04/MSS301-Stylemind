@@ -32,6 +32,21 @@ spring:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
+# Auth-service is only used to look up a user's email for order notifications.
+auth:
+  service:
+    url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+notification:
+  service:
+    url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8089}
+
+app:
+  order:
+    # 15 min mirrors the SePay VietQR window (payment-service app.vietqr.expiry-minutes)
+    # so the QR shown to the customer expires around the same time the order does.
+    payment-timeout-minutes: ${ORDER_PAYMENT_TIMEOUT_MINUTES:15}
+    timeout-job-interval-ms: ${ORDER_TIMEOUT_JOB_INTERVAL_MS:300000}
+
 # Feign timeouts: bound every outbound call so a slow/down downstream service
 # (cart, product, payment) can't hang order-service threads indefinitely.
 # Conservative defaults; tune per-client as needed. See ARCHITECTURE_AND_QUALITY_REVIEW.md M1.

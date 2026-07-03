@@ -8,18 +8,16 @@ import { formatCurrency } from '../../utils/formatCurrency'
 
 const paymentMethods = [
   { id: 'cod', label: 'Cash on Delivery', icon: Banknote, description: 'Pay when your order arrives' },
-  { id: 'online_simulated', label: 'SANDBOX payment', icon: CreditCard, description: 'Use 123456 for success or 000000 for failed' },
+  { id: 'sepay', label: 'Thanh toán qua SePay (VietQR)', icon: CreditCard, description: 'Scan the QR code with your banking app' },
 ]
 
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart()
-  const { status, steps, error, method, setMethod, processPayment, confirmSandboxPayment, reset, lastOrder } = usePaymentStore()
+  const { status, steps, error, method, setMethod, processPayment, stopPolling, reset, lastOrder } = usePaymentStore()
   const navigate = useNavigate()
 
   const [shippingAddress, setShippingAddress] = useState('')
   const [addressError, setAddressError] = useState('')
-  const [sandboxCode, setSandboxCode] = useState('')
-  const [sandboxError, setSandboxError] = useState('')
 
   const displayItems = items
   const displaySubtotal = subtotal
@@ -33,38 +31,30 @@ export default function CheckoutPage() {
     }
   }, [items.length, status, navigate])
 
+  // Cart is cleared here (rather than only in the sandbox-confirm handler) so
+  // it also happens if a PAID transition is ever observed purely via polling.
+  useEffect(() => {
+    if (status === 'success') {
+      clearCart()
+    }
+  }, [status, clearCart])
+
+  useEffect(() => stopPolling, [stopPolling])
+
   const handlePlaceOrder = async () => {
     if (!shippingAddress.trim()) {
       setAddressError('Please enter a shipping address.')
       return
     }
     setAddressError('')
-    const result = await processPayment({
+    // Cart is cleared by the status === 'success' effect above, not here -
+    // COD resolves synchronously, but SePay only resolves once payment is
+    // confirmed (manually or via polling), so a single effect covers both.
+    await processPayment({
       shippingAddress: shippingAddress.trim(),
       items: displayItems,
       total,
     })
-
-    if (result.success && !result.requiresConfirmation) {
-      await clearCart()
-    }
-  }
-
-  const handleConfirmSandbox = async () => {
-    if (!sandboxCode.trim()) {
-      setSandboxError('Please enter the sandbox code.')
-      return
-    }
-
-    setSandboxError('')
-    const result = await confirmSandboxPayment(sandboxCode.trim())
-    if (result.retryable) {
-      setSandboxError(result.message)
-      return
-    }
-    if (result.success) {
-      await clearCart()
-    }
   }
 
   const handleTryAgain = () => {
@@ -121,7 +111,7 @@ export default function CheckoutPage() {
         </div>
       )}
 
-      {/* Sandbox Confirmation State */}
+      {/* VietQR / Sandbox Confirmation State */}
       {status === 'awaiting_confirmation' && (
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
@@ -130,36 +120,46 @@ export default function CheckoutPage() {
           className="max-w-2xl mx-auto py-12"
         >
           <div className="bg-surface-container-lowest rounded-xl p-8 ambient-shadow mb-6">
-            <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CreditCard size={28} className="text-primary" />
-            </div>
-            <h2 className="font-headline-md text-primary text-center mb-2">Sandbox Payment</h2>
+            <h2 className="font-headline-md text-primary text-center mb-2">Scan &amp; Transfer</h2>
             <p className="text-sm text-on-surface-variant text-center mb-4">
-              Enter 123456 to complete payment or 000000 to simulate a failed payment.
-            </p>
-            <p className="text-xs text-on-surface-variant text-center mb-6">
-              Transaction ID: <span className="font-mono text-primary">{lastOrder?.paymentTransactionId}</span>
+              Scan this VietQR code with your banking app and transfer exactly {formatCurrency(total)}.
             </p>
 
-            <div className="space-y-3">
-              <input
-                value={sandboxCode}
-                onChange={(event) => {
-                  setSandboxCode(event.target.value)
-                  setSandboxError('')
-                }}
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="123456"
-                className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-center text-lg font-mono tracking-[0.25em] text-primary placeholder:text-on-surface-variant/40 focus:outline-none focus:border-tertiary-container"
+            {lastOrder?.qrImageUrl ? (
+              <img
+                src={lastOrder.qrImageUrl}
+                alt="VietQR payment code"
+                className="w-48 h-48 mx-auto rounded-xl border border-outline-variant/20 object-contain mb-4"
               />
-              {sandboxError && <p className="text-xs text-error text-center">{sandboxError}</p>}
-              <button
-                onClick={handleConfirmSandbox}
-                className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase flex items-center justify-center gap-2"
-              >
-                <Lock size={14} /> Confirm Payment
-              </button>
+            ) : (
+              <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CreditCard size={28} className="text-primary" />
+              </div>
+            )}
+
+            {lastOrder?.transferContent && (
+              <div className="bg-surface-container-low rounded-xl p-4 mb-4 text-center">
+                <p className="text-xs text-on-surface-variant mb-1">Transfer note (required for matching)</p>
+                <p className="font-mono text-sm text-primary tracking-wide">{lastOrder.transferContent}</p>
+              </div>
+            )}
+
+            <div className="bg-error-container/20 border border-error/20 rounded-xl p-4 mb-4">
+              <p className="text-xs text-error text-center font-medium">
+                Do not edit the transfer note. Editing or omitting it will prevent your payment from being matched.
+              </p>
+            </div>
+
+            {lastOrder?.paymentExpiresAt && (
+              <p className="text-xs text-on-surface-variant text-center mb-4">
+                This QR code expires at {new Date(lastOrder.paymentExpiresAt).toLocaleTimeString()}. The order will
+                expire automatically if payment isn't completed in time.
+              </p>
+            )}
+
+            <div className="flex items-center justify-center gap-2 text-sm text-on-surface-variant">
+              <Loader2 size={16} className="animate-spin text-primary" />
+              Waiting for your bank transfer to arrive... this page updates automatically.
             </div>
           </div>
 
@@ -331,10 +331,12 @@ export default function CheckoutPage() {
                 })}
               </div>
 
-              {method === 'online_simulated' && (
+              {method === 'sepay' && (
                 <div className="mt-4 bg-surface-container-low rounded-xl p-4">
                   <p className="text-xs text-on-surface-variant">
-                    After placing the order, enter sandbox code 123456 to complete or 000000 to fail.
+                    After placing the order, scan the VietQR code with your banking app and transfer the exact
+                    amount using the note shown - do not edit it. Your order confirms automatically once SePay
+                    detects the transfer.
                   </p>
                 </div>
               )}

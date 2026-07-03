@@ -44,15 +44,4 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order fetched successfully", order));
     }
 
-    @PostMapping("/{orderId}/payment/confirm")
-    public ResponseEntity<ApiResponse<OrderResponse>> confirmPayment(
-            @AuthenticationPrincipal UserPrincipal principal,
-            HttpServletRequest request,
-            @PathVariable String orderId,
-            @Valid @RequestBody ConfirmPaymentRequest confirmRequest) {
-        String authHeader = request.getHeader("Authorization");
-        OrderResponse order = orderService.confirmOnlinePayment(principal.getUserId(), authHeader, orderId, confirmRequest);
-        return ResponseEntity.ok(ApiResponse.success("Payment confirmed successfully", order));
-    }
-
 }

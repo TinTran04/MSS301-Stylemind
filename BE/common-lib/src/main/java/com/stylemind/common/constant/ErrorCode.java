@@ -26,6 +26,7 @@ public enum ErrorCode {
     BUNDLE_NOT_FOUND("Không tìm thấy bộ outfit", 404),
     CONVERSATION_NOT_FOUND("Không tìm thấy hội thoại", 404),
     NOTIFICATION_NOT_FOUND("Không tìm thấy thông báo", 404),
+    NOTIFICATION_NOT_RETRYABLE("Chỉ có thể gửi lại thông báo ở trạng thái FAILED", 409),
     TRANSACTION_NOT_FOUND("Không tìm thấy giao dịch", 404),
     JOB_NOT_FOUND("Không tìm thấy job", 404),
     

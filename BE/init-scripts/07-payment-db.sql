@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     method VARCHAR(30) NOT NULL,
     status VARCHAR(30) NOT NULL,
     transaction_ref VARCHAR(100),
+    transfer_content VARCHAR(100),
+    gateway_transaction_id VARCHAR(100) UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -18,3 +20,19 @@ CREATE TABLE IF NOT EXISTS transactions (
 CREATE INDEX IF NOT EXISTS idx_transactions_order_id ON transactions(order_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
+CREATE INDEX IF NOT EXISTS idx_transactions_transfer_content ON transactions(transfer_content);
+
+-- Webhook delivery/audit log - one row per SePay webhook attempt (see §SEC-06:
+-- idempotency + reconciliation). Never stores the webhook's Authorization/API key.
+CREATE TABLE IF NOT EXISTS payment_webhook_events (
+    id VARCHAR(50) PRIMARY KEY,
+    gateway_transaction_id VARCHAR(100),
+    transaction_id VARCHAR(50),
+    transfer_content VARCHAR(200),
+    amount DECIMAL(12, 2),
+    result VARCHAR(30) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_events_gateway_txn_id ON payment_webhook_events(gateway_transaction_id);

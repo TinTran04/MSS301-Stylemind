@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import { confirmOrderPayment, createOrder } from '../orders/order.api'
+import { createOrder, getOrderById } from '../orders/order.api'
+
+const TERMINAL_SUCCESS_STATUSES = ['PAID', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'COMPLETED']
+const TERMINAL_FAILURE_STATUSES = ['EXPIRED', 'CANCELLED', 'FAILED']
+
+let pollTimer = null
 
 const usePaymentStore = create((set, get) => ({
   status: 'idle',
@@ -17,8 +22,8 @@ const usePaymentStore = create((set, get) => ({
 
     const steps = [
       { label: 'Creating order', status: 'pending' },
-      { label: method === 'cod' ? 'Setting payment on delivery' : 'Creating sandbox transaction', status: 'pending' },
-      { label: method === 'cod' ? 'Confirming order' : 'Waiting for sandbox code', status: 'pending' },
+      { label: method === 'cod' ? 'Setting payment on delivery' : 'Generating VietQR code', status: 'pending' },
+      { label: method === 'cod' ? 'Confirming order' : 'Waiting for bank transfer', status: 'pending' },
     ]
     set({ steps: [...steps] })
 
@@ -55,9 +60,12 @@ const usePaymentStore = create((set, get) => ({
       markProcessing(1)
       markDone(1)
 
-      if (method === 'online_simulated') {
+      if (method === 'sepay') {
+        // No customer confirmation step - SePay's webhook reconciles the bank
+        // transfer server-side. Polling is the only way this tab finds out.
         markProcessing(2)
         set({ status: 'awaiting_confirmation', lastOrder: order })
+        get().startPollingOrderStatus(order.id)
         return { success: true, requiresConfirmation: true, order }
       }
 
@@ -72,51 +80,46 @@ const usePaymentStore = create((set, get) => ({
     }
   },
 
-  confirmSandboxPayment: async (verificationCode) => {
-    const { lastOrder } = get()
-    if (!lastOrder?.id || !lastOrder?.paymentTransactionId) {
-      set({ status: 'failed', error: 'Missing sandbox transaction. Please place the order again.' })
-      return { success: false }
-    }
+  // Poll order status while a SePay payment is awaiting the bank transfer. This
+  // is the only way we learn of a PAID webhook or an OrderTimeoutJob expiry -
+  // both happen entirely server-side with no action from this tab.
+  startPollingOrderStatus: (orderId) => {
+    get().stopPolling()
+    pollTimer = setInterval(async () => {
+      try {
+        const order = await getOrderById(orderId)
+        const status = String(order.orderStatus || '').toUpperCase()
 
-    try {
-      const order = await confirmOrderPayment(lastOrder.id, {
-        transactionId: lastOrder.paymentTransactionId,
-        verificationCode,
-      })
-
-      const steps = [...get().steps]
-      if (steps[2]) {
-        steps[2] = {
-          ...steps[2],
-          status: order.orderStatus === 'CANCELLED' ? 'failed' : 'completed',
+        if (TERMINAL_SUCCESS_STATUSES.includes(status)) {
+          get().stopPolling()
+          set({ status: 'success', error: null, lastOrder: order })
+        } else if (TERMINAL_FAILURE_STATUSES.includes(status)) {
+          get().stopPolling()
+          set({
+            status: 'failed',
+            error: status === 'EXPIRED' ? 'Payment window expired. Please place a new order.' : 'Payment failed.',
+            lastOrder: order,
+          })
+        } else {
+          set({ lastOrder: order })
         }
+      } catch {
+        // Transient poll failure - keep polling rather than flipping to failed on one blip.
       }
+    }, 3000)
+  },
 
-      if (order.orderStatus === 'CANCELLED') {
-        set({
-          status: 'failed',
-          steps,
-          error: 'Sandbox payment failed.',
-          lastOrder: order,
-        })
-        return { success: false, order }
-      }
-
-      set({ status: 'success', steps, error: null, lastOrder: order })
-      return { success: true, order }
-    } catch (err) {
-      if (err.errorCode === 'INVALID_SANDBOX_CODE') {
-        set({ status: 'awaiting_confirmation', error: err.message || 'Invalid sandbox code.' })
-        return { success: false, retryable: true, message: err.message || 'Invalid sandbox code.' }
-      }
-
-      set({ status: 'failed', error: err.message || 'Unable to confirm sandbox payment.' })
-      return { success: false }
+  stopPolling: () => {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
     }
   },
 
-  reset: () => set({ status: 'idle', steps: [], currentStep: -1, error: null, lastOrder: null }),
+  reset: () => {
+    get().stopPolling()
+    set({ status: 'idle', steps: [], currentStep: -1, error: null, lastOrder: null })
+  },
 }))
 
 export default usePaymentStore

@@ -11,6 +11,7 @@ import AIStylistChatPage from '../pages/customer/AIStylistChatPage'
 import CartPage from '../pages/customer/CartPage'
 import CheckoutPage from '../pages/customer/CheckoutPage'
 import OrderTrackingPage from '../pages/customer/OrderTrackingPage'
+import NotificationsPage from '../pages/customer/NotificationsPage'
 import StyleProfilePage from '../pages/auth/StyleProfilePage'
 import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
@@ -56,6 +57,7 @@ export default function AppRouter() {
         <Route element={<RequireAuth />}>
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrderTrackingPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
         </Route>
       </Route>
 

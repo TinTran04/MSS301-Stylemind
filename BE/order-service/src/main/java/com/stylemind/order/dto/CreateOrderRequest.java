@@ -16,7 +16,7 @@ public class CreateOrderRequest {
     private String shippingAddress;
 
     @NotBlank(message = "Payment method is required")
-    @Pattern(regexp = "^(cod|online_simulated)$", message = "Payment method is invalid")
+    @Pattern(regexp = "^(cod|sepay)$", message = "Payment method is invalid")
     private String paymentMethod;
 
     private String transactionId;

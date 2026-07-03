@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
-import { ShoppingBag, User, Menu, X, Search, LogOut, Settings } from 'lucide-react'
+import { ShoppingBag, User, Menu, X, Search, LogOut, Settings, Bell } from 'lucide-react'
 import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import { getInitials } from '../features/auth/auth.utils'
@@ -121,6 +121,13 @@ export default function CustomerLayout() {
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"
                     >
                       <Settings size={14} /> My Orders
+                    </Link>
+                    <Link
+                      to="/notifications"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"
+                    >
+                      <Bell size={14} /> Notifications
                     </Link>
                     <button
                       onClick={handleLogout}

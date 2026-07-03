@@ -3,6 +3,7 @@ package com.stylemind.notification.service;
 import com.stylemind.notification.dto.*;
 import com.stylemind.notification.entity.NotificationLog;
 import com.stylemind.notification.repository.NotificationLogRepository;
+import com.stylemind.common.constant.ErrorCode;
 import com.stylemind.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,8 +65,27 @@ public class NotificationService {
                 .collect(Collectors.toList());
     }
 
+    public NotificationResponse getNotificationForUser(String userId, Long id) {
+        NotificationLog entry = notificationLogRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
+        return mapToResponse(entry);
+    }
+
     public Page<NotificationResponse> getNotifications(String userId, String status, String type, Pageable pageable) {
         return notificationLogRepository.search(userId, status, type, pageable).map(this::mapToResponse);
+    }
+
+    // Admin-triggered resend of a previously FAILED notification. Only FAILED
+    // entries are retryable - PENDING/SENT/SKIPPED already reflect a final or
+    // in-progress outcome that a blind resend would misrepresent.
+    public NotificationResponse retryNotification(Long id) {
+        NotificationLog entry = notificationLogRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
+        if (!"FAILED".equals(entry.getStatus()) || !StringUtils.hasText(entry.getRecipientEmail())) {
+            throw new BusinessException(ErrorCode.NOTIFICATION_NOT_RETRYABLE);
+        }
+        entry = sendEmail(entry, entry.getContent());
+        return mapToResponse(entry);
     }
 
     public NotificationResponse sendInternalEmail(InternalEmailRequest request) {
@@ -81,23 +101,6 @@ public class NotificationService {
         entry = notificationLogRepository.save(entry);
         entry = sendEmail(entry, request.getHtmlContent());
         return mapToResponse(entry);
-    }
-
-    public void markAsSent(Long id) {
-        NotificationLog entry = notificationLogRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "Không tìm thấy thông báo", 404));
-        
-        entry.setStatus("SENT");
-        entry.setSentAt(LocalDateTime.now());
-        notificationLogRepository.save(entry);
-    }
-
-    public void markAsFailed(Long id) {
-        NotificationLog entry = notificationLogRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("NOTIFICATION_NOT_FOUND", "Không tìm thấy thông báo", 404));
-        
-        entry.setStatus("FAILED");
-        notificationLogRepository.save(entry);
     }
 
     private NotificationResponse mapToResponse(NotificationLog entry) {

@@ -109,7 +109,6 @@ services:
       USER_SERVICE_URL: http://user-service:8082
       CART_SERVICE_URL: http://cart-service:8086
       ORDER_SERVICE_URL: http://order-service:8087
-      AI_SERVICE_URL: http://ai-agent-service:8085
       PAYMENT_SERVICE_URL: http://payment-service:8088
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     depends_on:
@@ -232,6 +231,9 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       PAYMENT_SERVICE_URL: http://payment-service:8088
       CART_SERVICE_URL: http://cart-service:8086
+      PRODUCT_SERVICE_URL: http://product-service:8083
+      AUTH_SERVICE_URL: http://auth-service:8081
+      NOTIFICATION_SERVICE_URL: http://notification-service:8089
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
       SERVER_PORT: 8087
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
@@ -255,6 +257,11 @@ services:
       SPRING_DATASOURCE_PASSWORD: password
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
+      ORDER_SERVICE_URL: http://order-service:8087
+      VIETQR_BANK_ID: ${VIETQR_BANK_ID:-970436}
+      VIETQR_ACCOUNT_NO: ${VIETQR_ACCOUNT_NO:-0123456789}
+      VIETQR_ACCOUNT_NAME: ${VIETQR_ACCOUNT_NAME:-STYLEMIND SANDBOX}
+      SEPAY_WEBHOOK_API_KEY: ${SEPAY_WEBHOOK_API_KEY}
       SERVER_PORT: 8088
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     depends_on:
@@ -280,43 +287,6 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     depends_on:
       postgres:
-        condition: service_healthy
-    networks:
-      - stylemind-network
-
-  # ----------------------------------------------------
-  # 4. AI Services
-  # ----------------------------------------------------
-  ai-agent-service:
-    build:
-      context: .
-      dockerfile: ai-agent-service/Dockerfile
-    image: stylemind/ai-agent-service:latest
-    container_name: ai-agent-service
-    ports:
-      - "8085:8085"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ai_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
-      NEO4J_URI: bolt://neo4j:7687
-      NEO4J_USERNAME: neo4j
-      NEO4J_PASSWORD: password
-      LLM_API_KEY: ${LLM_API_KEY}
-      JWT_SECRET: ${JWT_SECRET}
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      PRODUCT_SERVICE_URL: http://product-service:8083
-      ORDER_SERVICE_URL: http://order-service:8087
-      SERVER_PORT: 8085
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-    depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
-      neo4j:
         condition: service_healthy
     networks:
       - stylemind-network

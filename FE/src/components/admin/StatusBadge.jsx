@@ -16,6 +16,8 @@ const statusConfig = {
   delivered: { color: 'bg-green-status/10 text-green-status', dot: 'bg-green-status' },
   confirmed: { color: 'bg-blue-50 text-blue-600', dot: 'bg-blue-500' },
   processing_order: { color: 'bg-tertiary-fixed/30 text-tertiary', dot: 'bg-tertiary' },
+  paid: { color: 'bg-blue-50 text-blue-600', dot: 'bg-blue-500' },
+  expired: { color: 'bg-error-container text-error', dot: 'bg-error' },
 }
 
 export default function StatusBadge({ status }) {

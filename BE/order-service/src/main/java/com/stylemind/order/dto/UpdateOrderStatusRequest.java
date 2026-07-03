@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 public class UpdateOrderStatusRequest {
     @NotBlank(message = "Order status is required")
     @Pattern(
-            regexp = "^(PENDING|PROCESSING|COMPENSATING_ROLLBACK|FULFILLED|CANCELLED)$",
+            regexp = "^(PENDING|PAYMENT_PENDING|PAID|CONFIRMED|PROCESSING|SHIPPED|COMPLETED|CANCELLED|EXPIRED|FAILED)$",
             message = "Order status is invalid"
     )
     private String orderStatus;

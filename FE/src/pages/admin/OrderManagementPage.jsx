@@ -4,6 +4,7 @@ import MetricCard from '../../components/admin/MetricCard'
 import StatusBadge from '../../components/admin/StatusBadge'
 import Drawer from '../../components/common/Drawer'
 import { getAdminOrders, updateAdminOrderStatus } from '../../features/orders/admin-order.api'
+import { getAvailableTransitions, formatStatusLabel } from '../../features/orders/orderStatus'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatDate } from '../../utils/formatDate'
 
@@ -11,6 +12,7 @@ export default function OrderManagementPage() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
+  const [updating, setUpdating] = useState(false)
   const [toast, setToast] = useState(null)
 
   const fetchOrders = async () => {
@@ -19,7 +21,7 @@ export default function OrderManagementPage() {
       const data = await getAdminOrders()
       setOrders(data.content || data || [])
     } catch (err) {
-      showToast('Error loading orders: ' + err.message)
+      showToast(err.message || 'Error loading orders')
     } finally {
       setLoading(false)
     }
@@ -31,44 +33,25 @@ export default function OrderManagementPage() {
 
   const showToast = (message) => {
     setToast(message)
-    setTimeout(() => setToast(null), 3000)
+    setTimeout(() => setToast(null), 4000)
   }
 
-  const sagaSteps = ['Order Created', 'Stock Reserved', 'Payment Processing', 'Completed']
+  const getOrderStatus = (order) => String(order?.orderStatus || 'PENDING').toUpperCase()
 
-  const getOrderStatus = (order) => String(order?.orderStatus || order?.status || 'PENDING').toUpperCase()
-
-  const getBadgeStatus = (order) => {
-    const status = getOrderStatus(order).toLowerCase()
-    if (status === 'fulfilled') return 'completed'
-    if (status === 'cancelled') return 'failed'
-    return status
-  }
-
-  const getSagaIndex = (state) => {
-    const map = { completed: 3, fulfilled: 3, processing: 2, stock_reserved: 1, pending_payment: 0.5, payment_pending: 0.5, pending: 0, cancelled: 0 }
-    return map[state?.toLowerCase()] ?? 0
-  }
-
-  const statusFlow = ['PENDING', 'PROCESSING', 'FULFILLED']
-
-  const advanceStatus = async (orderId, currentStatus) => {
-    const normalizedStatus = String(currentStatus || 'PENDING').toUpperCase()
-    const currentIdx = Math.max(statusFlow.indexOf(normalizedStatus), 0)
-    const nextIdx = Math.min(currentIdx + 1, statusFlow.length - 1)
-    const newStatus = statusFlow[nextIdx]
-
+  const handleStatusChange = async (order, newStatus) => {
+    if (!newStatus) return
+    setUpdating(true)
     try {
-      await updateAdminOrderStatus(orderId, { orderStatus: newStatus })
-      fetchOrders()
-      showToast(`Order status updated to ${newStatus}`)
-      
-      // Update selected order view if it's open
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder(prev => ({ ...prev, orderStatus: newStatus, status: newStatus }))
-      }
+      const updated = await updateAdminOrderStatus(order.id, { orderStatus: newStatus })
+      showToast(`Order ${order.id} moved to ${formatStatusLabel(newStatus)}`)
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, ...updated } : o)))
+      setSelectedOrder((prev) => (prev && prev.id === order.id ? { ...prev, ...updated } : prev))
     } catch (err) {
-      showToast('Error updating order: ' + err.message)
+      // 409 = invalid transition (e.g. the order moved on since this screen loaded).
+      // Surface the backend's own message rather than a generic failure.
+      showToast(err.status === 409 ? err.message : (err.message || 'Failed to update order status'))
+    } finally {
+      setUpdating(false)
     }
   }
 
@@ -104,18 +87,17 @@ export default function OrderManagementPage() {
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Date</th>
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Total</th>
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Status</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Saga State</th>
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">
               {loading && orders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-sm text-on-surface-variant">Loading orders...</td>
+                  <td colSpan={6} className="text-center py-12 text-sm text-on-surface-variant">Loading orders...</td>
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-sm text-on-surface-variant">No orders found.</td>
+                  <td colSpan={6} className="text-center py-12 text-sm text-on-surface-variant">No orders found.</td>
                 </tr>
               ) : orders.map((order) => (
                 <tr key={order.id} className="hover:bg-surface-container-high/30 cursor-pointer" onClick={() => setSelectedOrder(order)}>
@@ -123,8 +105,7 @@ export default function OrderManagementPage() {
                   <td className="px-4 py-3 text-sm text-on-surface">{order.customerName || order.userId || 'Guest'}</td>
                   <td className="px-4 py-3 text-sm text-on-surface-variant">{formatDate(order.createdAt || order.date)}</td>
                   <td className="px-4 py-3 text-sm text-primary font-medium">{formatCurrency(order.totalAmount || order.total || 0)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={getBadgeStatus(order)} /></td>
-                  <td className="px-4 py-3"><StatusBadge status={(order.sagaState || getOrderStatus(order)).toLowerCase()} /></td>
+                  <td className="px-4 py-3"><StatusBadge status={getOrderStatus(order).toLowerCase()} /></td>
                   <td className="px-4 py-3"><button className="p-1.5 rounded hover:bg-surface-container-high"><Eye size={14} className="text-on-surface-variant" /></button></td>
                 </tr>
               ))}
@@ -142,45 +123,36 @@ export default function OrderManagementPage() {
               <p className="text-lg font-semibold text-primary mt-2">{formatCurrency(selectedOrder.totalAmount || selectedOrder.total || 0)}</p>
             </div>
 
-            <div>
-              <h4 className="font-label-sm uppercase text-on-surface-variant mb-3">Saga Timeline</h4>
-              <div className="space-y-3">
-                {sagaSteps.map((step, idx) => {
-                  const completed = idx <= getSagaIndex(selectedOrder.sagaState || getOrderStatus(selectedOrder))
-                  return (
-                    <div key={idx} className="flex items-center gap-3">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        completed ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant'
-                      }`}>
-                        {completed ? '✓' : idx + 1}
-                      </div>
-                      <span className={`text-sm ${completed ? 'text-primary' : 'text-on-surface-variant'}`}>{step}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-
             <div className="border-t border-outline-variant/20 pt-4">
-              <StatusBadge status={(selectedOrder.sagaState || getOrderStatus(selectedOrder)).toLowerCase()} />
+              <h4 className="font-label-sm uppercase text-on-surface-variant mb-3">Current Status</h4>
+              <StatusBadge status={getOrderStatus(selectedOrder).toLowerCase()} />
             </div>
 
-            <div className="flex gap-2 pt-2">
-              {getOrderStatus(selectedOrder) === 'PENDING' && (
-                <button onClick={() => advanceStatus(selectedOrder.id, getOrderStatus(selectedOrder))} className="flex-1 bg-primary text-on-primary rounded-lg py-2 text-xs font-medium hover:opacity-90">Start Processing</button>
-              )}
-              {getOrderStatus(selectedOrder) === 'PROCESSING' && (
-                <button onClick={() => advanceStatus(selectedOrder.id, getOrderStatus(selectedOrder))} className="flex-1 bg-primary text-on-primary rounded-lg py-2 text-xs font-medium hover:opacity-90">Fulfill</button>
-              )}
-              {getOrderStatus(selectedOrder) === 'PENDING_PAYMENT' && (
-                <span className="text-sm text-on-surface-variant font-medium">Waiting for payment</span>
-              )}
-              {getOrderStatus(selectedOrder) === 'FULFILLED' && (
-                <span className="text-sm text-green-status font-medium">Order completed</span>
-              )}
-              {getOrderStatus(selectedOrder) === 'CANCELLED' && (
-                <span className="text-sm text-error font-medium">Order cancelled</span>
-              )}
+            <div>
+              <h4 className="font-label-sm uppercase text-on-surface-variant mb-3">Change Status</h4>
+              {(() => {
+                const nextOptions = getAvailableTransitions(selectedOrder)
+                if (nextOptions.length === 0) {
+                  return (
+                    <p className="text-sm text-on-surface-variant italic">
+                      This order is in a terminal state — no further transitions are allowed.
+                    </p>
+                  )
+                }
+                return (
+                  <select
+                    disabled={updating}
+                    value=""
+                    onChange={(e) => handleStatusChange(selectedOrder, e.target.value)}
+                    className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-tertiary-container disabled:opacity-50"
+                  >
+                    <option value="" disabled>Select next status&hellip;</option>
+                    {nextOptions.map((status) => (
+                      <option key={status} value={status}>{formatStatusLabel(status)}</option>
+                    ))}
+                  </select>
+                )
+              })()}
             </div>
           </div>
         )}

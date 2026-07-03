@@ -35,7 +35,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             "/api/v1/categories",
             "/api/v1/cart",
             "/v3/api-docs",
-            "/swagger-ui"
+            "/swagger-ui",
+            // SePay's own servers call this directly - no user JWT exists for that
+            // request. Authenticity is instead verified inside payment-service via
+            // the webhook's Authorization/API-key header (see PaymentService).
+            "/api/v1/payments/webhook/sepay"
     );
 
     @Override

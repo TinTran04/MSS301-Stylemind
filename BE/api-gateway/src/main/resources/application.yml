@@ -65,22 +65,18 @@ spring:
           uri: ${ORDER_SERVICE_URL:http://order-service:8087}
           predicates:
             - Path=/api/v1/admin/orders/**
-        - id: payment-service
+        - id: sepay-webhook
           uri: ${PAYMENT_SERVICE_URL:http://payment-service:8088}
           predicates:
-            - Path=/api/v1/payment/**
+            - Path=/api/v1/payments/webhook/**
         - id: notification-service
           uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:8089}
           predicates:
             - Path=/api/v1/notifications/**
-        - id: ai-service
-          uri: ${AI_SERVICE_URL:http://ai-agent-service:8085}
+        - id: admin-notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:8089}
           predicates:
-            - Path=/api/v1/ai-stylist/**
-        - id: admin-ai-service
-          uri: ${AI_SERVICE_URL:http://ai-agent-service:8085}
-          predicates:
-            - Path=/api/v1/admin/ai/**
+            - Path=/api/v1/admin/notifications/**
         - id: admin-users-service
           uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
           predicates:

@@ -36,6 +36,16 @@ public class Transaction extends BaseEntity {
     @Column(name = "transaction_ref", length = 100)
     private String transactionRef;
 
+    // Unique per-order note the customer must transfer with (e.g. "STYLEMIND ORDabc123"),
+    // used to reconcile an inbound SePay webhook to this transaction. Null for COD.
+    @Column(name = "transfer_content", length = 100)
+    private String transferContent;
+
+    // SePay's own transaction id from the webhook payload ("id" field) - the idempotency
+    // key that lets us detect and no-op a redelivered webhook. Null until a webhook matches.
+    @Column(name = "gateway_transaction_id", length = 100, unique = true)
+    private String gatewayTransactionId;
+
     // Explicit getters/setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -51,4 +61,8 @@ public class Transaction extends BaseEntity {
     public void setStatus(String status) { this.status = status; }
     public String getTransactionRef() { return transactionRef; }
     public void setTransactionRef(String transactionRef) { this.transactionRef = transactionRef; }
+    public String getTransferContent() { return transferContent; }
+    public void setTransferContent(String transferContent) { this.transferContent = transferContent; }
+    public String getGatewayTransactionId() { return gatewayTransactionId; }
+    public void setGatewayTransactionId(String gatewayTransactionId) { this.gatewayTransactionId = gatewayTransactionId; }
 }

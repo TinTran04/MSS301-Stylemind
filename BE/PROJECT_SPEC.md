@@ -83,7 +83,7 @@ user-service :8082 — customer profile/address ok
 product-service :8083 — catalog ok; admin CRUD ok
 cart-service :8086 — guest + auth cart ok; merge on login ok
 order-service :8087 — order creation ok (saga partial — xem Known Issues)
-payment-service :8088 — COD + online_simulated ok
+payment-service :8088 — COD + sepay (simulated VietQR sandbox) ok
 notification-service :8089 — stub, log only
 ai-agent-service :8085 — mock responses; vector search TBD
 ```

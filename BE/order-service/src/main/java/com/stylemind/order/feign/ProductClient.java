@@ -1,12 +1,13 @@
 package com.stylemind.order.feign;
 
 import com.stylemind.common.dto.ApiResponse;
+import com.stylemind.order.config.ResilientReadFeignConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 
-@FeignClient(name = "product-service", url = "${PRODUCT_SERVICE_URL:http://localhost:8083}")
+@FeignClient(name = "product-service", url = "${PRODUCT_SERVICE_URL:http://localhost:8083}", configuration = ResilientReadFeignConfig.class)
 public interface ProductClient {
 
     @GetMapping("/internal/v1/products/variants/{variantId}")

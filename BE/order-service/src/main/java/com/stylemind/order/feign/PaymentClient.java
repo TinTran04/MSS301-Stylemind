@@ -5,23 +5,26 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 @FeignClient(name = "payment-service", url = "${PAYMENT_SERVICE_URL:http://localhost:8088}")
 public interface PaymentClient {
 
-    @PostMapping("/api/v1/payment/checkout")
-    ApiResponse<PaymentResponse> checkout(@RequestBody CheckoutRequest request);
+    @PostMapping("/internal/v1/payments/cod")
+    ApiResponse<PaymentResponse> createCodPayment(@RequestBody CodCheckoutRequest request);
 
-    @PostMapping("/api/v1/payment/process")
-    ApiResponse<PaymentResponse> processPayment(@RequestBody ProcessPaymentRequest request);
+    @PostMapping("/internal/v1/payments/sepay")
+    ApiResponse<PaymentResponse> createSepayPayment(@RequestBody SepayCheckoutRequest request);
+
+    @GetMapping("/internal/v1/payments/orders/{orderId}")
+    ApiResponse<PaymentResponse> getPaymentStatus(@PathVariable("orderId") String orderId);
 
     @lombok.Data
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     @lombok.Builder
-    class CheckoutRequest {
+    class CodCheckoutRequest {
         private String orderId;
-        private String method;
         private BigDecimal amount;
     }
 
@@ -29,11 +32,9 @@ public interface PaymentClient {
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     @lombok.Builder
-    class ProcessPaymentRequest {
-        private String transactionId;
+    class SepayCheckoutRequest {
         private String orderId;
         private BigDecimal amount;
-        private String verificationCode;
     }
 
     @lombok.Data
@@ -44,5 +45,9 @@ public interface PaymentClient {
         private String transactionId;
         private String status;
         private BigDecimal amount;
+        private String qrContent;
+        private String qrImageUrl;
+        private String transferContent;
+        private Instant expiresAt;
     }
 }

@@ -24,8 +24,9 @@ public class Order extends BaseEntity {
     private java.math.BigDecimal totalAmount;
 
     @Column(name = "order_status", length = 30, nullable = false)
+    @Enumerated(EnumType.STRING)
     @Builder.Default
-    private String orderStatus = "PENDING";
+    private OrderStatus orderStatus = OrderStatus.PENDING;
 
     @Column(name = "shipping_address", columnDefinition = "TEXT", nullable = false)
     private String shippingAddress;
@@ -37,8 +38,10 @@ public class Order extends BaseEntity {
     public void setUserId(String userId) { this.userId = userId; }
     public java.math.BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(java.math.BigDecimal totalAmount) { this.totalAmount = totalAmount; }
-    public String getOrderStatus() { return orderStatus; }
-    public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    // Mutating this directly bypasses OrderStatusService.changeStatus() and its
+    // transition validation/audit trail. Only OrderStatusService should call this.
+    public OrderStatus getOrderStatus() { return orderStatus; }
+    public void setOrderStatus(OrderStatus orderStatus) { this.orderStatus = orderStatus; }
     public String getShippingAddress() { return shippingAddress; }
     public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
 }

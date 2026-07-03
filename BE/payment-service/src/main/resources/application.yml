@@ -32,6 +32,25 @@ spring:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
+order:
+  service:
+    url: ${ORDER_SERVICE_URL:http://localhost:8087}
+
+# VietQR bank/account the QR points at - a SePay sandbox/test account in dev,
+# a real one only for the demo (see GUARDRAILS). Never hardcode a real account.
+app:
+  vietqr:
+    bank-id: ${VIETQR_BANK_ID:970436}
+    account-no: ${VIETQR_ACCOUNT_NO:0123456789}
+    account-name: ${VIETQR_ACCOUNT_NAME:STYLEMIND SANDBOX}
+    expiry-minutes: ${VIETQR_EXPIRY_MINUTES:15}
+  sepay:
+    # SePay sends "Authorization: Apikey <this value>" on every webhook call -
+    # this is how we verify the webhook is genuinely from SePay (§SEC-06). The
+    # default below is a dev-only placeholder; production MUST set a real secret
+    # via env var, never commit one.
+    webhook-api-key: ${SEPAY_WEBHOOK_API_KEY:sepay-sandbox-webhook-key-2026}
+
 jwt:
   secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
