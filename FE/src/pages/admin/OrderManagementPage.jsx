@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react'
-import { ShoppingCart, TrendingDown, Clock, DollarSign, Eye, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { ShoppingCart, TrendingDown, Clock, DollarSign, Eye, RefreshCw, Filter, Search } from 'lucide-react'
 import MetricCard from '../../components/admin/MetricCard'
 import StatusBadge from '../../components/admin/StatusBadge'
 import Drawer from '../../components/common/Drawer'
 import { getAdminOrders, updateAdminOrderStatus } from '../../features/orders/admin-order.api'
-import { getAvailableTransitions, formatStatusLabel } from '../../features/orders/orderStatus'
+import { getAvailableTransitions, formatStatusLabel, ORDER_STATUS_TRANSITIONS } from '../../features/orders/orderStatus'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatDate } from '../../utils/formatDate'
+
+const STATUS_OPTIONS = ['All', ...Object.keys(ORDER_STATUS_TRANSITIONS)]
 
 export default function OrderManagementPage() {
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -14,22 +16,37 @@ export default function OrderManagementPage() {
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [toast, setToast] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('All')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [customerInput, setCustomerInput] = useState('')
+  const [customerFilter, setCustomerFilter] = useState('')
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await getAdminOrders()
+      const data = await getAdminOrders({
+        status: statusFilter === 'All' ? undefined : statusFilter,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        userId: customerFilter || undefined,
+      })
       setOrders(data.content || data || [])
     } catch (err) {
       showToast(err.message || 'Error loading orders')
     } finally {
       setLoading(false)
     }
-  }
+  }, [statusFilter, fromDate, toDate, customerFilter])
 
   useEffect(() => {
     fetchOrders()
-  }, [])
+  }, [fetchOrders])
+
+  const handleCustomerSearch = (e) => {
+    e.preventDefault()
+    setCustomerFilter(customerInput.trim())
+  }
 
   const showToast = (message) => {
     setToast(message)
@@ -68,6 +85,55 @@ export default function OrderManagementPage() {
         <button onClick={fetchOrders} disabled={loading} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40">
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+        <div className="flex items-center gap-2">
+          <Filter size={16} className="text-on-surface-variant shrink-0" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-1.5 text-xs font-medium text-on-surface focus:outline-none focus:border-tertiary-container"
+          >
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {status === 'All' ? 'All statuses' : formatStatusLabel(status)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-tertiary-container"
+          />
+          <span className="text-xs text-on-surface-variant">to</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-1.5 text-xs text-on-surface focus:outline-none focus:border-tertiary-container"
+          />
+        </div>
+        <form onSubmit={handleCustomerSearch} className="relative flex-1 max-w-xs">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+          <input
+            value={customerInput}
+            onChange={(e) => setCustomerInput(e.target.value)}
+            placeholder="Search by customer/user ID…"
+            className="w-full pl-8 pr-4 py-1.5 bg-surface-container-low rounded-lg text-xs border border-outline-variant/20 outline-none focus:border-tertiary-container"
+          />
+        </form>
+        {customerFilter && (
+          <button
+            onClick={() => { setCustomerInput(''); setCustomerFilter('') }}
+            className="text-xs text-on-surface-variant hover:text-primary underline"
+          >
+            Clear customer filter
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

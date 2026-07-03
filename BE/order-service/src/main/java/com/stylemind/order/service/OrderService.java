@@ -201,11 +201,20 @@ public class OrderService {
                 .collect(Collectors.toList());
     }
 
-    public List<OrderResponse> getAllOrdersForAdmin() {
-        List<Order> orders = orderRepository.findAll();
-        return orders.stream()
-                .map(order -> buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId())))
-                .collect(Collectors.toList());
+    public org.springframework.data.domain.Page<OrderResponse> getAllOrdersForAdmin(
+            String status, String userId, java.time.LocalDateTime fromDate, java.time.LocalDateTime toDate,
+            org.springframework.data.domain.Pageable pageable) {
+        OrderStatus statusFilter = null;
+        if (org.springframework.util.StringUtils.hasText(status)) {
+            try {
+                statusFilter = OrderStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessException("INVALID_ORDER_STATUS_FILTER", "Unknown order status: " + status, 400);
+            }
+        }
+        String userIdFilter = org.springframework.util.StringUtils.hasText(userId) ? userId : null;
+        return orderRepository.search(statusFilter, userIdFilter, fromDate, toDate, pageable)
+                .map(order -> buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId())));
     }
 
     public OrderResponse getOrderForAdmin(String orderId) {

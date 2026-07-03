@@ -3,10 +3,13 @@ package com.stylemind.order.service;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.order.entity.Order;
 import com.stylemind.order.entity.OrderStatus;
+import com.stylemind.order.entity.OrderStatusAuditLog;
 import com.stylemind.order.exception.InvalidOrderStatusTransitionException;
 import com.stylemind.order.repository.OrderRepository;
+import com.stylemind.order.repository.OrderStatusAuditLogRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -25,6 +28,7 @@ import static org.mockito.Mockito.when;
 class OrderStatusServiceTest {
 
     @Mock OrderRepository orderRepository;
+    @Mock OrderStatusAuditLogRepository auditLogRepository;
 
     @InjectMocks OrderStatusService orderStatusService;
 
@@ -37,6 +41,32 @@ class OrderStatusServiceTest {
 
         assertThat(result.getOrderStatus()).isEqualTo(OrderStatus.CONFIRMED);
         verify(orderRepository).save(order);
+    }
+
+    @Test
+    void changeStatus_validTransition_persistsAuditLogEntry() {
+        Order order = order(OrderStatus.PENDING);
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        orderStatusService.changeStatus(order, OrderStatus.CONFIRMED, "admin-1");
+
+        ArgumentCaptor<OrderStatusAuditLog> captor = ArgumentCaptor.forClass(OrderStatusAuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        OrderStatusAuditLog entry = captor.getValue();
+        assertThat(entry.getOrderId()).isEqualTo("order-1");
+        assertThat(entry.getActorId()).isEqualTo("admin-1");
+        assertThat(entry.getFromStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(entry.getToStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    void changeStatus_invalidTransition_neverPersistsAuditLog() {
+        Order order = order(OrderStatus.COMPLETED);
+
+        assertThatThrownBy(() -> orderStatusService.changeStatus(order, OrderStatus.PENDING, "admin-1"))
+                .isInstanceOf(InvalidOrderStatusTransitionException.class);
+
+        verify(auditLogRepository, never()).save(any());
     }
 
     @Test

@@ -11,6 +11,7 @@ export const ENDPOINTS = {
   CART: '/api/v1/cart',
   ORDERS: '/api/v1/orders',
   AI_STYLIST: '/api/v1/ai-stylist',
+  ADMIN_AI_INDEX_JOBS: '/api/v1/admin/ai/index-jobs',
   VECTOR_SEARCH: '/api/v1/vector-search',
   KNOWLEDGE_GRAPH: '/api/v1/knowledge-graph',
   RECOMMENDATIONS: '/api/v1/recommendations',

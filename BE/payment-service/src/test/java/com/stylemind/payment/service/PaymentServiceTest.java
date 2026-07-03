@@ -90,6 +90,18 @@ class PaymentServiceTest {
     }
 
     @Test
+    void webhook_missingGatewayTransactionId_rejectedAsInvalidPayload() {
+        SepayWebhookPayload payload = webhookPayload(null, "STYLEMIND ORDorder-1", "in", "100000");
+
+        assertThatThrownBy(() -> paymentService.processSepayWebhook("Apikey test-webhook-key", payload))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("missing an id");
+
+        verify(webhookEventRepository).save(argThatResult("INVALID_PAYLOAD"));
+        verify(transactionRepository, never()).save(any());
+    }
+
+    @Test
     void webhook_duplicateGatewayTransactionId_isIgnored() {
         when(webhookEventRepository.findByGatewayTransactionId("42"))
                 .thenReturn(Optional.of(com.stylemind.payment.entity.PaymentWebhookEvent.builder().id("evt-1").build()));

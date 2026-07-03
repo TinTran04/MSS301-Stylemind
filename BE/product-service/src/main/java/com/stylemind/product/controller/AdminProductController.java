@@ -4,6 +4,7 @@ import com.stylemind.product.dto.*;
 import com.stylemind.product.service.ProductService;
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.dto.PageResponse;
+import com.stylemind.common.security.UserPrincipal;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -12,6 +13,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -64,8 +66,10 @@ public class AdminProductController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable String id) {
-        productService.deleteProduct(id);
+    public ResponseEntity<ApiResponse<Void>> deleteProduct(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        productService.deleteProduct(id, principal.getUserId());
         return ResponseEntity.ok(ApiResponse.success("Xóa sản phẩm thành công", null));
     }
 
@@ -89,8 +93,9 @@ public class AdminProductController {
     @DeleteMapping("/{productId}/variants/{variantId}")
     public ResponseEntity<ApiResponse<Void>> deleteVariant(
             @PathVariable String productId,
-            @PathVariable String variantId) {
-        productService.deleteVariant(productId, variantId);
+            @PathVariable String variantId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        productService.deleteVariant(productId, variantId, principal.getUserId());
         return ResponseEntity.ok(ApiResponse.success("Xóa biến thể thành công", null));
     }
 
@@ -106,8 +111,9 @@ public class AdminProductController {
     @DeleteMapping("/{productId}/images/{imageId}")
     public ResponseEntity<ApiResponse<Void>> deleteImage(
             @PathVariable String productId,
-            @PathVariable Long imageId) {
-        productService.deleteImage(productId, imageId);
+            @PathVariable Long imageId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        productService.deleteImage(productId, imageId, principal.getUserId());
         return ResponseEntity.ok(ApiResponse.success("Xóa ảnh thành công", null));
     }
 }

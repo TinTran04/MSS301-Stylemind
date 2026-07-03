@@ -32,7 +32,7 @@ const useCartStore = create((set, get) => ({
     }
   },
 
-  addItem: async (product, quantity = 1, size = 'M', color = 'Default') => {
+  addItem: async (product, quantity = 1, size = 'M', color = 'Default', aiSource = null) => {
     const variantId = selectVariant(product, size, color)
     if (!variantId) {
       set({ error: 'No variant available for this product.' })
@@ -41,7 +41,14 @@ const useCartStore = create((set, get) => ({
 
     set({ loading: true, error: null })
     try {
-      const cart = await addToCart({ variantId, quantity })
+      const payload = { variantId, quantity }
+      if (aiSource?.isAiRecommended) {
+        payload.isAiRecommended = true
+        if (aiSource.sourceBundleId) {
+          payload.sourceBundleId = aiSource.sourceBundleId
+        }
+      }
+      const cart = await addToCart(payload)
       set({ items: cart.items, cartId: cart.cartId, loading: false })
       return cart
     } catch (err) {

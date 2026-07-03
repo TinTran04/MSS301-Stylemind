@@ -31,6 +31,7 @@ public class ProductService {
     private final ProductVariantRepository variantRepository;
     private final ProductImageRepository imageRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductAuditLogRepository auditLogRepository;
     private final S3Client s3Client;
 
     @Value("${s3.bucket:stylemind-products}")
@@ -38,6 +39,17 @@ public class ProductService {
 
     @Value("${app.product.default-currency:VND}")
     private String defaultCurrency;
+
+    private void recordAudit(String actorId, String action, String productId, String detail) {
+        auditLogRepository.save(ProductAuditLog.builder()
+                .id(StringUtil.generateUniqueId())
+                .actorId(actorId)
+                .action(action)
+                .productId(productId)
+                .detail(detail)
+                .build());
+        log.info("Product admin action | actor={} action={} productId={} detail={}", actorId, action, productId, detail);
+    }
 
     // Product CRUD
     public ProductResponse createProduct(ProductRequest request) {
@@ -82,12 +94,13 @@ public class ProductService {
         return mapToResponse(product);
     }
 
-    public void deleteProduct(String id) {
+    public void deleteProduct(String id, String actorId) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
-        
+
         product.setStatus("INACTIVE");
         productRepository.save(product);
+        recordAudit(actorId, "DELETE_PRODUCT", id, null);
     }
 
     public ProductResponse getProduct(String id) {
@@ -219,16 +232,17 @@ public class ProductService {
         return mapToVariantResponse(variant);
     }
 
-    public void deleteVariant(String productId, String variantId) {
+    public void deleteVariant(String productId, String variantId, String actorId) {
         ProductVariant variant = variantRepository.findById(variantId)
                 .orElseThrow(() -> new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể", 404));
         if (!variant.getProductId().equals(productId)) {
             throw new BusinessException("VARIANT_MISMATCH", "Biến thể không thuộc sản phẩm này", 400);
         }
         variantRepository.delete(variant);
+        recordAudit(actorId, "DELETE_VARIANT", productId, "variantId=" + variantId);
     }
 
-    public void deleteImage(String productId, Long imageId) {
+    public void deleteImage(String productId, Long imageId, String actorId) {
         ProductImage image = imageRepository.findById(imageId)
                 .orElseThrow(() -> new BusinessException("IMAGE_NOT_FOUND", "Không tìm thấy ảnh", 404));
         if (!image.getProductId().equals(productId)) {
@@ -243,6 +257,7 @@ public class ProductService {
         }
 
         imageRepository.delete(image);
+        recordAudit(actorId, "DELETE_IMAGE", productId, "imageId=" + imageId);
     }
 
     @Transactional(readOnly = true)

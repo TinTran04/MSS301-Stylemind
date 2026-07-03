@@ -13,7 +13,7 @@ export async function getAdminOrders(filters = {}) {
 }
 
 export async function updateAdminOrderStatus(id, statusPayload) {
-  return apiClient.put(`${ENDPOINTS.ADMIN_ORDERS}/${id}/status`, statusPayload)
+  return apiClient.patch(`${ENDPOINTS.ADMIN_ORDERS}/${id}/status`, statusPayload)
 }
 
 export async function getAdminOrderAnalytics() {

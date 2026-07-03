@@ -25,7 +25,20 @@ CREATE TABLE IF NOT EXISTS order_items (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Order status audit trail (SEC-10): every transition through
+-- OrderStatusService.changeStatus() is persisted here, not just logged.
+CREATE TABLE IF NOT EXISTS order_status_audit_log (
+    id VARCHAR(50) PRIMARY KEY,
+    order_id VARCHAR(50) NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    actor_id VARCHAR(50) NOT NULL,
+    from_status VARCHAR(30),
+    to_status VARCHAR(30) NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_variant_id ON order_items(variant_id);
+CREATE INDEX IF NOT EXISTS idx_order_status_audit_log_order_id ON order_status_audit_log(order_id);

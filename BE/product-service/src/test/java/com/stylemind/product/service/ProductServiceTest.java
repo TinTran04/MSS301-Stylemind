@@ -36,6 +36,8 @@ class ProductServiceTest {
     @Mock
     private CategoryRepository categoryRepository;
     @Mock
+    private ProductAuditLogRepository auditLogRepository;
+    @Mock
     private S3Client s3Client;
 
     @InjectMocks
@@ -164,10 +166,35 @@ class ProductServiceTest {
     @Test
     void deleteProduct_setsInactiveStatus() {
         when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
-        
-        productService.deleteProduct("p1");
+
+        productService.deleteProduct("p1", "admin-1");
 
         assertEquals("INACTIVE", activeProduct.getStatus());
         verify(productRepository).save(activeProduct);
+    }
+
+    @Test
+    void deleteProduct_recordsAuditLogWithActor() {
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+
+        productService.deleteProduct("p1", "admin-1");
+
+        org.mockito.ArgumentCaptor<ProductAuditLog> captor = org.mockito.ArgumentCaptor.forClass(ProductAuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        assertEquals("admin-1", captor.getValue().getActorId());
+        assertEquals("DELETE_PRODUCT", captor.getValue().getAction());
+        assertEquals("p1", captor.getValue().getProductId());
+    }
+
+    @Test
+    void deleteVariant_recordsAuditLogWithActor() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+
+        productService.deleteVariant("p1", "v1", "admin-1");
+
+        org.mockito.ArgumentCaptor<ProductAuditLog> captor = org.mockito.ArgumentCaptor.forClass(ProductAuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        assertEquals("admin-1", captor.getValue().getActorId());
+        assertEquals("DELETE_VARIANT", captor.getValue().getAction());
     }
 }

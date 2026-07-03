@@ -7,12 +7,16 @@ import com.stylemind.order.dto.UpdateOrderStatusRequest;
 import com.stylemind.order.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/v1/admin/orders")
@@ -23,8 +27,18 @@ public class AdminOrderController {
     private final OrderService orderService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> getOrders() {
-        List<OrderResponse> orders = orderService.getAllOrdersForAdmin();
+    public ResponseEntity<ApiResponse<Page<OrderResponse>>> getOrders(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @PageableDefault(size = 20) Pageable pageable) {
+        Page<OrderResponse> orders = orderService.getAllOrdersForAdmin(
+                status,
+                userId,
+                fromDate != null ? fromDate.atStartOfDay() : null,
+                toDate != null ? toDate.atTime(23, 59, 59) : null,
+                pageable);
         return ResponseEntity.ok(ApiResponse.success("Admin orders fetched successfully", orders));
     }
 
@@ -34,7 +48,7 @@ public class AdminOrderController {
         return ResponseEntity.ok(ApiResponse.success("Admin order fetched successfully", order));
     }
 
-    @PutMapping("/{orderId}/status")
+    @PatchMapping("/{orderId}/status")
     public ResponseEntity<ApiResponse<OrderResponse>> updateOrderStatus(
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable String orderId,

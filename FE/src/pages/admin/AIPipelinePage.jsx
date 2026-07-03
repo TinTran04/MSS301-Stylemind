@@ -1,8 +1,163 @@
-import { useState, useEffect } from 'react'
-import { Brain, RefreshCw, AlertTriangle, CheckCircle, Clock, Activity } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Brain, RefreshCw, AlertTriangle, CheckCircle, Clock, Activity, Plus, Database } from 'lucide-react'
 import StatusBadge from '../../components/admin/StatusBadge'
 import { getAIPipelineEvents } from '../../features/analytics/analytics.api'
+import { getIndexJobs, createIndexJob } from '../../features/ai-stylist/adminAiIndexJobs.api'
 import { formatRelativeTime, formatDateTime } from '../../utils/formatDate'
+
+const TARGET_TYPES = ['PRODUCT', 'INVENTORY', 'RULE']
+const OPERATION_TYPES = ['CREATE', 'UPDATE', 'DELETE']
+
+function IndexJobsPanel() {
+  const [jobs, setJobs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [form, setForm] = useState({ targetType: 'PRODUCT', targetId: '', operationType: 'UPDATE' })
+  const [toast, setToast] = useState('')
+
+  const fetchJobs = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await getIndexJobs(statusFilter ? { status: statusFilter } : {})
+      setJobs(data.content || data || [])
+    } catch (err) {
+      setError(err.message || 'Unable to load index jobs.')
+    } finally {
+      setLoading(false)
+    }
+  }, [statusFilter])
+
+  useEffect(() => {
+    fetchJobs()
+  }, [fetchJobs])
+
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    if (!form.targetId.trim()) return
+    setCreating(true)
+    try {
+      await createIndexJob(form)
+      setToast('Index job created')
+      setTimeout(() => setToast(''), 3000)
+      setForm({ targetType: 'PRODUCT', targetId: '', operationType: 'UPDATE' })
+      setShowForm(false)
+      fetchJobs()
+    } catch (err) {
+      setToast(err.message || 'Failed to create index job')
+      setTimeout(() => setToast(''), 4000)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <div className="bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden">
+      <div className="p-4 border-b border-outline-variant/20 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Database size={16} className="text-primary" />
+          <h2 className="font-title-lg text-primary">Index Jobs</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-2 py-1.5 text-xs text-on-surface focus:outline-none"
+          >
+            <option value="">All statuses</option>
+            <option value="PENDING">PENDING</option>
+            <option value="PROCESSING">PROCESSING</option>
+            <option value="COMPLETED">COMPLETED</option>
+            <option value="FAILED">FAILED</option>
+          </select>
+          <button
+            onClick={() => setShowForm((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-on-primary hover:opacity-90"
+          >
+            <Plus size={12} /> New Job
+          </button>
+        </div>
+      </div>
+
+      {toast && <div className="px-4 py-2 text-xs text-primary bg-primary/10">{toast}</div>}
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="p-4 border-b border-outline-variant/20 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Target Type</label>
+            <select
+              value={form.targetType}
+              onChange={(e) => setForm((f) => ({ ...f, targetType: e.target.value }))}
+              className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-2 py-1.5 text-xs"
+            >
+              {TARGET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Target ID</label>
+            <input
+              value={form.targetId}
+              onChange={(e) => setForm((f) => ({ ...f, targetId: e.target.value }))}
+              placeholder="e.g. VN-AO-002"
+              className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-2 py-1.5 text-xs"
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Operation</label>
+            <select
+              value={form.operationType}
+              onChange={(e) => setForm((f) => ({ ...f, operationType: e.target.value }))}
+              className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-2 py-1.5 text-xs"
+            >
+              {OPERATION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <button
+            type="submit"
+            disabled={creating || !form.targetId.trim()}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-on-primary hover:opacity-90 disabled:opacity-50"
+          >
+            {creating ? 'Creating...' : 'Create'}
+          </button>
+        </form>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="bg-surface-container-low/50">
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Target</th>
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Operation</th>
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Status</th>
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Retries</th>
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Created</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-outline-variant/5">
+            {loading ? (
+              <tr><td colSpan={5} className="text-center py-8 text-sm text-on-surface-variant">Loading index jobs...</td></tr>
+            ) : error ? (
+              <tr><td colSpan={5} className="text-center py-8 text-sm text-error">{error}</td></tr>
+            ) : jobs.length === 0 ? (
+              <tr><td colSpan={5} className="text-center py-8 text-sm text-on-surface-variant">No index jobs found.</td></tr>
+            ) : jobs.map((job) => (
+              <tr key={job.id} className="hover:bg-surface-container-high/30">
+                <td className="px-4 py-3 text-sm text-primary font-medium">{job.targetType} · {job.targetId}</td>
+                <td className="px-4 py-3 text-xs text-on-surface-variant">{job.operationType}</td>
+                <td className="px-4 py-3"><StatusBadge status={job.status?.toLowerCase()} /></td>
+                <td className="px-4 py-3 text-xs text-on-surface-variant">{job.retryCount ?? 0}</td>
+                <td className="px-4 py-3 text-xs text-on-surface-variant">{formatDateTime(job.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 export default function AIPipelinePage() {
   const [events, setEvents] = useState([])
@@ -156,6 +311,8 @@ export default function AIPipelinePage() {
           ))}
         </div>
       </div>
+
+      <IndexJobsPanel />
     </div>
   )
 }

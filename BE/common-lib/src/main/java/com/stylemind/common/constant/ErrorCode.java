@@ -50,7 +50,8 @@ public enum ErrorCode {
     INTERNAL_ERROR("Lỗi hệ thống", 500),
     SERVICE_UNAVAILABLE("Dịch vụ không khả dụng", 503),
     INTERNAL_TOKEN_INVALID("Token nội bộ không hợp lệ", 401),
-    INVALID_REQUEST("Yêu cầu không hợp lệ", 400);
+    INVALID_REQUEST("Yêu cầu không hợp lệ", 400),
+    METHOD_NOT_ALLOWED("Phương thức HTTP không được hỗ trợ cho tài nguyên này", 405);
 
     private final String message;
     private final int httpStatus;

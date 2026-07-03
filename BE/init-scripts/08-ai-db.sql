@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     user_id VARCHAR(50),
     context_weather_temp DECIMAL(4, 1),
     context_weather_condition VARCHAR(30),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Chat Messages
@@ -17,7 +18,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     sender_type VARCHAR(10) NOT NULL,
     message_text TEXT NOT NULL,
     has_product_block BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- AI Curated Bundles (outfits recommended by AI)
@@ -25,7 +27,8 @@ CREATE TABLE IF NOT EXISTS ai_curated_bundles (
     id VARCHAR(50) PRIMARY KEY,
     message_id VARCHAR(50) NOT NULL REFERENCES chat_messages(id),
     justification_summary TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- AI Curated Bundle Items (many-to-many between bundles and products)

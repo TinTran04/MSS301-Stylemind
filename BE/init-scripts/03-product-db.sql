@@ -26,6 +26,20 @@ CREATE TABLE IF NOT EXISTS products (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Destructive admin action audit trail (SEC-10): product delete, variant
+-- delete, image delete all record who did what and when.
+CREATE TABLE IF NOT EXISTS product_audit_log (
+    id VARCHAR(50) PRIMARY KEY,
+    actor_id VARCHAR(50) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    product_id VARCHAR(50) NOT NULL,
+    detail VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_audit_log_product_id ON product_audit_log(product_id);
+
 -- Product Variants (SKU-level variants with size, color, material)
 CREATE TABLE IF NOT EXISTS product_variants (
     id VARCHAR(50) PRIMARY KEY,

@@ -47,11 +47,20 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().value();
 
+        // Correlation id: every request gets one, regardless of whether it's a
+        // public or authenticated path, so downstream logs can always be traced.
+        String requestId = request.getHeaders().getFirst("X-Request-Id");
+        if (!StringUtils.hasText(requestId)) {
+            requestId = UUID.randomUUID().toString();
+        }
+        String finalRequestId = requestId;
+
         ServerHttpRequest mutatedRequest = request.mutate()
                 .headers(headers -> {
                     headers.remove("X-User-Id");
                     headers.remove("X-User-Roles");
                     headers.remove("X-User-Email");
+                    headers.set("X-Request-Id", finalRequestId);
                 })
                 .build();
 
@@ -82,21 +91,21 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     .header("X-User-Email", email)
                     .build();
 
-            // Add request ID for tracing
-            String requestId = request.getHeaders().getFirst("X-Request-Id");
-            if (!StringUtils.hasText(requestId)) {
-                requestId = UUID.randomUUID().toString();
-            }
-            mutatedRequest = mutatedRequest.mutate()
-                    .header("X-Request-Id", requestId)
-                    .build();
-
         } catch (Exception ex) {
             log.warn("JWT validation failed: {}", ex.getMessage());
             return unauthorizedResponse(exchange.getResponse(), "Invalid token: " + ex.getMessage());
         }
 
-        return chain.filter(exchange.mutate().request(mutatedRequest).build());
+        // WebFlux handles one request per thread only within a given operator
+        // chain, not for its whole lifetime, so MDC is set for this synchronous
+        // block (covers this filter's own log lines) and passed to downstream
+        // services via the header for their own MDC population.
+        org.slf4j.MDC.put("X-Request-Id", finalRequestId);
+        try {
+            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+        } finally {
+            org.slf4j.MDC.remove("X-Request-Id");
+        }
     }
 
     private boolean isPublicPath(String path) {
