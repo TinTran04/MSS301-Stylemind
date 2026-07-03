@@ -104,6 +104,7 @@ services:
     environment:
       SERVER_PORT: 3001
       JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: redis
       AUTH_SERVICE_URL: http://auth-service:8081
       PRODUCT_SERVICE_URL: http://product-service:8083
       USER_SERVICE_URL: http://user-service:8082
@@ -132,6 +133,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: password
       JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: 8081
+      NOTIFICATION_SERVICE_URL: http://notification-service:8089
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
       SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
     depends_on:
