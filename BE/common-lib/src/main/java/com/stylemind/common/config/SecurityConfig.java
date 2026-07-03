@@ -36,7 +36,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(12);
     }
 
     @Bean
@@ -49,17 +49,17 @@ public class SecurityConfig {
                         // Browser sends OPTIONS preflight with no auth header — must pass before JWT filter
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/swagger-ui/index.html").permitAll()
-                        .requestMatchers("/internal/**").permitAll()
+                        .requestMatchers("/internal/v1/**").permitAll()
                         .requestMatchers(
-                                "/api/auth/login",
-                                "/api/auth/register",
-                                "/api/auth/password/setup",
-                                "/api/auth/forgot-password",
-                                "/api/auth/forgot-password/verify",
-                                "/api/auth/forgot-password/reset"
+                                "/api/v1/auth/login",
+                                "/api/v1/auth/register",
+                                "/api/v1/auth/password/setup",
+                                "/api/v1/auth/forgot-password",
+                                "/api/v1/auth/verify-reset-otp",
+                                "/api/v1/auth/reset-password"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**").permitAll()
-                        .requestMatchers("/api/cart/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/products/**", "/api/v1/categories/**").permitAll()
+                        .requestMatchers("/api/v1/cart/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(internalAuthFilter, UsernamePasswordAuthenticationFilter.class)

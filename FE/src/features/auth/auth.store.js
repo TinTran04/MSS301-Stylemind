@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { clearAuthSession, getAuthToken, getStoredUser, setAuthSession } from '../../services/apiClient'
+import useCartStore from '../cart/cart.store'
 
 const storedUser = getStoredUser()
 const storedToken = getAuthToken()
@@ -17,6 +18,8 @@ const useAuthStore = create((set) => ({
     const role = user?.role?.toLowerCase() || null
     setAuthSession({ user, token })
     set({ user, token, isAuthenticated: Boolean(user && token), role })
+    // Best-effort: fold any guest cart into the now-authenticated user's cart.
+    useCartStore.getState().mergeGuestCart()
   },
   logout: () => {
     clearAuthSession()

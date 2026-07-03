@@ -21,7 +21,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
 
-    private static final String AI_CHAT_PATH = "/api/ai-stylist/chat";
+    private static final String AI_CHAT_PATH = "/api/v1/ai-stylist/chat";
     private static final int MAX_REQUESTS_PER_MINUTE = 5;
     private static final Duration WINDOW = Duration.ofMinutes(1);
 

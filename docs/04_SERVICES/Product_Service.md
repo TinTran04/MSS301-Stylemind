@@ -20,12 +20,12 @@
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/products` | Product listing |
-| GET | `/api/products/{id}` | Product detail |
-| GET | `/api/categories` | Category listing |
-| POST | `/api/admin/products` | Tạo product |
-| PUT | `/api/admin/products/{id}` | Cập nhật product |
-| DELETE | `/api/admin/products/{id}` | Xóa product |
+| GET | `/api/v1/products` | Product listing |
+| GET | `/api/v1/products/{id}` | Product detail |
+| GET | `/api/v1/categories` | Category listing |
+| POST | `/api/v1/admin/products` | Tạo product |
+| PUT | `/api/v1/admin/products/{id}` | Cập nhật product |
+| DELETE | `/api/v1/admin/products/{id}` | Xóa product |
 
 ## 4. Architecture Layers
 

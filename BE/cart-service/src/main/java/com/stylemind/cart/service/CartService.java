@@ -3,6 +3,7 @@ package com.stylemind.cart.service;
 import com.stylemind.cart.dto.*;
 import com.stylemind.cart.entity.CartItem;
 import com.stylemind.cart.entity.ShoppingCart;
+import com.stylemind.cart.feign.ProductClient;
 import com.stylemind.cart.repository.CartItemRepository;
 import com.stylemind.cart.repository.ShoppingCartRepository;
 import com.stylemind.common.exception.BusinessException;
@@ -25,6 +26,7 @@ public class CartService {
 
     private final ShoppingCartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
+    private final ProductClient productClient;
 
     private String getCartId(String userId, String guestSessionId) {
         if (userId != null) {
@@ -51,6 +53,12 @@ public class CartService {
     }
 
     public CartResponse addItem(String userId, String guestSessionId, CartItemRequest request) {
+        if (request.getQuantity() == null || request.getQuantity() <= 0) {
+            throw new BusinessException("INVALID_QUANTITY", "Số lượng phải lớn hơn 0", 400);
+        }
+
+        validateVariant(request.getVariantId());
+
         String cartId = getCartId(userId, guestSessionId);
 
         ShoppingCart cart = cartRepository.findById(cartId)
@@ -125,10 +133,14 @@ public class CartService {
 
         ShoppingCart userCart = cartRepository.findById(userCartId).orElse(null);
         if (userCart == null) {
+            List<CartItem> guestOnlyItems = cartItemRepository.findByCartId(guestCartId);
             cartRepository.delete(guestCart);
-            guestCart.setId(userCartId);
-            guestCart.setUserId(userId);
-            cartRepository.save(guestCart);
+            cartRepository.save(ShoppingCart.builder()
+                    .id(userCartId)
+                    .userId(userId)
+                    .build());
+            guestOnlyItems.forEach(item -> item.setCartId(userCartId));
+            cartItemRepository.saveAll(guestOnlyItems);
             return getCart(userId, null);
         }
 
@@ -158,6 +170,26 @@ public class CartService {
             cartItemRepository.deleteAll(items);
         }
         cartRepository.findById(cartId).ifPresent(cartRepository::delete);
+    }
+
+    private void validateVariant(String variantId) {
+        ProductClient.VariantSnapshot snapshot;
+        try {
+            var response = productClient.getVariantSnapshot(variantId);
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                throw new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể sản phẩm", 404);
+            }
+            snapshot = response.getData();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("Failed to validate variant {}: {}", variantId, ex.getMessage());
+            throw new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể sản phẩm", 404);
+        }
+
+        if (!"ACTIVE".equalsIgnoreCase(snapshot.getStatus())) {
+            throw new BusinessException("PRODUCT_NOT_ACTIVE", "Sản phẩm hiện không khả dụng", 400);
+        }
     }
 
     private CartResponse buildCartResponse(ShoppingCart cart, List<CartItem> items) {

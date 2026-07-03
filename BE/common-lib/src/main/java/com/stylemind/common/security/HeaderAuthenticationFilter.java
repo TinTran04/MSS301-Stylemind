@@ -27,7 +27,7 @@ import java.util.List;
  * <p>Downstream services trust these headers because they live behind the
  * gateway: the gateway strips any client-supplied {@code X-User-*} headers
  * before forwarding, and the service ports are not published outside the mesh.
- * {@code /internal/**} endpoints are guarded separately by
+ * {@code /internal/v1/**} endpoints are guarded separately by
  * {@link InternalAuthFilter} and are skipped here.
  */
 @Component
@@ -45,7 +45,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain) throws ServletException, IOException {
 
         String path = request.getRequestURI();
-        if (path.startsWith("/internal/") || path.startsWith("/actuator/")) {
+        if (path.startsWith("/internal/v1/") || path.startsWith("/actuator/")) {
             filterChain.doFilter(request, response);
             return;
         }

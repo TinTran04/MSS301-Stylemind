@@ -160,8 +160,8 @@ BE/
 
 | Service | Database | Tables Owned | Trách nhiệm chính |
 | :--- | :--- | :--- | :--- |
-| `auth-service` | `auth_db` | `users` | Đăng ký, đăng nhập, JWT, roles (CUSTOMER/ADMIN), provider SSO |
-| `user-service` | `user_db` | `customer_style_profiles`, `delivery_addresses` | Hồ sơ sinh trắc học, gu thẩm mỹ (style_personas JSONB), sổ địa chỉ |
+| `auth-service` | `auth_db` | `users` | Nguồn sự thật cho user ID, email, password hash, role, account status, reset credentials |
+| `user-service` | `user_db` | `customer_style_profiles`, `delivery_addresses` | Tham chiếu user ID, hồ sơ phong cách, preferences, sổ địa chỉ |
 | `product-service` | `product_db` | `categories`, `products`, `product_variants`, `product_images` | Danh mục cây, sản phẩm (base_price, aesthetic_style, target_demographic, seasonal_property), biến thể (sku, size, color, material, price_override), ảnh |
 | `cart-service` | `cart_db` | `shopping_carts`, `cart_items` | Giỏ hàng (Guest/User), tracking AI (is_ai_recommended, source_bundle_id) |
 | `order-service` | `order_db` | `orders`, `order_items` | Đơn hàng (Saga), snapshot giá (price_at_purchase), AI conversion tracking |
@@ -176,7 +176,8 @@ BE/
 ```text
 Khách hàng truy cập hệ thống
 → Đăng ký / đăng nhập
-→ Tạo Style Profile (body_morphology, preferred_fit, style_personas...)
+→ Style Profile được lazy-init khi mở profile/addresses lần đầu
+→ Cập nhật Style Profile (body_morphology, preferred_fit, style_personas...)
 → Duyệt sản phẩm hoặc chat với AI Stylist
 → Nhận gợi ý outfit từ sản phẩm còn hàng (inventory-aware)
 → Thêm sản phẩm vào giỏ hàng (variant_id, is_ai_recommended)
@@ -185,6 +186,24 @@ Khách hàng truy cập hệ thống
 → Tạo đơn hàng (order_status: PENDING → PROCESSING → FULFILLED)
 → Theo dõi trạng thái đơn hàng
 ```
+
+### Existing database migration
+
+Both identity/profile services use Flyway with a version-1 baseline. For a
+database that still has `auth_db.users.full_name`, run the transfer before
+starting auth-service with migration V2:
+
+```bash
+AUTH_DATABASE_URL=postgresql://.../auth_db \
+USER_DATABASE_URL=postgresql://.../user_db \
+BE/scripts/migrations/migrate-auth-full-name-to-user-profile.sh
+```
+
+The transfer creates/updates profile shells in `user_db`, then clears the
+legacy auth column. Flyway V2 subsequently removes `full_name` and `enabled`,
+and converts `enabled` to `account_status`. Fresh environments use the updated
+canonical app schemas in `BE/init-scripts`; `BE/scripts/schema` belongs to the
+HI-OS governance database and is not an application schema.
 
 ---
 
@@ -221,8 +240,8 @@ Style Profile (user_db)
 ```
 
 **Nguyên tắc cốt lõi:** AI **KHÔNG** được tự tạo ra giá/tồn kho. Mọi thông tin động đều được lấy realtime qua Internal API:
-- `GET /internal/products/:id` → giá chính xác
-- `GET /internal/orders/:id` → trạng thái đơn (kèm ownership check)
+- `GET /internal/v1/products/:id` → giá chính xác
+- `GET /internal/v1/orders/:id` → trạng thái đơn (kèm ownership check)
 
 Kết quả trả về:
 * Lời tư vấn phối đồ (`chat_messages.message_text`)
@@ -286,7 +305,7 @@ npm run build
 Tạo file `.env` trong thư mục `FE/`:
 
 ```env
-VITE_API_BASE_URL=http://localhost:3001/api
+VITE_API_BASE_URL=http://localhost:3001
 VITE_APP_NAME=StyleMind
 ```
 
@@ -342,19 +361,19 @@ Swagger UI của từng service có thể mở trực tiếp trên trình duyệ
 Một số API public có thể test ngay không cần token:
 
 ```bash
-curl http://localhost:3001/api/products
-curl http://localhost:3001/api/categories
-curl http://localhost:3001/api/cart
+curl http://localhost:3001/api/v1/products
+curl http://localhost:3001/api/v1/categories
+curl http://localhost:3001/api/v1/cart
 ```
 
 Với API cần đăng nhập, tạo một user test rồi đăng nhập qua gateway để lấy JWT:
 
 ```bash
-curl -X POST http://localhost:3001/api/auth/register \
+curl -X POST http://localhost:3001/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"name":"Swagger Tester","email":"swagger-tester@example.com","password":"swagger123"}'
+  -d '{"email":"swagger-tester@example.com","password":"swagger123"}'
 
-curl -X POST http://localhost:3001/api/auth/login \
+curl -X POST http://localhost:3001/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"swagger-tester@example.com","password":"swagger123"}'
 ```
@@ -369,7 +388,7 @@ Bearer <accessToken>
 
 Lưu ý khi test:
 
-* Frontend và client nên gọi qua API Gateway `http://localhost:3001/api/...`.
+* Frontend và client nên gọi qua API Gateway `http://localhost:3001/api/v1/...`.
 * Swagger UI của từng service dùng để inspect/test nhanh API nội bộ trong môi trường local.
 * Các endpoint admin cần JWT của user có role `ADMIN`.
 * Nếu Docker Dashboard hiển thị log cũ, kiểm tra trạng thái thật bằng `docker compose -f BE/docker-compose.yml ps -a`.
@@ -435,7 +454,7 @@ Backend có thể deploy lên:
 Frontend sẽ gọi backend thông qua API Gateway:
 
 ```env
-VITE_API_BASE_URL=https://your-api-gateway-url/api
+VITE_API_BASE_URL=https://your-api-gateway-url
 ```
 
 ---

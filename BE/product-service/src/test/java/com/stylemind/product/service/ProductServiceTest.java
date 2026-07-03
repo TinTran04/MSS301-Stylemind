@@ -41,6 +41,11 @@ class ProductServiceTest {
     @InjectMocks
     private ProductService productService;
 
+    @org.junit.jupiter.api.BeforeEach
+    void setDefaultCurrency() {
+        org.springframework.test.util.ReflectionTestUtils.setField(productService, "defaultCurrency", "VND");
+    }
+
     private Product activeProduct;
     private Product inactiveProduct;
     private ProductVariant variant;
@@ -125,6 +130,35 @@ class ProductServiceTest {
         VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
 
         assertEquals(new BigDecimal("120.00"), response.getEffectivePrice());
+    }
+
+    @Test
+    void getVariants_inactiveProduct_throws404() {
+        when(productRepository.findByIdAndStatus("p2", "ACTIVE")).thenReturn(Optional.empty());
+
+        assertThrows(BusinessException.class, () -> productService.getVariants("p2"));
+    }
+
+    @Test
+    void getVariants_activeProduct_returnsVariants() {
+        when(productRepository.findByIdAndStatus("p1", "ACTIVE")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant));
+
+        List<ProductVariantResponse> variants = productService.getVariants("p1");
+
+        assertEquals(1, variants.size());
+        assertEquals("SKU-1", variants.get(0).getSku());
+    }
+
+    @Test
+    void getVariantSnapshot_includesCurrency() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductIdAndIsPrimaryTrue("p1")).thenReturn(Optional.empty());
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
+
+        assertEquals("VND", response.getCurrency());
     }
 
     @Test

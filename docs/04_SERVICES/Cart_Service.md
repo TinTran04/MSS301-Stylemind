@@ -18,12 +18,12 @@
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/cart` | Lấy cart |
-| POST | `/api/cart/items` | Thêm item |
-| PUT | `/api/cart/items/{itemId}` | Cập nhật quantity |
-| DELETE | `/api/cart/items/{itemId}` | Xóa item |
-| POST | `/api/cart/merge` | Merge guest cart |
-| DELETE | `/api/cart` | Clear cart |
+| GET | `/api/v1/cart` | Lấy cart |
+| POST | `/api/v1/cart/items` | Thêm item |
+| PUT | `/api/v1/cart/items/{itemId}` | Cập nhật quantity |
+| DELETE | `/api/v1/cart/items/{itemId}` | Xóa item |
+| POST | `/api/v1/cart/merge` | Merge guest cart |
+| DELETE | `/api/v1/cart` | Clear cart |
 
 ## 4. Architecture Layers
 

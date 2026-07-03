@@ -9,16 +9,16 @@ import org.springframework.web.bind.annotation.*;
 @FeignClient(name = "cart-service", url = "${CART_SERVICE_URL:http://localhost:8086}")
 public interface CartClient {
 
-    @GetMapping("/api/cart")
+    @GetMapping("/api/v1/cart")
     ApiResponse<CartResponse> getCart(
             @RequestHeader("Authorization") String authHeader,
             @RequestHeader(value = "X-Guest-Session-Id", required = false) String guestSessionId);
 
-    @PostMapping("/api/cart/merge")
+    @PostMapping("/api/v1/cart/merge")
     ApiResponse<CartResponse> mergeCart(
             @RequestHeader("Authorization") String authHeader,
             @RequestBody CartMergeRequest request);
 
-    @DeleteMapping("/api/cart")
+    @DeleteMapping("/api/v1/cart")
     ApiResponse<Void> clearCart(@RequestHeader("Authorization") String authHeader);
 }

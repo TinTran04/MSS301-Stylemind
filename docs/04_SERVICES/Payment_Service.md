@@ -17,9 +17,9 @@
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/payments` | Tạo transaction |
-| GET | `/api/payments/{id}` | Payment detail |
-| POST | `/internal/payments/confirm` | Internal confirm |
+| POST | `/api/v1/payments` | Tạo transaction |
+| GET | `/api/v1/payments/{id}` | Payment detail |
+| POST | `/internal/v1/payments/confirm` | Internal confirm |
 
 ## 4. Architecture Layers
 

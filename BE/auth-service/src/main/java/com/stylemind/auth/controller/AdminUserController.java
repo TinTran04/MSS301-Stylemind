@@ -16,7 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin/accounts")
+@RequestMapping("/api/v1/admin/users")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminUserController {
@@ -66,5 +66,13 @@ public class AdminUserController {
         AdminUserResponse user = authService.changeUserEnabled(userId, principal.getUserId(), request.getEnabled());
         String msg = Boolean.TRUE.equals(request.getEnabled()) ? "Mở khóa tài khoản thành công" : "Khóa tài khoản thành công";
         return ResponseEntity.ok(ApiResponse.success(msg, user));
+    }
+
+    @DeleteMapping("/{userId}")
+    public ResponseEntity<ApiResponse<Void>> deleteUser(
+            @PathVariable String userId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        authService.deleteUser(userId, principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.success("Xóa tài khoản thành công", null));
     }
 }

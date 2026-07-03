@@ -9,10 +9,10 @@ import java.math.BigDecimal;
 @FeignClient(name = "payment-service", url = "${PAYMENT_SERVICE_URL:http://localhost:8088}")
 public interface PaymentClient {
 
-    @PostMapping("/api/payment/checkout")
+    @PostMapping("/api/v1/payment/checkout")
     ApiResponse<PaymentResponse> checkout(@RequestBody CheckoutRequest request);
 
-    @PostMapping("/api/payment/process")
+    @PostMapping("/api/v1/payment/process")
     ApiResponse<PaymentResponse> processPayment(@RequestBody ProcessPaymentRequest request);
 
     @lombok.Data

@@ -18,11 +18,11 @@
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/orders` | Tạo order |
-| GET | `/api/orders` | Order list |
-| GET | `/api/orders/{id}` | Order detail |
-| GET | `/api/admin/orders` | Admin order list |
-| PUT | `/api/admin/orders/{id}/status` | Update status |
+| POST | `/api/v1/orders` | Tạo order |
+| GET | `/api/v1/orders` | Order list |
+| GET | `/api/v1/orders/{id}` | Order detail |
+| GET | `/api/v1/admin/orders` | Admin order list |
+| PUT | `/api/v1/admin/orders/{id}/status` | Update status |
 
 ## 4. Architecture Layers
 

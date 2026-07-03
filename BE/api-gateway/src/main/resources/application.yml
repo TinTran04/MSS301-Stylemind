@@ -40,55 +40,63 @@ spring:
         - id: auth-service
           uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
           predicates:
-            - Path=/api/auth/**
+            - Path=/api/v1/auth/**
         - id: user-service
           uri: ${USER_SERVICE_URL:http://user-service:8082}
           predicates:
-            - Path=/api/users/**
+            - Path=/api/v1/users/**
         - id: product-service
           uri: ${PRODUCT_SERVICE_URL:http://product-service:8083}
           predicates:
-            - Path=/api/products/**
+            - Path=/api/v1/products/**
         - id: category-service
           uri: ${PRODUCT_SERVICE_URL:http://product-service:8083}
           predicates:
-            - Path=/api/categories/**
+            - Path=/api/v1/categories/**
         - id: cart-service
           uri: ${CART_SERVICE_URL:http://cart-service:8086}
           predicates:
-            - Path=/api/cart/**
+            - Path=/api/v1/cart/**
         - id: order-service
           uri: ${ORDER_SERVICE_URL:http://order-service:8087}
           predicates:
-            - Path=/api/orders/**
+            - Path=/api/v1/orders/**
         - id: admin-order-service
           uri: ${ORDER_SERVICE_URL:http://order-service:8087}
           predicates:
-            - Path=/api/admin/orders/**
+            - Path=/api/v1/admin/orders/**
         - id: payment-service
           uri: ${PAYMENT_SERVICE_URL:http://payment-service:8088}
           predicates:
-            - Path=/api/payment/**
+            - Path=/api/v1/payment/**
         - id: notification-service
           uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:8089}
           predicates:
-            - Path=/api/notifications/**
+            - Path=/api/v1/notifications/**
         - id: ai-service
           uri: ${AI_SERVICE_URL:http://ai-agent-service:8085}
           predicates:
-            - Path=/api/ai-stylist/**
+            - Path=/api/v1/ai-stylist/**
         - id: admin-ai-service
           uri: ${AI_SERVICE_URL:http://ai-agent-service:8085}
           predicates:
-            - Path=/api/admin/ai/**
+            - Path=/api/v1/admin/ai/**
         - id: admin-users-service
           uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
           predicates:
-            - Path=/api/admin/users/**
+            - Path=/api/v1/admin/users/**
+        - id: admin-product-service
+          uri: ${PRODUCT_SERVICE_URL:http://product-service:8083}
+          predicates:
+            - Path=/api/v1/admin/products/**
+        - id: admin-category-service
+          uri: ${PRODUCT_SERVICE_URL:http://product-service:8083}
+          predicates:
+            - Path=/api/v1/admin/categories/**
         - id: internal-block
           uri: no://op
           predicates:
-            - Path=/internal/**
+            - Path=/internal/v1/**
           filters:
             - SetStatus=401
 

@@ -36,6 +36,9 @@ public class ProductService {
     @Value("${s3.bucket:stylemind-products}")
     private String bucket;
 
+    @Value("${app.product.default-currency:VND}")
+    private String defaultCurrency;
+
     // Product CRUD
     public ProductResponse createProduct(ProductRequest request) {
         if (request.getCategoryId() != null && !categoryRepository.existsById(request.getCategoryId())) {
@@ -100,6 +103,20 @@ public class ProductService {
         return PageResponse.of(page.map(this::mapToResponse));
     }
 
+    @Transactional(readOnly = true)
+    public PageResponse<ProductResponse> getProductsAdmin(Long categoryId, String search, String status, Pageable pageable) {
+        String keyword = (search != null && !search.isBlank()) ? search : null;
+        Page<Product> page = productRepository.searchAndFilterAdmin(keyword, categoryId, status, pageable);
+        return PageResponse.of(page.map(this::mapToResponse));
+    }
+
+    @Transactional(readOnly = true)
+    public ProductResponse getProductAdmin(String id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
+        return mapToResponse(product);
+    }
+
     public ProductResponse updateProductStatus(String id, String status) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
@@ -131,7 +148,11 @@ public class ProductService {
         return mapToVariantResponse(variant);
     }
 
+    @Transactional(readOnly = true)
     public List<ProductVariantResponse> getVariants(String productId) {
+        // Public callers must never see variants belonging to an INACTIVE/DISCONTINUED product.
+        productRepository.findByIdAndStatus(productId, "ACTIVE")
+                .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm hoặc sản phẩm không hoạt động", 404));
         return variantRepository.findByProductId(productId).stream()
                 .map(this::mapToVariantResponse)
                 .collect(Collectors.toList());
@@ -248,6 +269,7 @@ public class ProductService {
                 .color(variant.getColor())
                 .material(variant.getMaterial())
                 .effectivePrice(effectivePrice)
+                .currency(defaultCurrency)
                 .status(product.getStatus())
                 .primaryImageUrl(primaryImageUrl)
                 .build();

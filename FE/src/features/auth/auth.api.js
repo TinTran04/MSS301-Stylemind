@@ -10,10 +10,10 @@ function mapUser(user) {
   return {
     id: user.id,
     email: user.email,
-    name: user.name || user.fullName || user.email,
-    fullName: user.fullName || user.name || user.email,
+    name: user.email,
     role: normalizeRole(user.role),
     provider: user.provider,
+    accountStatus: user.accountStatus,
     createdAt: user.createdAt,
   }
 }
@@ -34,7 +34,6 @@ export async function loginUser(email, password) {
 
 export async function registerUser(data) {
   const response = await apiClient.post(`${ENDPOINTS.AUTH}/register`, {
-    name: data.name,
     email: data.email,
     password: data.password,
   })
@@ -56,13 +55,17 @@ export async function getCurrentUser() {
 }
 
 export async function forgotPassword(email) {
-  return apiClient.post(`${ENDPOINTS.AUTH}/forgot-password`, { email })
+  await apiClient.post(`${ENDPOINTS.AUTH}/forgot-password`, { email })
 }
 
-export async function verifyResetOTP(email, otp) {
-  return apiClient.post(`${ENDPOINTS.AUTH}/verify-otp`, { email, otp })
+export async function verifyResetOtp(email, otp) {
+  return apiClient.post(`${ENDPOINTS.AUTH}/verify-reset-otp`, { email, otp })
 }
 
-export async function resetPassword(email, newPassword) {
-  return apiClient.post(`${ENDPOINTS.AUTH}/reset-password`, { email, newPassword })
+export async function resetPassword(email, resetToken, newPassword) {
+  await apiClient.post(`${ENDPOINTS.AUTH}/reset-password`, {
+    email,
+    resetToken,
+    newPassword,
+  })
 }

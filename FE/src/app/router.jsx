@@ -14,6 +14,9 @@ import OrderTrackingPage from '../pages/customer/OrderTrackingPage'
 import StyleProfilePage from '../pages/auth/StyleProfilePage'
 import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
+import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage'
+import VerifyResetOtpPage from '../pages/auth/VerifyResetOtpPage'
+import ResetPasswordPage from '../pages/auth/ResetPasswordPage'
 
 import AdminDashboardPage from '../pages/admin/AdminDashboardPage'
 import ProductManagementPage from '../pages/admin/ProductManagementPage'
@@ -34,7 +37,12 @@ export default function AppRouter() {
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/style-profile" element={<StyleProfilePage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/verify-reset-otp" element={<VerifyResetOtpPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route element={<RequireAuth />}>
+          <Route path="/style-profile" element={<StyleProfilePage />} />
+        </Route>
       </Route>
 
       {/* Customer Routes */}

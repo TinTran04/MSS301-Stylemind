@@ -98,9 +98,9 @@ export default function LoginPage() {
                 </button>
               </div>
               <div className="text-right mt-2">
-                <a href="#" className="text-xs text-on-surface-variant hover:text-primary transition-colors">
+                <Link to="/forgot-password" className="text-xs text-on-surface-variant hover:text-primary transition-colors">
                   Forgot credentials?
-                </a>
+                </Link>
               </div>
             </div>
 

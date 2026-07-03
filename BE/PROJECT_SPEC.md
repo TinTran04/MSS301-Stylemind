@@ -46,27 +46,27 @@
 
 | Area            | Endpoints                                              | Service          |
 |-----------------|--------------------------------------------------------|------------------|
-| Products        | POST/PUT/DELETE `/api/products`, POST variants/images  | product-service  |
-| Categories      | POST/PUT/DELETE `/api/categories`                      | product-service  |
-| AI index jobs   | GET/retry `/api/admin/ai/index-jobs`                   | ai-agent-service |
-| Notifications   | GET/POST/PUT `/api/notifications`                      | notification-service |
+| Products        | POST/PUT/DELETE `/api/v1/products`, POST variants/images  | product-service  |
+| Categories      | POST/PUT/DELETE `/api/v1/categories`                      | product-service  |
+| AI index jobs   | GET/retry `/api/v1/admin/ai/index-jobs`                   | ai-agent-service |
+| Notifications   | GET/POST/PUT `/api/v1/notifications`                      | notification-service |
 
 ### Thiếu — cần implement
 
 | Area              | Endpoints cần thêm                                   | Service       |
 |-------------------|------------------------------------------------------|---------------|
-| **User management** | `GET /api/admin/users` — danh sách users           | user-service  |
-|                   | `GET /api/admin/users/{id}` — chi tiết user bất kỳ  | user-service  |
-|                   | `PUT /api/admin/users/{id}/role` — đổi CUSTOMER/ADMIN | user-service |
-|                   | `PUT /api/admin/users/{id}/enabled` — ban/unban      | user-service  |
-| **Order management** | `GET /api/admin/orders` — tất cả orders (mọi user) | order-service |
+| **User management** | `GET /api/v1/admin/users` — danh sách users           | user-service  |
+|                   | `GET /api/v1/admin/users/{id}` — chi tiết user bất kỳ  | user-service  |
+|                   | `PUT /api/v1/admin/users/{id}/role` — đổi CUSTOMER/ADMIN | user-service |
+|                   | `PUT /api/v1/admin/users/{id}/enabled` — ban/unban      | user-service  |
+| **Order management** | `GET /api/v1/admin/orders` — tất cả orders (mọi user) | order-service |
 
 ---
 
 ## 4. Auth & Security Pattern
 
 - **JWT** (HS256) validate tại Gateway → inject `X-User-Id`, `X-User-Roles`
-- **X-Internal-Token** cho service-to-service qua Feign (`/internal/**` bị Gateway block với client)
+- **X-Internal-Token** cho service-to-service qua Feign (`/internal/v1/**` bị Gateway block với client)
 - CORS: `DedupeResponseHeader` tại Gateway ngăn header trùng
 - Tất cả services dùng chung `JWT_SECRET` (phải set env var; default fallback đã align)
 
@@ -77,7 +77,7 @@
 Tất cả services UP, healthy:
 
 ```
-api-gateway :3001 — CORS ok, routing ok, rate-limit on /api/ai-stylist/chat
+api-gateway :3001 — CORS ok, routing ok, rate-limit on /api/v1/ai-stylist/chat
 auth-service :8081 — JWT issue + validate ok
 user-service :8082 — customer profile/address ok
 product-service :8083 — catalog ok; admin CRUD ok
@@ -118,7 +118,7 @@ Xem chi tiết: `docs/ARCHITECTURE_AND_QUALITY_REVIEW.md`
 - [x] Cart (guest + auth) nối thật
 - [ ] Checkout/order flow FE → BE end-to-end
 - [ ] Order tracking FE
-- [ ] Fix H2: thêm `DELETE /api/cart` endpoint + wire vào order-service
+- [ ] Fix H2: thêm `DELETE /api/v1/cart` endpoint + wire vào order-service
 
 ### Sprint 2 — Admin
 - [ ] Admin user management (xem danh sách, ban, đổi role)

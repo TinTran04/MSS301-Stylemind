@@ -59,6 +59,10 @@ management:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
+app:
+  product:
+    default-currency: ${PRODUCT_DEFAULT_CURRENCY:VND}
+
 logging:
   level:
     com.stylemind.product: DEBUG

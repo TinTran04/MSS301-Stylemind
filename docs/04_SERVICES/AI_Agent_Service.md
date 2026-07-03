@@ -21,11 +21,11 @@
 
 | Method | Endpoint | Description |
 |---|---|---|
-| POST | `/api/ai-stylist/chat` | Chat với AI |
-| GET | `/api/ai-stylist/history` | Chat history |
-| GET | `/api/ai-stylist/bundles` | AI bundles |
-| POST | `/api/admin/ai/index-jobs` | Tạo index job |
-| GET | `/api/admin/ai/index-jobs` | Index job list |
+| POST | `/api/v1/ai-stylist/chat` | Chat với AI |
+| GET | `/api/v1/ai-stylist/history` | Chat history |
+| GET | `/api/v1/ai-stylist/bundles` | AI bundles |
+| POST | `/api/v1/admin/ai/index-jobs` | Tạo index job |
+| GET | `/api/v1/admin/ai/index-jobs` | Index job list |
 
 ## 4. Architecture Layers
 

@@ -17,9 +17,9 @@
 
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/notifications` | User notifications |
-| POST | `/internal/notifications` | Create notification log |
-| GET | `/api/admin/notifications` | Admin notification logs |
+| GET | `/api/v1/notifications` | User notifications |
+| POST | `/internal/v1/notifications` | Create notification log |
+| GET | `/api/v1/admin/notifications` | Admin notification logs |
 
 ## 4. Architecture Layers
 

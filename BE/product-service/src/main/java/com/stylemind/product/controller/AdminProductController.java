@@ -3,8 +3,12 @@ package com.stylemind.product.controller;
 import com.stylemind.product.dto.*;
 import com.stylemind.product.service.ProductService;
 import com.stylemind.common.dto.ApiResponse;
+import com.stylemind.common.dto.PageResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,12 +16,30 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/api/admin/products")
+@RequestMapping("/api/v1/admin/products")
 @PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class AdminProductController {
 
     private final ProductService productService;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getProducts(
+            @RequestParam(required = false) Long category,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        PageResponse<ProductResponse> response = productService.getProductsAdmin(category, search, status, pageable);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách sản phẩm thành công", response));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<ProductResponse>> getProduct(@PathVariable String id) {
+        ProductResponse product = productService.getProductAdmin(id);
+        return ResponseEntity.ok(ApiResponse.success("Lấy chi tiết sản phẩm thành công", product));
+    }
 
     @PostMapping
     public ResponseEntity<ApiResponse<ProductResponse>> createProduct(@Valid @RequestBody ProductRequest request) {

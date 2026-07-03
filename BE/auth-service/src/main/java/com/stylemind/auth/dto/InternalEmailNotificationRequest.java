@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Data
 @NoArgsConstructor
@@ -14,9 +15,8 @@ public class InternalEmailNotificationRequest {
     private String recipientEmail;
     private String type;
     private String title;
+    @ToString.Exclude
     private String content;
+    @ToString.Exclude
     private String htmlContent;
-    /** Raw OTP/token for email embedding — never log this field. */
-    private String actualOtp;
 }
-

@@ -4,7 +4,7 @@
 
 | Item | Type | Owner |
 |---|---|---|
-| Implement `DELETE /api/cart` | Backend | cart-service |
+| Implement `DELETE /api/v1/cart` | Backend | cart-service |
 | Clear cart after checkout | Backend | order-service/cart-service |
 | Fetch price from product-service during order creation | Backend | order-service |
 | Add saga compensation | Backend | order-service |

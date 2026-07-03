@@ -37,7 +37,7 @@ X-Internal-Token: <internal-token>
 |---|---|
 | SEC-01 | JWT validation at API Gateway |
 | SEC-02 | Admin APIs require role `ADMIN` |
-| SEC-03 | Block external access to `/internal/**` |
+| SEC-03 | Block external access to `/internal/v1/**` |
 | SEC-04 | Use internal token for service-to-service |
 | SEC-05 | Avoid logging tokens/passwords |
 | SEC-06 | Rate limit auth and AI endpoints |

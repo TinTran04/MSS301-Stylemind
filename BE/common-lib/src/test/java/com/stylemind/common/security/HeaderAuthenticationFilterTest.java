@@ -25,7 +25,7 @@ class HeaderAuthenticationFilterTest {
 
     @Test
     void setsAuthenticationFromGatewayHeaders() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/orders");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/orders");
         MockHttpServletResponse response = new MockHttpServletResponse();
         request.addHeader("X-User-Id", "user-123");
         request.addHeader("X-User-Roles", "ROLE_CUSTOMER");
@@ -48,7 +48,7 @@ class HeaderAuthenticationFilterTest {
 
     @Test
     void skipsAuthenticationWhenUserIdHeaderMissing() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/orders");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/orders");
 
         filter.doFilterInternal(request, new MockHttpServletResponse(), chain);
 
@@ -58,7 +58,7 @@ class HeaderAuthenticationFilterTest {
 
     @Test
     void skipsInternalPaths() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/internal/products/sync");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/internal/v1/products/sync");
         request.addHeader("X-User-Id", "user-123");
 
         filter.doFilterInternal(request, new MockHttpServletResponse(), chain);
@@ -80,7 +80,7 @@ class HeaderAuthenticationFilterTest {
 
     @Test
     void stripsRolePrefixForPrincipal() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/ai");
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/admin/ai");
         request.addHeader("X-User-Id", "admin-1");
         request.addHeader("X-User-Roles", "ROLE_ADMIN");
 

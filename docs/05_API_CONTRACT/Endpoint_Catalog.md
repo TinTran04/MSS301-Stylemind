@@ -4,74 +4,74 @@
 
 | Method | Endpoint | Owner |
 |---|---|---|
-| POST | `/api/auth/register` | auth-service |
-| POST | `/api/auth/login` | auth-service |
-| GET | `/api/auth/me` | auth-service |
+| POST | `/api/v1/auth/register` | auth-service |
+| POST | `/api/v1/auth/login` | auth-service |
+| GET | `/api/v1/auth/me` | auth-service |
 
 ## Users
 
 | Method | Endpoint | Owner |
 |---|---|---|
-| GET | `/api/users/profile` | user-service |
-| PUT | `/api/users/profile` | user-service |
-| GET | `/api/users/addresses` | user-service |
-| POST | `/api/users/addresses` | user-service |
+| GET | `/api/v1/users/profile` | user-service |
+| PUT | `/api/v1/users/profile` | user-service |
+| GET | `/api/v1/users/addresses` | user-service |
+| POST | `/api/v1/users/addresses` | user-service |
 
 ## Products
 
 | Method | Endpoint | Owner |
 |---|---|---|
-| GET | `/api/products` | product-service |
-| GET | `/api/products/{id}` | product-service |
-| GET | `/api/categories` | product-service |
+| GET | `/api/v1/products` | product-service |
+| GET | `/api/v1/products/{id}` | product-service |
+| GET | `/api/v1/categories` | product-service |
 
 ## Cart
 
 | Method | Endpoint | Owner |
 |---|---|---|
-| GET | `/api/cart` | cart-service |
-| POST | `/api/cart/items` | cart-service |
-| PUT | `/api/cart/items/{itemId}` | cart-service |
-| DELETE | `/api/cart/items/{itemId}` | cart-service |
-| POST | `/api/cart/merge` | cart-service |
-| DELETE | `/api/cart` | cart-service |
+| GET | `/api/v1/cart` | cart-service |
+| POST | `/api/v1/cart/items` | cart-service |
+| PUT | `/api/v1/cart/items/{itemId}` | cart-service |
+| DELETE | `/api/v1/cart/items/{itemId}` | cart-service |
+| POST | `/api/v1/cart/merge` | cart-service |
+| DELETE | `/api/v1/cart` | cart-service |
 
 ## Orders
 
 | Method | Endpoint | Owner |
 |---|---|---|
-| POST | `/api/orders` | order-service |
-| GET | `/api/orders` | order-service |
-| GET | `/api/orders/{id}` | order-service |
+| POST | `/api/v1/orders` | order-service |
+| GET | `/api/v1/orders` | order-service |
+| GET | `/api/v1/orders/{id}` | order-service |
 
 ## Payments
 
 | Method | Endpoint | Owner |
 |---|---|---|
-| POST | `/api/payments` | payment-service |
-| GET | `/api/payments/{id}` | payment-service |
+| POST | `/api/v1/payments` | payment-service |
+| GET | `/api/v1/payments/{id}` | payment-service |
 
 ## Notifications
 
 | Method | Endpoint | Owner |
 |---|---|---|
-| GET | `/api/notifications` | notification-service |
+| GET | `/api/v1/notifications` | notification-service |
 
 ## AI Stylist
 
 | Method | Endpoint | Owner |
 |---|---|---|
-| POST | `/api/ai-stylist/chat` | ai-agent-service |
-| GET | `/api/ai-stylist/history` | ai-agent-service |
-| GET | `/api/ai-stylist/bundles` | ai-agent-service |
+| POST | `/api/v1/ai-stylist/chat` | ai-agent-service |
+| GET | `/api/v1/ai-stylist/history` | ai-agent-service |
+| GET | `/api/v1/ai-stylist/bundles` | ai-agent-service |
 
 ## Admin
 
 | Method | Endpoint | Owner |
 |---|---|---|
-| POST | `/api/admin/products` | product-service |
-| PUT | `/api/admin/products/{id}` | product-service |
-| DELETE | `/api/admin/products/{id}` | product-service |
-| GET | `/api/admin/orders` | order-service |
-| GET | `/api/admin/notifications` | notification-service |
-| POST | `/api/admin/ai/index-jobs` | ai-agent-service |
+| POST | `/api/v1/admin/products` | product-service |
+| PUT | `/api/v1/admin/products/{id}` | product-service |
+| DELETE | `/api/v1/admin/products/{id}` | product-service |
+| GET | `/api/v1/admin/orders` | order-service |
+| GET | `/api/v1/admin/notifications` | notification-service |
+| POST | `/api/v1/admin/ai/index-jobs` | ai-agent-service |

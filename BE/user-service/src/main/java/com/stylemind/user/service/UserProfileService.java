@@ -28,20 +28,16 @@ public class UserProfileService {
     private final DeliveryAddressRepository addressRepository;
 
     // Style Profile
-    @Transactional(readOnly = true)
+    @Transactional
     public StyleProfileResponse getStyleProfile(String userId) {
-        return profileRepository.findByUserId(userId)
-                .map(this::mapToStyleProfileResponse)
-                // Return an empty (un-persisted) profile response if none exists yet.
-                // GET must not mutate the database.
-                .orElse(StyleProfileResponse.builder().userId(userId).build());
+        return mapToStyleProfileResponse(ensureProfile(userId));
     }
 
+    @Transactional
     public StyleProfileResponse updateStyleProfile(String userId, StyleProfileRequest request) {
-        // orElseGet returns an unsaved transient instance — single save at the end
-        CustomerStyleProfile profile = profileRepository.findByUserId(userId)
-                .orElseGet(() -> CustomerStyleProfile.builder().userId(userId).build());
+        CustomerStyleProfile profile = ensureProfile(userId);
 
+        profile.setDisplayName(request.getDisplayName());
         profile.setGender(request.getGender());
         profile.setAge(request.getAge());
         profile.setHeightCm(request.getHeightCm());
@@ -54,18 +50,16 @@ public class UserProfileService {
         return mapToStyleProfileResponse(profile);
     }
 
-    private CustomerStyleProfile buildEmptyProfile(String userId) {
-        return CustomerStyleProfile.builder().userId(userId).build();
-    }
-
     // Delivery Addresses
-    @Transactional(readOnly = true)
+    @Transactional
     public List<DeliveryAddressResponse> getAddresses(String userId) {
+        ensureProfile(userId);
         return addressRepository.findByUserId(userId).stream()
                 .map(this::mapToAddressResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public DeliveryAddressResponse createAddress(String userId, DeliveryAddressRequest request) {
         if (Boolean.TRUE.equals(request.getIsDefault())) {
             // Single atomic UPDATE — no race condition
@@ -135,6 +129,7 @@ public class UserProfileService {
     private StyleProfileResponse mapToStyleProfileResponse(CustomerStyleProfile profile) {
         return StyleProfileResponse.builder()
                 .userId(profile.getUserId())
+                .displayName(profile.getDisplayName())
                 .gender(profile.getGender())
                 .age(profile.getAge())
                 .heightCm(profile.getHeightCm())
@@ -145,6 +140,13 @@ public class UserProfileService {
                 .createdAt(profile.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .updatedAt(profile.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .build();
+    }
+
+    private CustomerStyleProfile ensureProfile(String userId) {
+        profileRepository.insertProfileShell(userId);
+        return profileRepository.findById(userId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Profile shell was not available after initialization for user " + userId));
     }
 
     private DeliveryAddressResponse mapToAddressResponse(DeliveryAddress address) {

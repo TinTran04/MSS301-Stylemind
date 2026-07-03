@@ -32,8 +32,8 @@ export default function AdminLayout() {
     navigate('/login')
   }
 
-  const initials = getInitials(user?.name || user?.fullName || user?.email)
-  const displayName = user?.name || user?.fullName || user?.email || 'Admin'
+  const initials = getInitials(user?.name || user?.email)
+  const displayName = user?.name || user?.email || 'Admin'
 
   return (
     <div className="min-h-screen bg-background">

@@ -4,6 +4,7 @@
 -- Customer Style Profiles (1:1 with users)
 CREATE TABLE IF NOT EXISTS customer_style_profiles (
     user_id VARCHAR(50) PRIMARY KEY,
+    display_name VARCHAR(150),
     gender VARCHAR(20),
     age INT,
     height_cm DECIMAL(5, 2),
@@ -31,3 +32,9 @@ CREATE TABLE IF NOT EXISTS delivery_addresses (
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_delivery_addresses_user_id ON delivery_addresses(user_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_addresses_default ON delivery_addresses(user_id, is_default) WHERE is_default = true;
+
+INSERT INTO customer_style_profiles (user_id, display_name)
+VALUES
+    ('usr_admin', 'System Admin'),
+    ('usr_customer', 'Test Customer')
+ON CONFLICT (user_id) DO NOTHING;

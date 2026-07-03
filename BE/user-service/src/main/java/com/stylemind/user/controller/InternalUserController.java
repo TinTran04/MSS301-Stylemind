@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
  * NOT accessible via the public API Gateway path.
  */
 @RestController
-@RequestMapping("/internal/users")
+@RequestMapping("/internal/v1/users")
 @RequiredArgsConstructor
 public class InternalUserController {
 

@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 @FeignClient(name = "product-service", url = "${PRODUCT_SERVICE_URL:http://localhost:8083}")
 public interface ProductClient {
 
-    @GetMapping("/internal/products/variants/{variantId}")
+    @GetMapping("/internal/v1/products/variants/{variantId}")
     ApiResponse<VariantSnapshot> getVariantSnapshot(@PathVariable String variantId);
 
     class VariantSnapshot {

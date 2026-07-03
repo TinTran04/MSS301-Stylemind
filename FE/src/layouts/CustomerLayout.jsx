@@ -106,13 +106,13 @@ export default function CustomerLayout() {
                   aria-label="Account menu"
                 >
                   <div className="w-8 h-8 rounded-full bg-primary text-on-primary text-xs font-semibold flex items-center justify-center">
-                    {getInitials(user?.name || user?.fullName || user?.email)}
+                    {getInitials(user?.name || user?.email)}
                   </div>
                 </button>
                 {profileOpen && (
                   <div className="absolute right-0 mt-2 w-52 bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant/20 py-1 z-50">
                     <div className="px-4 py-3 border-b border-outline-variant/10">
-                      <p className="text-sm font-medium text-primary truncate">{user?.name || user?.fullName || user?.email}</p>
+                      <p className="text-sm font-medium text-primary truncate">{user?.name || user?.email}</p>
                       <p className="text-xs text-on-surface-variant truncate">{user?.email}</p>
                     </div>
                     <Link

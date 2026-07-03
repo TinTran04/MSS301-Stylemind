@@ -32,4 +32,17 @@ public interface ProductRepository extends JpaRepository<Product, String> {
             @org.springframework.data.repository.query.Param("minPrice") java.math.BigDecimal minPrice,
             @org.springframework.data.repository.query.Param("maxPrice") java.math.BigDecimal maxPrice,
             Pageable pageable);
+
+    // Admin view: unlike searchAndFilter, deliberately does NOT restrict to ACTIVE — admins must
+    // be able to see and manage INACTIVE/DISCONTINUED products too.
+    @Query("SELECT p FROM Product p WHERE " +
+           "(CAST(:status AS string) IS NULL OR p.status = :status) AND " +
+           "(:categoryId IS NULL OR p.categoryId = :categoryId) AND " +
+           "(CAST(:keyword AS string) IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')) OR " +
+           " LOWER(p.description) LIKE LOWER(CONCAT('%', CAST(:keyword AS string), '%')))")
+    Page<Product> searchAndFilterAdmin(
+            @org.springframework.data.repository.query.Param("keyword") String keyword,
+            @org.springframework.data.repository.query.Param("categoryId") Long categoryId,
+            @org.springframework.data.repository.query.Param("status") String status,
+            Pageable pageable);
 }

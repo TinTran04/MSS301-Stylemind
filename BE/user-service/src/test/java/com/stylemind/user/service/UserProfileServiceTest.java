@@ -40,16 +40,16 @@ class UserProfileServiceTest {
     // ─── Style Profile ────────────────────────────────────────────────────────
 
     @Test
-    void getStyleProfile_noProfileExists_returnsEmptyResponseWithoutPersisting() {
-        when(profileRepository.findByUserId("user-1")).thenReturn(Optional.empty());
+    void getStyleProfile_noProfileExists_persistsAndReturnsShell() {
+        CustomerStyleProfile shell = buildProfile("user-1");
+        when(profileRepository.findById("user-1")).thenReturn(Optional.of(shell));
 
         StyleProfileResponse result = userProfileService.getStyleProfile("user-1");
 
         assertThat(result).isNotNull();
         assertThat(result.getUserId()).isEqualTo("user-1");
         assertThat(result.getGender()).isNull();
-        // CRITICAL: must NOT save anything to the database on a GET
-        verify(profileRepository, never()).save(any());
+        verify(profileRepository).insertProfileShell("user-1");
     }
 
     @Test
@@ -57,18 +57,19 @@ class UserProfileServiceTest {
         CustomerStyleProfile profile = buildProfile("user-1");
         profile.setGender("MALE");
         profile.setAge(25);
-        when(profileRepository.findByUserId("user-1")).thenReturn(Optional.of(profile));
+        when(profileRepository.findById("user-1")).thenReturn(Optional.of(profile));
 
         StyleProfileResponse result = userProfileService.getStyleProfile("user-1");
 
         assertThat(result.getGender()).isEqualTo("MALE");
         assertThat(result.getAge()).isEqualTo(25);
-        verify(profileRepository, never()).save(any());
+        verify(profileRepository).insertProfileShell("user-1");
     }
 
     @Test
     void updateStyleProfile_newUser_createsAndSavesProfile() {
-        when(profileRepository.findByUserId("new-user")).thenReturn(Optional.empty());
+        CustomerStyleProfile shell = buildProfile("new-user");
+        when(profileRepository.findById("new-user")).thenReturn(Optional.of(shell));
         when(profileRepository.save(any())).thenAnswer(inv -> {
             CustomerStyleProfile p = inv.getArgument(0);
             p.setCreatedAt(LocalDateTime.now());
@@ -92,7 +93,7 @@ class UserProfileServiceTest {
     void updateStyleProfile_existingUser_updatesProfile() {
         CustomerStyleProfile existing = buildProfile("user-1");
         existing.setGender("MALE");
-        when(profileRepository.findByUserId("user-1")).thenReturn(Optional.of(existing));
+        when(profileRepository.findById("user-1")).thenReturn(Optional.of(existing));
         when(profileRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         StyleProfileRequest request = StyleProfileRequest.builder()
@@ -106,6 +107,18 @@ class UserProfileServiceTest {
     }
 
     // ─── Delivery Addresses ───────────────────────────────────────────────────
+
+    @Test
+    void getAddresses_firstAccess_persistsProfileShell() {
+        CustomerStyleProfile shell = buildProfile("user-1");
+        when(profileRepository.findById("user-1")).thenReturn(Optional.of(shell));
+        when(addressRepository.findByUserId("user-1")).thenReturn(List.of());
+
+        List<DeliveryAddressResponse> result = userProfileService.getAddresses("user-1");
+
+        assertThat(result).isEmpty();
+        verify(profileRepository).insertProfileShell("user-1");
+    }
 
     @Test
     void createAddress_withIsDefaultTrue_clearsOldDefaultAtomically() {

@@ -7,7 +7,7 @@
 | AUTH-01 | User đăng ký bằng email/password | Must |
 | AUTH-02 | User đăng nhập | Must |
 | AUTH-03 | System cấp JWT | Must |
-| AUTH-04 | Frontend gọi `/api/auth/me` | Must |
+| AUTH-04 | Frontend gọi `/api/v1/auth/me` | Must |
 | AUTH-05 | Admin API yêu cầu role `ADMIN` | Must |
 
 ## 2. User Profile

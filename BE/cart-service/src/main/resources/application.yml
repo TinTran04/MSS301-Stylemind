@@ -32,6 +32,13 @@ spring:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 3000
+        readTimeout: 5000
+
 jwt:
   secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
   access-token-expiration: 3600000

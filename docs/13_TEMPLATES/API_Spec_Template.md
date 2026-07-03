@@ -2,7 +2,7 @@
 
 ## API Name
 
-`METHOD /api/path`
+`METHOD /api/v1/path`
 
 ## Owner Service
 

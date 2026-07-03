@@ -23,21 +23,21 @@ public class User extends BaseEntity {
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
-    @Column(name = "full_name", length = 150)
-    private String fullName;
-
     @Column(name = "provider", length = 20, nullable = false)
+    @Builder.Default
     private String provider = "LOCAL";
 
     @Column(name = "provider_id", length = 100)
     private String providerId;
 
     @Column(name = "role", length = 20, nullable = false)
+    @Builder.Default
     private String role = "CUSTOMER";
 
-    @Column(name = "enabled", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_status", length = 20, nullable = false)
     @Builder.Default
-    private Boolean enabled = true;
+    private AccountStatus accountStatus = AccountStatus.ACTIVE;
 
     @Column(name = "password_setup_required", nullable = false)
     @Builder.Default

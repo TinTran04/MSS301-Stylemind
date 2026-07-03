@@ -32,7 +32,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         // Skip JWT validation for internal endpoints (they use InternalAuthFilter)
         String path = request.getRequestURI();
-        if (path.startsWith("/internal/") || path.startsWith("/actuator/")) {
+        if (path.startsWith("/internal/v1/") || path.startsWith("/actuator/")) {
             filterChain.doFilter(request, response);
             return;
         }

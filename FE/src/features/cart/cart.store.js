@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { addToCart, getCart, removeCartItem, updateCartItem } from './cart.api'
+import { peekGuestSessionId, resetGuestSessionId } from '../../services/apiClient'
+import { addToCart, getCart, mergeCart, removeCartItem, updateCartItem } from './cart.api'
 
 function selectVariant(product, size, color) {
   if (!product?.variants?.length) {
@@ -83,6 +84,25 @@ const useCartStore = create((set, get) => ({
     const currentItems = [...get().items]
     set({ items: [], error: null })
     await Promise.allSettled(currentItems.map((item) => removeCartItem(item.cartItemId)))
+  },
+
+  // Called right after login: folds the guest cart (if any) into the
+  // authenticated user's cart, then rotates the guest session id so a
+  // future logout/browse-as-guest cycle doesn't re-merge stale items.
+  mergeGuestCart: async () => {
+    const guestSessionId = peekGuestSessionId()
+    if (!guestSessionId) {
+      return
+    }
+
+    try {
+      const cart = await mergeCart(guestSessionId)
+      set({ items: cart.items, cartId: cart.cartId, error: null })
+    } catch (err) {
+      set({ error: err.message || 'Unable to merge guest cart.' })
+    } finally {
+      resetGuestSessionId()
+    }
   },
 }))
 

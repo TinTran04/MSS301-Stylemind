@@ -27,13 +27,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private final JwtUtil jwtUtil;
 
     private static final List<String> PUBLIC_PATHS = List.of(
-            "/api/auth/login",
-            "/api/auth/register",
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
             "/actuator/health",
             "/actuator/info",
-            "/api/products",
-            "/api/categories",
-            "/api/cart",
+            "/api/v1/products",
+            "/api/v1/categories",
+            "/api/v1/cart",
             "/v3/api-docs",
             "/swagger-ui"
     );
@@ -96,7 +96,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isPublicPath(String path) {
-        if (path.startsWith("/api/products") || path.startsWith("/api/categories") || path.startsWith("/api/cart")) {
+        if (path.startsWith("/api/v1/products") || path.startsWith("/api/v1/categories") || path.startsWith("/api/v1/cart")) {
             return true;
         }
         return PUBLIC_PATHS.stream().anyMatch(path::startsWith);

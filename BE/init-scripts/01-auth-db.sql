@@ -6,11 +6,13 @@ CREATE TABLE IF NOT EXISTS users (
     id VARCHAR(50) PRIMARY KEY,
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255),
-    full_name VARCHAR(150),
     provider VARCHAR(20) NOT NULL DEFAULT 'LOCAL',
     provider_id VARCHAR(100),
-    role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER',
-    enabled BOOLEAN NOT NULL DEFAULT true,
+    role VARCHAR(20) NOT NULL DEFAULT 'CUSTOMER'
+        CONSTRAINT ck_users_role CHECK (role IN ('CUSTOMER', 'ADMIN')),
+    account_status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE'
+        CONSTRAINT ck_users_account_status
+        CHECK (account_status IN ('ACTIVE', 'DISABLED')),
     password_setup_required BOOLEAN NOT NULL DEFAULT false,
     password_setup_token_hash VARCHAR(255),
     password_setup_token_expires_at TIMESTAMP,
@@ -26,13 +28,13 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Insert default admin user (password: admin123 - BCrypt encoded)
 -- BCrypt hash for "admin123" with cost 12
-INSERT INTO users (id, email, password_hash, full_name, provider, role)
-VALUES ('usr_admin', 'admin@stylemind.ai', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.PZvO.S', 'System Admin', 'LOCAL', 'ADMIN')
+INSERT INTO users (id, email, password_hash, provider, role)
+VALUES ('usr_admin', 'admin@stylemind.ai', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.PZvO.S', 'LOCAL', 'ADMIN')
 ON CONFLICT (email) DO NOTHING;
 
 -- Insert test customer user (password: customer123)
-INSERT INTO users (id, email, password_hash, full_name, provider, role)
-VALUES ('usr_customer', 'customer@stylemind.ai', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.PZvO.S', 'Test Customer', 'LOCAL', 'CUSTOMER')
+INSERT INTO users (id, email, password_hash, provider, role)
+VALUES ('usr_customer', 'customer@stylemind.ai', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.PZvO.S', 'LOCAL', 'CUSTOMER')
 ON CONFLICT (email) DO NOTHING;
 
 -- Create index for faster lookups

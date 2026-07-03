@@ -13,12 +13,15 @@ import com.stylemind.auth.dto.ResetForgotPasswordRequest;
 import com.stylemind.auth.dto.UserResponse;
 import com.stylemind.auth.dto.VerifyForgotPasswordOtpRequest;
 import com.stylemind.auth.entity.User;
+import com.stylemind.auth.entity.AccountStatus;
+import com.stylemind.auth.entity.AuditLog;
 import com.stylemind.auth.feign.NotificationInternalClient;
+import com.stylemind.auth.mapper.AuthMapper;
+import com.stylemind.auth.repository.AuditLogRepository;
 import com.stylemind.auth.repository.UserRepository;
 import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.security.JwtUtil;
-import com.stylemind.common.security.UserPrincipal;
 import com.stylemind.common.util.StringUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +59,8 @@ public class AuthService implements UserDetailsService {
     private final JwtUtil jwtUtil;
     private final ObjectProvider<AuthenticationManager> authenticationManagerProvider;
     private final NotificationInternalClient notificationInternalClient;
+    private final AuthMapper authMapper;
+    private final AuditLogRepository auditLogRepository;
 
     @Value("${app.frontend-base-url:http://localhost:5173}")
     private String frontendBaseUrl;
@@ -77,44 +82,41 @@ public class AuthService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email)
-                .map(this::buildUserPrincipal)
+        return userRepository.findByEmail(normalizeEmail(email))
+                .map(authMapper::toPrincipal)
                 .orElseThrow(() -> new UsernameNotFoundException("Authentication failed"));
     }
 
     public AuthResponse.LoginResponse login(LoginRequest request) {
-        // 1. Fetch user first to avoid timing leaks on disabled/setup accounts
-        User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new BusinessException("AUTH_INVALID_CREDENTIALS", "Email hoặc mật khẩu không đúng", 401));
 
-        // 2. Check enabled before BCrypt (clear 403 vs 401 distinction)
-        if (!Boolean.TRUE.equals(user.getEnabled())) {
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
             throw new BusinessException("AUTH_ACCOUNT_DISABLED", "Tài khoản đã bị khóa", 403);
         }
 
-        // 3. Check password setup required
         if (Boolean.TRUE.equals(user.getPasswordSetupRequired())) {
             throw new BusinessException("AUTH_PASSWORD_SETUP_REQUIRED", "Bạn cần thiết lập mật khẩu từ email mời trước khi đăng nhập", 403);
         }
 
-        // 4. Authenticate (BCrypt check)
         try {
             authenticationManagerProvider.getObject().authenticate(
-                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+                    new UsernamePasswordAuthenticationToken(normalizedEmail, request.getPassword())
             );
         } catch (BadCredentialsException ex) {
             throw new BusinessException("AUTH_INVALID_CREDENTIALS", "Email hoặc mật khẩu không đúng", 401);
         }
 
         String token = jwtUtil.generateAccessToken(
-                buildUserPrincipal(user),
+                authMapper.toPrincipal(user),
                 user.getId(),
                 user.getRole()
         );
 
         return AuthResponse.LoginResponse.builder()
                 .token(token)
-                .user(buildUserResponse(user))
+                .user(authMapper.toUserResponse(user))
                 .build();
     }
 
@@ -128,31 +130,30 @@ public class AuthService implements UserDetailsService {
                 .id(StringUtil.generateUniqueId())
                 .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getName().trim())
                 .provider("LOCAL")
                 .role("CUSTOMER")
-                .enabled(true)
+                .accountStatus(AccountStatus.ACTIVE)
                 .passwordSetupRequired(false)
                 .build();
 
         user = userRepository.save(user);
 
         String token = jwtUtil.generateAccessToken(
-                buildUserPrincipal(user),
+                authMapper.toPrincipal(user),
                 user.getId(),
                 user.getRole()
         );
 
         return AuthResponse.LoginResponse.builder()
                 .token(token)
-                .user(buildUserResponse(user))
+                .user(authMapper.toUserResponse(user))
                 .build();
     }
 
     public UserResponse getCurrentUser(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
-        return buildUserResponse(user);
+        return authMapper.toUserResponse(user);
     }
 
     public void setupPassword(PasswordSetupRequest request) {
@@ -262,9 +263,12 @@ public class AuthService implements UserDetailsService {
     @Transactional(readOnly = true)
     public PageResponse<AdminUserResponse> listUsers(int page, int size, String search, String role, Boolean enabled) {
         PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        AccountStatus accountStatus = enabled == null
+                ? null
+                : enabled ? AccountStatus.ACTIVE : AccountStatus.DISABLED;
         Page<AdminUserResponse> result = userRepository
-                .findAllWithSearch(search, role, enabled, pageable)
-                .map(this::buildAdminUserResponse);
+                .findAllWithSearch(search, role, accountStatus, pageable)
+                .map(authMapper::toAdminUserResponse);
         return PageResponse.of(result);
     }
 
@@ -272,7 +276,7 @@ public class AuthService implements UserDetailsService {
     public AdminUserResponse getUserById(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
-        return buildAdminUserResponse(user);
+        return authMapper.toAdminUserResponse(user);
     }
 
     public AdminUserResponse createUserByAdmin(AdminCreateUserRequest request, String requesterId) {
@@ -287,10 +291,9 @@ public class AuthService implements UserDetailsService {
                 .id(StringUtil.generateUniqueId())
                 .email(normalizedEmail)
                 .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
-                .fullName(request.getFullName().trim())
                 .provider("LOCAL")
                 .role(request.getRole())
-                .enabled(true)
+                .accountStatus(AccountStatus.ACTIVE)
                 .passwordSetupRequired(true)
                 .passwordSetupTokenHash(passwordEncoder.encode(setupToken))
                 .passwordSetupTokenExpiresAt(LocalDateTime.now().plusMinutes(setupTokenExpiryMinutes))
@@ -300,27 +303,72 @@ public class AuthService implements UserDetailsService {
         user = userRepository.save(user);
         sendSetupPasswordEmail(user, setupToken);
         log.info("Admin {} created user {}", requesterId, user.getId());
-        return buildAdminUserResponse(user);
+        recordAudit(requesterId, "CREATE_ACCOUNT", user.getId(), "role: " + user.getRole());
+        return authMapper.toAdminUserResponse(user);
     }
 
     public AdminUserResponse changeUserRole(String userId, String requesterId, String newRole) {
         if (userId.equals(requesterId)) {
-            throw new BusinessException("ADMIN_SELF_ROLE_CHANGE", "Không thể tự thay đổi role của mình", 400);
+            throw new BusinessException("ADMIN_SELF_ROLE_CHANGE", "Không thể tự thay đổi role của mình", 409);
         }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
+        String oldRole = user.getRole();
+        if ("ADMIN".equals(oldRole) && "CUSTOMER".equals(newRole)) {
+            assertNotLastActiveAdmin(user, "Không thể hạ quyền quản trị viên đang hoạt động cuối cùng");
+        }
         user.setRole(newRole);
-        return buildAdminUserResponse(userRepository.save(user));
+        User saved = userRepository.save(user);
+        recordAudit(requesterId, "CHANGE_ROLE", user.getId(), oldRole + " -> " + newRole);
+        return authMapper.toAdminUserResponse(saved);
     }
 
     public AdminUserResponse changeUserEnabled(String userId, String requesterId, Boolean enabled) {
         if (userId.equals(requesterId)) {
-            throw new BusinessException("ADMIN_SELF_BAN", "Không thể tự ban chính mình", 400);
+            throw new BusinessException("ADMIN_SELF_BAN", "Không thể tự khóa chính mình", 409);
         }
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
-        user.setEnabled(enabled);
-        return buildAdminUserResponse(userRepository.save(user));
+        boolean enable = Boolean.TRUE.equals(enabled);
+        if (!enable) {
+            assertNotLastActiveAdmin(user, "Không thể khóa quản trị viên đang hoạt động cuối cùng");
+        }
+        user.setAccountStatus(enable ? AccountStatus.ACTIVE : AccountStatus.DISABLED);
+        User saved = userRepository.save(user);
+        recordAudit(requesterId, enable ? "ENABLE_ACCOUNT" : "DISABLE_ACCOUNT", user.getId(), null);
+        return authMapper.toAdminUserResponse(saved);
+    }
+
+    public void deleteUser(String userId, String requesterId) {
+        if (userId.equals(requesterId)) {
+            throw new BusinessException("ADMIN_SELF_DELETE", "Không thể tự xóa tài khoản của mình", 409);
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
+        assertNotLastActiveAdmin(user, "Không thể xóa quản trị viên đang hoạt động cuối cùng");
+        userRepository.delete(user);
+        recordAudit(requesterId, "DELETE_ACCOUNT", userId, user.getEmail());
+    }
+
+    /** ADM-SELF-04: blocks disable/delete/demote when the target is the sole remaining active ADMIN. */
+    private void assertNotLastActiveAdmin(User target, String message) {
+        if ("ADMIN".equals(target.getRole()) && target.getAccountStatus() == AccountStatus.ACTIVE) {
+            long activeAdmins = userRepository.countByRoleAndAccountStatus("ADMIN", AccountStatus.ACTIVE);
+            if (activeAdmins <= 1) {
+                throw new BusinessException("ADMIN_LAST_ACTIVE_ADMIN", message, 409);
+            }
+        }
+    }
+
+    /** ADM-SELF-05: audit trail for sensitive admin actions on accounts. */
+    private void recordAudit(String actorUserId, String action, String targetUserId, String detail) {
+        auditLogRepository.save(AuditLog.builder()
+                .id(StringUtil.generateUniqueId())
+                .actorUserId(actorUserId)
+                .action(action)
+                .targetUserId(targetUserId)
+                .detail(detail)
+                .build());
     }
 
     private void sendSetupPasswordEmail(User user, String setupToken) {
@@ -332,7 +380,7 @@ public class AuthService implements UserDetailsService {
                     .type("USER_INVITE")
                     .title("Thiết lập mật khẩu StyleMind")
                     .content("Nhấn vào liên kết sau để thiết lập mật khẩu: " + setupUrl)
-                    .htmlContent("<p>Xin chào " + user.getFullName() + ",</p><p>Nhấn vào liên kết sau để thiết lập mật khẩu:</p><p><a href=\"" + setupUrl + "\">Thiết lập mật khẩu</a></p>")
+                    .htmlContent("<p>Xin chào,</p><p>Nhấn vào liên kết sau để thiết lập mật khẩu:</p><p><a href=\"" + setupUrl + "\">Thiết lập mật khẩu</a></p>")
                     .build());
         } catch (Exception ex) {
             log.error("Failed to send setup password email to user {}: {}", user.getId(), ex.getMessage());
@@ -348,50 +396,12 @@ public class AuthService implements UserDetailsService {
                     .type("FORGOT_PASSWORD_OTP")
                     .title("Mã OTP đặt lại mật khẩu StyleMind")
                     .content("Mã OTP của bạn là: [PROTECTED]. Mã có hiệu lực trong " + resetOtpExpiryMinutes + " phút.")
-                    .htmlContent("<p>Mã OTP của bạn là <strong>[PROTECTED]</strong>.</p><p>Mã có hiệu lực trong " + resetOtpExpiryMinutes + " phút.</p>")
-                    .actualOtp(otp)
+                    .htmlContent("<p>Mã OTP của bạn là <strong>" + otp + "</strong>.</p><p>Mã có hiệu lực trong " + resetOtpExpiryMinutes + " phút.</p>")
                     .build());
         } catch (Exception ex) {
             log.warn("Failed to send forgot-password OTP email to user {}: {}", user.getId(), ex.getMessage());
             // Do NOT rethrow — the OTP is already saved; the user can retry the forgot-password request
         }
-    }
-
-    private AdminUserResponse buildAdminUserResponse(User user) {
-        return AdminUserResponse.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .role(user.getRole())
-                .provider(user.getProvider())
-                .enabled(user.getEnabled())
-                .passwordSetupRequired(user.getPasswordSetupRequired())
-                .createdAt(user.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
-                .updatedAt(user.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
-                .build();
-    }
-
-    private UserPrincipal buildUserPrincipal(User user) {
-        return new UserPrincipal(
-                user.getId(),
-                user.getEmail(),
-                user.getPasswordHash(),
-                user.getRole(),
-                user.getProvider(),
-                user.getEnabled()
-        );
-    }
-
-    private UserResponse buildUserResponse(User user) {
-        return UserResponse.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .role(user.getRole())
-                .provider(user.getProvider())
-                .enabled(user.getEnabled())
-                .createdAt(user.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
-                .build();
     }
 
     private void clearForgotPasswordState(User user) {

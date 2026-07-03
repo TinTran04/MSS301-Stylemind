@@ -14,6 +14,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 )
 public interface NotificationInternalClient {
 
-    @PostMapping("/internal/notifications/email")
+    @PostMapping("/internal/v1/notifications/email")
     ApiResponse<Void> sendEmail(@RequestBody InternalEmailNotificationRequest request);
 }

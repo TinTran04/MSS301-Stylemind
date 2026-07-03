@@ -27,7 +27,7 @@ Remaining:
 
 - Complete FE → BE checkout/order flow.
 - Add order tracking integration.
-- Implement `DELETE /api/cart`.
+- Implement `DELETE /api/v1/cart`.
 - Clear cart after checkout.
 - Fetch authoritative price from product-service.
 

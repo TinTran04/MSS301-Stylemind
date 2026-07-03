@@ -20,7 +20,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 
 @RestController
-@RequestMapping("/api/products")
+@RequestMapping("/api/v1/products")
 @RequiredArgsConstructor
 public class PublicProductController {
 

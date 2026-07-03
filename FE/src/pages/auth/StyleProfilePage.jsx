@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
 import { mockStyleOptions } from '../../features/profile/profile.mock'
+import { getProfile, updateProfile } from '../../features/profile/profile.api'
 
 const steps = [
   { num: '01', title: 'Style Preferences', description: 'Choose your style DNA' },
@@ -13,14 +14,60 @@ const steps = [
 
 export default function StyleProfilePage() {
   const [currentStep, setCurrentStep] = useState(1)
+  const [displayName, setDisplayName] = useState('')
+  const [selectedStyles, setSelectedStyles] = useState([])
   const [selectedBodyType, setSelectedBodyType] = useState(null)
   const [selectedFit, setSelectedFit] = useState(null)
   const [selectedColors, setSelectedColors] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
 
   const bodyTypes = mockStyleOptions.bodyTypes
   const fits = mockStyleOptions.fitPreferences
   const colors = mockStyleOptions.colorPalettes
+
+  useEffect(() => {
+    let active = true
+
+    getProfile()
+      .then((profile) => {
+        if (!active) return
+        setDisplayName(profile?.displayName || '')
+        setSelectedBodyType(profile?.bodyMorphology || null)
+        setSelectedFit(profile?.preferredFit || null)
+
+        if (profile?.stylePersonas) {
+          try {
+            const preferences = JSON.parse(profile.stylePersonas)
+            setSelectedStyles(preferences.styles || [])
+            setSelectedColors(preferences.colors || [])
+          } catch {
+            setSelectedStyles([])
+            setSelectedColors([])
+          }
+        }
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message || 'Unable to load your style profile.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const toggleStyle = (style) => {
+    setSelectedStyles((previous) =>
+      previous.includes(style)
+        ? previous.filter((value) => value !== style)
+        : [...previous, style]
+    )
+  }
 
   const toggleColor = (color) => {
     setSelectedColors((prev) =>
@@ -36,6 +83,36 @@ export default function StyleProfilePage() {
       return `Tell me your fit preference and I'll generate a personalized wardrobe blueprint based on your ${selectedBodyType} frame.`
     }
     return "Select your body type and fit preference to receive AI-powered style insights tailored to you."
+  }
+
+  const completeProfile = async () => {
+    setSaving(true)
+    setError('')
+
+    try {
+      await updateProfile({
+        displayName: displayName.trim() || null,
+        bodyMorphology: selectedBodyType,
+        preferredFit: selectedFit,
+        stylePersonas: JSON.stringify({
+          styles: selectedStyles,
+          colors: selectedColors,
+        }),
+      })
+      navigate('/')
+    } catch (requestError) {
+      setError(requestError.message || 'Unable to save your style profile.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center text-on-surface-variant">
+        Loading your profile...
+      </div>
+    )
   }
 
   return (
@@ -67,15 +144,35 @@ export default function StyleProfilePage() {
 
         {/* Step 1: Style DNA */}
         {currentStep === 1 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {['Minimalist', 'Bohemian', 'Classic', 'Streetwear', 'Avant-Garde', 'Romantic'].map((style) => (
-              <button
-                key={style}
-                className="p-6 rounded-2xl border-2 border-outline-variant/20 text-center hover:border-primary transition-all"
-              >
-                <span className="font-title-lg text-primary">{style}</span>
-              </button>
-            ))}
+          <div className="space-y-6">
+            <div>
+              <label className="block font-label-sm uppercase text-on-surface-variant mb-2">
+                Display name
+              </label>
+              <input
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                maxLength={150}
+                className="w-full bg-transparent border-0 border-b border-outline-variant py-2 text-sm text-primary focus:border-tertiary-container focus:outline-none"
+                placeholder="How should StyleMind address you?"
+              />
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {['Minimalist', 'Bohemian', 'Classic', 'Streetwear', 'Avant-Garde', 'Romantic'].map((style) => (
+                <button
+                  key={style}
+                  onClick={() => toggleStyle(style)}
+                  className={clsx(
+                    'p-6 rounded-2xl border-2 text-center transition-all',
+                    selectedStyles.includes(style)
+                      ? 'border-tertiary-container bg-surface-container-low'
+                      : 'border-outline-variant/20 hover:border-primary'
+                  )}
+                >
+                  <span className="font-title-lg text-primary">{style}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -154,6 +251,11 @@ export default function StyleProfilePage() {
           </div>
           <p className="text-sm text-on-surface-variant leading-relaxed">{getInsightText()}</p>
         </div>
+        {error && (
+          <p role="alert" className="mt-4 text-sm text-error">
+            {error}
+          </p>
+        )}
       </main>
 
       {/* Fixed Bottom Navigation */}
@@ -169,11 +271,12 @@ export default function StyleProfilePage() {
           <button
             onClick={() => {
               if (currentStep < 4) setCurrentStep(currentStep + 1)
-              else navigate('/')
+              else completeProfile()
             }}
+            disabled={saving}
             className="flex items-center gap-2 bg-primary text-on-primary px-6 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            {currentStep === 4 ? 'Complete' : 'Continue'}
+            {currentStep === 4 ? (saving ? 'Saving...' : 'Complete') : 'Continue'}
             <ArrowRight size={16} />
           </button>
         </div>

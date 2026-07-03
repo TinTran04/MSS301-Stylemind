@@ -47,4 +47,4 @@ stylemind_microservice_prd_brd_kit/
 - Cross-service communication thông qua REST/internal API hoặc event sau này.
 - JWT được validate tại API Gateway.
 - Backend service tin identity headers do Gateway inject.
-- Internal APIs dùng `/internal/**` và phải được bảo vệ.
+- Internal APIs dùng `/internal/v1/**` và phải được bảo vệ.

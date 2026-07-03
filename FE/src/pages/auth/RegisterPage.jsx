@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Eye, EyeOff, Lock, Mail, User } from 'lucide-react'
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import useAuthStore from '../../features/auth/auth.store'
 import { registerUser } from '../../features/auth/auth.api'
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' })
+  const [formData, setFormData] = useState({ email: '', password: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
@@ -41,21 +41,6 @@ export default function RegisterPage() {
           <p className="text-on-surface-variant mt-2">Begin your AI-powered style journey</p>
 
           <form onSubmit={handleSubmit} className="space-y-6 mt-8">
-            <div>
-              <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Full Name</label>
-              <div className="relative">
-                <User size={16} className="absolute left-0 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-                <input
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
-                  placeholder="Your name"
-                />
-              </div>
-            </div>
-
             <div>
               <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Email</label>
               <div className="relative">

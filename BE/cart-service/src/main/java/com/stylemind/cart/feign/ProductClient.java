@@ -1,0 +1,40 @@
+package com.stylemind.cart.feign;
+
+import com.stylemind.common.dto.ApiResponse;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+
+import java.math.BigDecimal;
+
+@FeignClient(name = "product-service", url = "${PRODUCT_SERVICE_URL:http://localhost:8083}")
+public interface ProductClient {
+
+    @GetMapping("/internal/v1/products/variants/{variantId}")
+    ApiResponse<VariantSnapshot> getVariantSnapshot(@PathVariable String variantId);
+
+    class VariantSnapshot {
+        private String variantId;
+        private String productId;
+        private String productName;
+        private String sku;
+        private BigDecimal effectivePrice;
+        private String currency;
+        private String status;
+
+        public String getVariantId() { return variantId; }
+        public void setVariantId(String variantId) { this.variantId = variantId; }
+        public String getProductId() { return productId; }
+        public void setProductId(String productId) { this.productId = productId; }
+        public String getProductName() { return productName; }
+        public void setProductName(String productName) { this.productName = productName; }
+        public String getSku() { return sku; }
+        public void setSku(String sku) { this.sku = sku; }
+        public BigDecimal getEffectivePrice() { return effectivePrice; }
+        public void setEffectivePrice(BigDecimal effectivePrice) { this.effectivePrice = effectivePrice; }
+        public String getCurrency() { return currency; }
+        public void setCurrency(String currency) { this.currency = currency; }
+        public String getStatus() { return status; }
+        public void setStatus(String status) { this.status = status; }
+    }
+}

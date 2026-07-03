@@ -20,6 +20,7 @@ public class VariantSnapshotResponse {
     private String color;
     private String material;
     private BigDecimal effectivePrice;
+    private String currency;
     private String status;
     private String primaryImageUrl;
 }

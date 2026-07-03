@@ -17,6 +17,9 @@ public class CustomerStyleProfile extends BaseEntity {
     @Column(name = "user_id", length = 50)
     private String userId;
 
+    @Column(name = "display_name", length = 150)
+    private String displayName;
+
     @Column(name = "gender", length = 20)
     private String gender;
 

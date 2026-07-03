@@ -1,76 +1,171 @@
-import { useState, useEffect } from 'react'
-import { Search, Plus, Eye, Edit, Trash2, Loader2, RefreshCw } from 'lucide-react'
-import StatusBadge from '../../components/admin/StatusBadge'
+import { useState, useEffect, useCallback } from 'react'
+import { Search, Plus, Edit, Trash2, Loader2, RefreshCw, ChevronLeft, ChevronRight, Tag, ImagePlus, X } from 'lucide-react'
 import Drawer from '../../components/common/Drawer'
-import { getAdminProducts, createProduct, updateProduct, deleteProduct } from '../../features/products/admin-product.api'
+import {
+  getAdminProducts,
+  createProduct,
+  updateProduct,
+  updateProductStatus,
+  deleteProduct,
+  addVariant,
+  updateVariant,
+  deleteVariant,
+  uploadImage,
+  deleteImage,
+} from '../../features/products/admin-product.api'
+import { createCategory, updateCategory, deleteCategory } from '../../features/products/admin-category.api'
 import { getCategories } from '../../features/products/product.api'
+
+const STATUS_STYLES = {
+  ACTIVE: 'bg-tertiary-fixed/30 text-tertiary',
+  INACTIVE: 'bg-surface-container-high text-on-surface-variant',
+  DISCONTINUED: 'bg-error/15 text-error',
+}
+
+const EMPTY_PRODUCT_FORM = {
+  name: '',
+  description: '',
+  basePrice: '',
+  categoryId: '',
+  aestheticStyle: '',
+  targetDemographic: '',
+  seasonalProperty: '',
+  status: 'ACTIVE',
+}
+
+const EMPTY_VARIANT_FORM = { sku: '', size: '', color: '', material: '', priceOverride: '' }
+const EMPTY_CATEGORY_FORM = { name: '', slug: '', parentId: '' }
+
+const PAGE_SIZE = 20
 
 export default function ProductManagementPage() {
   const [products, setProducts] = useState([])
+  const [totalElements, setTotalElements] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [currentPage, setCurrentPage] = useState(0)
   const [categories, setCategories] = useState([])
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [actionLoading, setActionLoading] = useState(false)
+  const [toast, setToast] = useState(null)
+
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
-  const [toast, setToast] = useState(null)
-  const [form, setForm] = useState({ name: '', price: '', categoryId: '', material: '', sku: '' })
+  const [form, setForm] = useState(EMPTY_PRODUCT_FORM)
 
-  const fetchProducts = async () => {
-    setLoading(true)
-    try {
-      const data = await getAdminProducts()
-      const cats = await getCategories()
-      setProducts(data.content || data || [])
-      setCategories(cats || [])
-    } catch (err) {
-      showToast('Error loading products: ' + err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [variantForm, setVariantForm] = useState(EMPTY_VARIANT_FORM)
+  const [editingVariantId, setEditingVariantId] = useState(null)
 
-  useEffect(() => {
-    fetchProducts()
-  }, [])
+  const [imageFile, setImageFile] = useState(null)
+  const [imageIsPrimary, setImageIsPrimary] = useState(false)
 
-  const filtered = products.filter((p) =>
-    p.active !== false && (p.name?.toLowerCase().includes(search.toLowerCase()) || p.sku?.toLowerCase().includes(search.toLowerCase()))
-  )
+  const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
+  const [categoryForm, setCategoryForm] = useState(EMPTY_CATEGORY_FORM)
+  const [editingCategoryId, setEditingCategoryId] = useState(null)
 
   const showToast = (message) => {
     setToast(message)
     setTimeout(() => setToast(null), 3000)
   }
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 400)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      setCategories(await getCategories())
+    } catch {
+      setCategories([])
+    }
+  }, [])
+
+  const fetchProducts = useCallback(
+    async (page = 0) => {
+      setLoading(true)
+      setError('')
+      try {
+        const data = await getAdminProducts({
+          page,
+          size: PAGE_SIZE,
+          search: debouncedSearch,
+          category: categoryFilter,
+          status: statusFilter,
+        })
+        setProducts(data.content || [])
+        setTotalElements(data.totalElements || 0)
+        setTotalPages(data.totalPages || 1)
+        setCurrentPage(data.page || 0)
+      } catch (err) {
+        setError(err.message || 'Không thể tải danh sách sản phẩm.')
+      } finally {
+        setLoading(false)
+      }
+    },
+    [debouncedSearch, categoryFilter, statusFilter],
+  )
+
+  useEffect(() => {
+    fetchCategories()
+  }, [fetchCategories])
+
+  useEffect(() => {
+    fetchProducts(0)
+  }, [fetchProducts])
+
+  const categoryName = (categoryId) => categories.find((c) => String(c.id) === String(categoryId))?.name || 'Chưa phân loại'
+
   const openAddDrawer = () => {
     setEditingProduct(null)
-    setForm({ name: '', price: '', categoryId: categories[0]?.id || '', material: '', sku: '' })
+    setForm({ ...EMPTY_PRODUCT_FORM, categoryId: categories[0]?.id ? String(categories[0].id) : '' })
+    setVariantForm(EMPTY_VARIANT_FORM)
+    setEditingVariantId(null)
     setDrawerOpen(true)
   }
 
-  const openEditDrawer = (e, product) => {
-    e.stopPropagation()
+  const openEditDrawer = (product) => {
     setEditingProduct(product)
-    setForm({ 
-      name: product.name, 
-      price: String(product.price), 
-      categoryId: product.category?.id || categories[0]?.id || '', 
-      material: product.material || '',
-      sku: product.sku || ''
+    setForm({
+      name: product.name,
+      description: product.description || '',
+      basePrice: String(product.basePrice ?? ''),
+      categoryId: product.categoryId ? String(product.categoryId) : '',
+      aestheticStyle: product.aestheticStyle || '',
+      targetDemographic: product.targetDemographic || '',
+      seasonalProperty: product.seasonalProperty || '',
+      status: product.status || 'ACTIVE',
     })
+    setVariantForm(EMPTY_VARIANT_FORM)
+    setEditingVariantId(null)
+    setImageFile(null)
+    setImageIsPrimary(false)
     setDrawerOpen(true)
   }
 
-  const handleDelete = async (e, productId) => {
-    e.stopPropagation()
-    if (!window.confirm('Are you sure you want to delete this product?')) return
+  const handleDelete = async (productId) => {
+    if (!window.confirm('Bạn có chắc muốn xóa sản phẩm này?')) return
     try {
       await deleteProduct(productId)
-      setProducts(prev => prev.filter(p => p.id !== productId))
-      showToast('Product deleted')
+      showToast('Đã xóa sản phẩm')
+      fetchProducts(currentPage)
     } catch (err) {
-      showToast('Delete failed: ' + err.message)
+      showToast('Xóa thất bại: ' + err.message)
+    }
+  }
+
+  const handleToggleStatus = async (product) => {
+    const nextStatus = product.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+    try {
+      await updateProductStatus(product.id, nextStatus)
+      showToast('Đã cập nhật trạng thái')
+      fetchProducts(currentPage)
+    } catch (err) {
+      showToast('Cập nhật trạng thái thất bại: ' + err.message)
     }
   }
 
@@ -80,25 +175,177 @@ export default function ProductManagementPage() {
     try {
       const payload = {
         name: form.name,
-        price: Number(form.price),
-        categoryId: Number(form.categoryId),
-        material: form.material,
-        sku: form.sku || `SKU-${Date.now()}`,
-        active: true,
+        description: form.description,
+        basePrice: Number(form.basePrice),
+        categoryId: form.categoryId ? Number(form.categoryId) : null,
+        aestheticStyle: form.aestheticStyle || null,
+        targetDemographic: form.targetDemographic || null,
+        seasonalProperty: form.seasonalProperty || null,
+        status: form.status,
       }
       if (editingProduct) {
-        await updateProduct(editingProduct.id, payload)
-        showToast('Product updated')
+        const updated = await updateProduct(editingProduct.id, payload)
+        setEditingProduct(updated)
+        showToast('Đã cập nhật sản phẩm')
       } else {
-        await createProduct(payload)
-        showToast('Product added')
+        showToast('Đã tạo sản phẩm. Thêm biến thể và ảnh bằng cách chỉnh sửa sản phẩm.')
+        setDrawerOpen(false)
       }
-      setDrawerOpen(false)
-      fetchProducts()
+      fetchProducts(currentPage)
     } catch (err) {
-      showToast('Operation failed: ' + err.message)
+      showToast('Thao tác thất bại: ' + err.message)
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  // ─── Variants ──────────────────────────────────────────────────────────────
+  const startEditVariant = (variant) => {
+    setEditingVariantId(variant.id)
+    setVariantForm({
+      sku: variant.sku,
+      size: variant.size,
+      color: variant.color,
+      material: variant.material || '',
+      priceOverride: variant.priceOverride != null ? String(variant.priceOverride) : '',
+    })
+  }
+
+  const resetVariantForm = () => {
+    setEditingVariantId(null)
+    setVariantForm(EMPTY_VARIANT_FORM)
+  }
+
+  const handleVariantSubmit = async (e) => {
+    e.preventDefault()
+    if (!editingProduct) return
+    setActionLoading(true)
+    try {
+      const payload = {
+        sku: variantForm.sku,
+        size: variantForm.size,
+        color: variantForm.color,
+        material: variantForm.material || null,
+        priceOverride: variantForm.priceOverride ? Number(variantForm.priceOverride) : null,
+      }
+      let updated
+      if (editingVariantId) {
+        updated = await updateVariant(editingProduct.id, editingVariantId, payload)
+      } else {
+        updated = await addVariant(editingProduct.id, payload)
+      }
+      setEditingProduct((prev) => ({
+        ...prev,
+        variants: editingVariantId
+          ? prev.variants.map((v) => (v.id === editingVariantId ? updated : v))
+          : [...(prev.variants || []), updated],
+      }))
+      resetVariantForm()
+      showToast('Đã lưu biến thể')
+    } catch (err) {
+      showToast('Lưu biến thể thất bại: ' + err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDeleteVariant = async (variantId) => {
+    if (!editingProduct) return
+    if (!window.confirm('Xóa biến thể này?')) return
+    try {
+      await deleteVariant(editingProduct.id, variantId)
+      setEditingProduct((prev) => ({ ...prev, variants: prev.variants.filter((v) => v.id !== variantId) }))
+      showToast('Đã xóa biến thể')
+    } catch (err) {
+      showToast('Xóa biến thể thất bại: ' + err.message)
+    }
+  }
+
+  // ─── Images ────────────────────────────────────────────────────────────────
+  const handleUploadImage = async (e) => {
+    e.preventDefault()
+    if (!editingProduct || !imageFile) return
+    setActionLoading(true)
+    try {
+      const image = await uploadImage(editingProduct.id, imageFile, imageIsPrimary)
+      setEditingProduct((prev) => ({
+        ...prev,
+        images: [
+          ...(imageIsPrimary ? prev.images.map((img) => ({ ...img, isPrimary: false })) : prev.images),
+          image,
+        ],
+      }))
+      setImageFile(null)
+      setImageIsPrimary(false)
+      showToast('Đã tải ảnh lên')
+    } catch (err) {
+      showToast('Tải ảnh lên thất bại: ' + err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDeleteImage = async (imageId) => {
+    if (!editingProduct) return
+    try {
+      await deleteImage(editingProduct.id, imageId)
+      setEditingProduct((prev) => ({ ...prev, images: prev.images.filter((img) => img.id !== imageId) }))
+      showToast('Đã xóa ảnh')
+    } catch (err) {
+      showToast('Xóa ảnh thất bại: ' + err.message)
+    }
+  }
+
+  // ─── Categories ────────────────────────────────────────────────────────────
+  const openCategoryDrawer = () => {
+    setEditingCategoryId(null)
+    setCategoryForm(EMPTY_CATEGORY_FORM)
+    setCategoryDrawerOpen(true)
+  }
+
+  const startEditCategory = (category) => {
+    setEditingCategoryId(category.id)
+    setCategoryForm({
+      name: category.name,
+      slug: category.slug,
+      parentId: category.parentId ? String(category.parentId) : '',
+    })
+  }
+
+  const handleCategorySubmit = async (e) => {
+    e.preventDefault()
+    setActionLoading(true)
+    try {
+      const payload = {
+        name: categoryForm.name,
+        slug: categoryForm.slug,
+        parentId: categoryForm.parentId ? Number(categoryForm.parentId) : null,
+      }
+      if (editingCategoryId) {
+        await updateCategory(editingCategoryId, payload)
+        showToast('Đã cập nhật danh mục')
+      } else {
+        await createCategory(payload)
+        showToast('Đã tạo danh mục')
+      }
+      setEditingCategoryId(null)
+      setCategoryForm(EMPTY_CATEGORY_FORM)
+      fetchCategories()
+    } catch (err) {
+      showToast('Thao tác danh mục thất bại: ' + err.message)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleDeleteCategory = async (categoryId) => {
+    if (!window.confirm('Xóa danh mục này?')) return
+    try {
+      await deleteCategory(categoryId)
+      showToast('Đã xóa danh mục')
+      fetchCategories()
+    } catch (err) {
+      showToast('Xóa danh mục thất bại: ' + err.message)
     }
   }
 
@@ -113,126 +360,282 @@ export default function ProductManagementPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-headline-md text-primary">Products</h1>
-          <p className="text-sm text-on-surface-variant mt-1">{filtered.length} products found</p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            {loading ? 'Đang tải…' : `${totalElements} sản phẩm`}
+          </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={fetchProducts} disabled={loading} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          <button onClick={() => fetchProducts(currentPage)} disabled={loading} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
+          </button>
+          <button onClick={openCategoryDrawer} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-surface-container hover:bg-surface-container-high transition-colors">
+            <Tag size={14} /> Danh mục
           </button>
           <button onClick={openAddDrawer} className="bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90">
-            <Plus size={14} /> Add Product
+            <Plus size={14} /> Thêm sản phẩm
           </button>
         </div>
       </div>
 
+      {error && (
+        <div className="bg-error/10 border border-error/20 rounded-lg px-4 py-3 text-sm text-error">{error}</div>
+      )}
+
       <div className="bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden">
-        <div className="p-4 border-b border-outline-variant/20">
-          <div className="relative max-w-sm">
+        <div className="p-4 border-b border-outline-variant/20 flex flex-wrap gap-3">
+          <div className="relative max-w-sm flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search products..."
+              placeholder="Tìm theo tên sản phẩm…"
               className="w-full pl-9 pr-4 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none"
             />
           </div>
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="px-3 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none">
+            <option value="">Mọi danh mục</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none">
+            <option value="">Mọi trạng thái</option>
+            <option value="ACTIVE">ACTIVE</option>
+            <option value="INACTIVE">INACTIVE</option>
+            <option value="DISCONTINUED">DISCONTINUED</option>
+          </select>
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-surface-container-low/50">
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Product</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">SKU</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Price</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Stock</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Category</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Base Price</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Variants</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Status</th>
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">
               {loading && products.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-12 text-sm text-on-surface-variant">Loading products...</td>
+                <tr><td colSpan={6} className="text-center py-12 text-sm text-on-surface-variant">Đang tải…</td></tr>
+              ) : products.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-12 text-sm text-on-surface-variant">Không tìm thấy sản phẩm nào.</td></tr>
+              ) : products.map((product) => (
+                <tr key={product.id} className="hover:bg-surface-container-high/30 cursor-pointer" onClick={() => openEditDrawer(product)}>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <img src={product.images?.[0]?.imageUrl || 'https://via.placeholder.com/40'} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
+                      <p className="text-sm font-medium text-primary">{product.name}</p>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-on-surface-variant">{categoryName(product.categoryId)}</td>
+                  <td className="px-4 py-3 text-sm text-primary">{Number(product.basePrice).toLocaleString('vi-VN')}</td>
+                  <td className="px-4 py-3 text-xs text-on-surface-variant">{product.variants?.length || 0}</td>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => handleToggleStatus(product)}
+                      className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[product.status] || STATUS_STYLES.INACTIVE}`}
+                      title="Bấm để chuyển đổi trạng thái ACTIVE/INACTIVE"
+                    >
+                      {product.status}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex gap-1">
+                      <button onClick={() => openEditDrawer(product)} className="p-1.5 rounded hover:bg-surface-container-high"><Edit size={14} className="text-on-surface-variant" /></button>
+                      <button onClick={() => handleDelete(product.id)} className="p-1.5 rounded hover:bg-surface-container-high"><Trash2 size={14} className="text-error" /></button>
+                    </div>
+                  </td>
                 </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-12 text-sm text-on-surface-variant">No products found.</td>
-                </tr>
-              ) : filtered.map((product) => {
-                const totalStock = product.variants?.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || 0;
-                return (
-                  <tr key={product.id} className="hover:bg-surface-container-high/30 cursor-pointer" onClick={(e) => openEditDrawer(e, product)}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <img src={product.images?.[0]?.url || 'https://via.placeholder.com/40'} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
-                        <div>
-                          <p className="text-sm font-medium text-primary">{product.name}</p>
-                          <p className="text-xs text-on-surface-variant">{product.category?.name || 'Uncategorized'}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-on-surface-variant font-mono">{product.sku}</td>
-                    <td className="px-4 py-3 text-sm text-primary">${product.price}</td>
-                    <td className="px-4 py-3"><span className="text-xs text-on-surface-variant">{totalStock} units</span></td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1">
-                        <button onClick={(e) => openEditDrawer(e, product)} className="p-1.5 rounded hover:bg-surface-container-high"><Edit size={14} className="text-on-surface-variant" /></button>
-                        <button onClick={(e) => handleDelete(e, product.id)} className="p-1.5 rounded hover:bg-surface-container-high"><Trash2 size={14} className="text-error" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+              ))}
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant/20 text-sm text-on-surface-variant">
+            <span>Trang {currentPage + 1} / {totalPages} · {totalElements} products</span>
+            <div className="flex gap-2">
+              <button onClick={() => fetchProducts(currentPage - 1)} disabled={currentPage === 0 || loading} className="p-1.5 rounded-lg hover:bg-surface-container-high disabled:opacity-30 transition-colors">
+                <ChevronLeft size={16} />
+              </button>
+              <button onClick={() => fetchProducts(currentPage + 1)} disabled={currentPage >= totalPages - 1 || loading} className="p-1.5 rounded-lg hover:bg-surface-container-high disabled:opacity-30 transition-colors">
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
+      {/* Product create/edit drawer */}
       <Drawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} title={editingProduct ? 'Edit Product' : 'Add Product'}>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {editingProduct && (
-            <div className="flex items-center gap-3">
-              <img src={editingProduct.images?.[0]?.url || 'https://via.placeholder.com/40'} alt={editingProduct.name} className="w-16 h-20 rounded-lg object-cover" />
-              <div>
-                <h3 className="font-title-lg text-primary">{editingProduct.name}</h3>
-                <p className="text-xs text-on-surface-variant">{editingProduct.sku}</p>
-              </div>
-            </div>
-          )}
           <div>
             <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Product Name</label>
             <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
           </div>
           <div>
-            <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">SKU</label>
-            <input required value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+            <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Description</label>
+            <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
           </div>
           <div>
-            <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Price</label>
-            <input required type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+            <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Base Price</label>
+            <input required type="number" step="0.01" min="0.01" value={form.basePrice} onChange={(e) => setForm({ ...form, basePrice: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
           </div>
           <div>
             <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Category</label>
-            <select required value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none">
-              <option value="" disabled>Select a category</option>
-              {categories.map(c => (
+            <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none">
+              <option value="">Uncategorized</option>
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Material</label>
-            <input value={form.material} onChange={(e) => setForm({ ...form, material: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+            <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Aesthetic Style</label>
+            <input value={form.aestheticStyle} onChange={(e) => setForm({ ...form, aestheticStyle: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Target Demographic</label>
+              <input value={form.targetDemographic} onChange={(e) => setForm({ ...form, targetDemographic: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+            </div>
+            <div>
+              <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Seasonal Property</label>
+              <input value={form.seasonalProperty} onChange={(e) => setForm({ ...form, seasonalProperty: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+            </div>
+          </div>
+          <div>
+            <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Status</label>
+            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none">
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
+              <option value="DISCONTINUED">DISCONTINUED</option>
+            </select>
           </div>
           <div className="flex gap-3 pt-2">
             <button type="submit" disabled={actionLoading} className="flex-1 bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
               {actionLoading ? <Loader2 size={14} className="animate-spin mx-auto" /> : (editingProduct ? 'Update Product' : 'Add Product')}
             </button>
             <button type="button" onClick={() => setDrawerOpen(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-container text-on-surface hover:bg-surface-container-high">
-              Cancel
+              Close
             </button>
           </div>
+
+          {/* Variants — only available once the product exists */}
+          {editingProduct && (
+            <div className="pt-4 border-t border-outline-variant/20 space-y-3">
+              <h3 className="font-title-lg text-primary">Variants</h3>
+              <p className="text-xs text-on-surface-variant">SKU must be unique across all products.</p>
+              <div className="space-y-2">
+                {(editingProduct.variants || []).map((v) => (
+                  <div key={v.id} className="flex items-center justify-between bg-surface-container rounded-lg px-3 py-2 text-xs">
+                    <span>{v.sku} · {v.size} · {v.color}{v.priceOverride ? ` · ${Number(v.priceOverride).toLocaleString('vi-VN')}` : ''}</span>
+                    <div className="flex gap-1">
+                      <button type="button" onClick={() => startEditVariant(v)} className="p-1 rounded hover:bg-surface-container-high"><Edit size={12} /></button>
+                      <button type="button" onClick={() => handleDeleteVariant(v.id)} className="p-1 rounded hover:bg-surface-container-high"><Trash2 size={12} className="text-error" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input placeholder="SKU" value={variantForm.sku} onChange={(e) => setVariantForm({ ...variantForm, sku: e.target.value })} className="bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none" />
+                <input placeholder="Size" value={variantForm.size} onChange={(e) => setVariantForm({ ...variantForm, size: e.target.value })} className="bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none" />
+                <input placeholder="Color" value={variantForm.color} onChange={(e) => setVariantForm({ ...variantForm, color: e.target.value })} className="bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none" />
+                <input placeholder="Material (optional)" value={variantForm.material} onChange={(e) => setVariantForm({ ...variantForm, material: e.target.value })} className="bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none" />
+                <input placeholder="Price override (optional)" type="number" step="0.01" value={variantForm.priceOverride} onChange={(e) => setVariantForm({ ...variantForm, priceOverride: e.target.value })} className="bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none col-span-2" />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleVariantSubmit}
+                  disabled={actionLoading || !variantForm.sku || !variantForm.size || !variantForm.color}
+                  className="flex-1 bg-surface-container-high text-primary px-3 py-2 rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-40"
+                >
+                  {editingVariantId ? 'Save Variant' : 'Add Variant'}
+                </button>
+                {editingVariantId && (
+                  <button type="button" onClick={resetVariantForm} className="px-3 py-2 rounded-lg text-xs font-medium bg-surface-container">Cancel</button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Images — only available once the product exists */}
+          {editingProduct && (
+            <div className="pt-4 border-t border-outline-variant/20 space-y-3">
+              <h3 className="font-title-lg text-primary">Images</h3>
+              <div className="grid grid-cols-3 gap-2">
+                {(editingProduct.images || []).map((img) => (
+                  <div key={img.id} className="relative">
+                    <img src={img.imageUrl} alt="" className="w-full aspect-square object-cover rounded-lg" />
+                    {img.isPrimary && <span className="absolute top-1 left-1 text-[10px] bg-primary text-on-primary px-1.5 py-0.5 rounded-full">Primary</span>}
+                    <button type="button" onClick={() => handleDeleteImage(img.id)} className="absolute top-1 right-1 p-1 rounded-full bg-surface-container-lowest/90 hover:bg-error/20">
+                      <X size={12} className="text-error" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} className="text-xs flex-1" />
+                <label className="flex items-center gap-1 text-xs text-on-surface-variant">
+                  <input type="checkbox" checked={imageIsPrimary} onChange={(e) => setImageIsPrimary(e.target.checked)} /> Primary
+                </label>
+              </div>
+              <button
+                type="button"
+                onClick={handleUploadImage}
+                disabled={actionLoading || !imageFile}
+                className="w-full flex items-center justify-center gap-2 bg-surface-container-high text-primary px-3 py-2 rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-40"
+              >
+                <ImagePlus size={14} /> Upload Image
+              </button>
+            </div>
+          )}
         </form>
+      </Drawer>
+
+      {/* Category management drawer */}
+      <Drawer isOpen={categoryDrawerOpen} onClose={() => setCategoryDrawerOpen(false)} title="Manage Categories">
+        <form onSubmit={handleCategorySubmit} className="space-y-3 pb-4 border-b border-outline-variant/20">
+          <input required placeholder="Name" value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+          <input required placeholder="Slug" value={categoryForm.slug} onChange={(e) => setCategoryForm({ ...categoryForm, slug: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+          <select value={categoryForm.parentId} onChange={(e) => setCategoryForm({ ...categoryForm, parentId: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none">
+            <option value="">No parent</option>
+            {categories.filter((c) => c.id !== editingCategoryId).map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <div className="flex gap-2">
+            <button type="submit" disabled={actionLoading} className="flex-1 bg-primary text-on-primary px-3 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
+              {editingCategoryId ? 'Save Category' : 'Add Category'}
+            </button>
+            {editingCategoryId && (
+              <button type="button" onClick={() => { setEditingCategoryId(null); setCategoryForm(EMPTY_CATEGORY_FORM) }} className="px-3 py-2 rounded-lg text-sm font-medium bg-surface-container">
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
+        <div className="pt-4 space-y-2">
+          {categories.length === 0 && <p className="text-xs text-on-surface-variant">No categories yet.</p>}
+          {categories.map((c) => (
+            <div key={c.id} className="flex items-center justify-between bg-surface-container rounded-lg px-3 py-2 text-sm">
+              <div>
+                <p className="text-primary">{c.name}</p>
+                <p className="text-xs text-on-surface-variant">{c.slug}</p>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => startEditCategory(c)} className="p-1.5 rounded hover:bg-surface-container-high"><Edit size={14} className="text-on-surface-variant" /></button>
+                <button onClick={() => handleDeleteCategory(c.id)} className="p-1.5 rounded hover:bg-surface-container-high"><Trash2 size={14} className="text-error" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
       </Drawer>
     </div>
   )
