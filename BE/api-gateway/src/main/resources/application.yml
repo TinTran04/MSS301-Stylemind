@@ -73,14 +73,6 @@ spring:
           uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:8089}
           predicates:
             - Path=/api/notifications/**
-        - id: ai-service
-          uri: ${AI_SERVICE_URL:http://ai-agent-service:8085}
-          predicates:
-            - Path=/api/ai-stylist/**
-        - id: admin-ai-service
-          uri: ${AI_SERVICE_URL:http://ai-agent-service:8085}
-          predicates:
-            - Path=/api/admin/ai/**
         - id: admin-users-service
           uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
           predicates:
