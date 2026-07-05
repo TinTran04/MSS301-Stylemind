@@ -36,15 +36,26 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 ## Product (product-service)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/api/v1/categories` | Public categories |
-| GET | `/api/v1/products` | Public listing |
-| GET | `/api/v1/products/{id}` | Product detail |
+| GET | `/api/v1/categories` | Public root categories / children by `parentId` |
+| GET | `/api/v1/products` | ACTIVE listing; search/filter/sort/pagination |
+| GET | `/api/v1/products/{id}` | ACTIVE product detail |
+| GET | `/api/v1/products/{productId}/variants` | ACTIVE product variants |
+| GET | `/api/v1/admin/categories` | Toàn bộ category cho admin |
 | POST | `/api/v1/admin/categories` | Tạo category |
 | PUT | `/api/v1/admin/categories/{id}` | Cập nhật category |
-| DELETE | `/api/v1/admin/categories/{id}` | Xóa category |
+| DELETE | `/api/v1/admin/categories/{id}` | Xóa category; `409` nếu đang được dùng/có child |
+| GET | `/api/v1/admin/products` | Admin product list/search/filter |
+| GET | `/api/v1/admin/products/summary` | Product counts |
+| GET | `/api/v1/admin/products/{id}` | Admin product detail |
 | POST | `/api/v1/admin/products` | Tạo product |
 | PUT | `/api/v1/admin/products/{id}` | Cập nhật product |
 | PATCH | `/api/v1/admin/products/{id}/status` | Đổi trạng thái product |
+| DELETE | `/api/v1/admin/products/{id}` | Soft-delete product |
+| POST | `/api/v1/admin/products/{productId}/variants` | Tạo variant |
+| PUT | `/api/v1/admin/products/{productId}/variants/{variantId}` | Cập nhật variant |
+| DELETE | `/api/v1/admin/products/{productId}/variants/{variantId}` | Xóa variant |
+| POST | `/api/v1/admin/products/{productId}/images` | Upload image multipart |
+| DELETE | `/api/v1/admin/products/{productId}/images/{imageId}` | Xóa product image |
 | GET | `/internal/v1/products/variants/{variantId}` | Variant snapshot (giá authoritative) |
 
 ## Cart (cart-service)

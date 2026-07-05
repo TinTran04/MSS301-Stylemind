@@ -10,5 +10,6 @@
 | 5 | Bổ sung **Order State Machine** chặn admin cập nhật trạng thái không hợp lệ. | order-service |
 | 6 | Định nghĩa **Checkout orchestration + Saga**; saga cơ bản đưa vào Sprint 3. | order-service, roadmap |
 | 7 | Làm rõ **ranh giới auth-service ↔ user-service** (Identity vs Profile) + lazy-init. | auth-service, user-service |
+| 8 | Hoàn thiện catalog: category conflict guard, Cloudinary image metadata/upload, variant wiring và product-first public listing không dùng dữ liệu giả. | product-service, frontend |
 
-Chi tiết kỹ thuật của mục 4–7 nằm trong thư mục `architecture/`.
+Chi tiết kỹ thuật của mục 4–8 nằm trong thư mục `architecture/` và `decisions/`.

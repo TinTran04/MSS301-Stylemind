@@ -45,11 +45,11 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 | ID | Requirement | Priority |
 |---|---|---|
 | PROD-01..02 | Public xem list/detail ACTIVE | Must |
-| PROD-03 | Search/filter/pagination | Must |
-| PROD-04 | Admin CRUD category | Must |
-| PROD-05 | Admin create/update/deactivate product | Must |
-| PROD-06 | Admin quản lý variants | Must |
-| PROD-07 | Admin quản lý images | Should |
+| PROD-03 | Search/category/price/sort/pagination; chỉ dữ liệu thật | Must |
+| PROD-04 | Admin CRUD category; chặn xóa category đang dùng/có child bằng `409` | Must |
+| PROD-05 | Admin create/update/deactivate product; product được tạo trước subresources | Must |
+| PROD-06 | Admin quản lý variants với unique SKU; không thêm stock/inventory | Must |
+| PROD-07 | Admin upload/replace images qua backend Cloudinary; validate type/10 MB; lưu URL/public ID | Should |
 | PROD-08 | Internal variant snapshot (giá authoritative) | Must |
 
 ## Cart

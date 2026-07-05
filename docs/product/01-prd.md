@@ -9,7 +9,7 @@ StyleMind giúp khách mua sắm nhanh hơn, chọn sản phẩm phù hợp hơn
 | G1 | Mua hàng end-to-end | Browse → Cart → Checkout → Payment (COD/SePay) → Tracking. |
 | G2 | Auth đầy đủ | Register, login, me, forgot/verify/reset password hoạt động. |
 | G3 | Admin quản lý account | Xem/tạo/khóa/mở/role; tuân thủ self-protection. |
-| G4 | Admin quản lý catalog | Category, product, variant, image. |
+| G4 | Admin quản lý catalog | Category CRUD có conflict guard; product tạo/cập nhật; unique-SKU variant; image upload/replace qua backend; public catalog chỉ dùng dữ liệu thật. |
 | G5 | Admin quản lý order | Xem list/detail; cập nhật trạng thái theo state machine. |
 | G6 | Payment MVP | COD và SePay VietQR (webhook confirm). |
 | G7 | AI stylist | Chat + gợi ý sản phẩm/outfit. |
