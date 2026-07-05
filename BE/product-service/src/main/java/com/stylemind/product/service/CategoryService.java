@@ -21,6 +21,11 @@ public class CategoryService {
     private final ProductRepository productRepository;
 
     @Transactional(readOnly = true)
+    public List<Category> getAllCategories() {
+        return categoryRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
     public List<Category> getCategories(Long parentId) {
         if (parentId != null) {
             return categoryRepository.findByParentId(parentId);
@@ -73,14 +78,13 @@ public class CategoryService {
         
         List<Category> children = categoryRepository.findByParentId(id);
         if (!children.isEmpty()) {
-            throw new BusinessException("CATEGORY_HAS_CHILDREN", "Không thể xóa danh mục đang có danh mục con", 400);
+            throw new BusinessException("CATEGORY_HAS_CHILDREN", "Không thể xóa danh mục đang có danh mục con", 409);
         }
 
-        // Note: productRepository.countByCategoryId(id) should be used if we had it, but we can just use findByCategoryIdAndStatus although it might be slow.
-        // Or we can just use categoryRepository delete, if DB constraints fail it throws DataIntegrityViolationException.
-        // A better check would be added to ProductRepository: boolean existsByCategoryId(Long categoryId);
-        // We will add it to ProductRepository next.
-        
+        if (productRepository.existsByCategoryId(id)) {
+            throw new BusinessException("CATEGORY_IN_USE", "Không thể xóa danh mục đang được sản phẩm sử dụng", 409);
+        }
+
         categoryRepository.delete(category);
     }
 }

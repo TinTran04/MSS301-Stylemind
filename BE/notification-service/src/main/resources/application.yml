@@ -31,7 +31,7 @@ spring:
   mail:
     host: ${SPRING_MAIL_HOST:smtp.gmail.com}
     port: ${SPRING_MAIL_PORT:587}
-    username: ${SPRING_MAIL_USERNAME:stylemind@gmail.com}
+    username: ${SPRING_MAIL_USERNAME:khoiminhnguyen2k4@gmail.com}
     password: ${SPRING_MAIL_PASSWORD:mkgafyqqzzoeattk}
     properties:
       mail:
@@ -66,5 +66,8 @@ logging:
 app:
   mail:
     enabled: ${MAIL_ENABLED:true}
-    from: ${MAIL_FROM:${SPRING_MAIL_USERNAME:no-reply@stylemind.ai}}
+    # Sender address defaults to the authenticated SMTP account (so Gmail keeps it);
+    # display name defaults to StyleMind → "StyleMind <account>". Both overridable.
+    from-address: ${APP_MAIL_FROM_ADDRESS:${spring.mail.username:no-reply@stylemind.ai}}
+    from-name: ${APP_MAIL_FROM_NAME:StyleMind}
     log-fallback: ${MAIL_LOG_FALLBACK:true}

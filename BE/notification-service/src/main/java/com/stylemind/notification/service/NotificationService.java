@@ -34,8 +34,14 @@ public class NotificationService {
     @Value("${app.mail.enabled:true}")
     private boolean mailEnabled;
 
-    @Value("${app.mail.from:no-reply@stylemind.ai}")
-    private String mailFrom;
+    // Sender address defaults to the authenticated SMTP account so Gmail doesn't
+    // rewrite the From header; no personal address is hardcoded here.
+    @Value("${app.mail.from-address:${spring.mail.username:no-reply@stylemind.ai}}")
+    private String fromAddress;
+
+    // Display name shown to recipients, e.g. "StyleMind <account@gmail.com>".
+    @Value("${app.mail.from-name:StyleMind}")
+    private String fromName;
 
     @Value("${app.mail.log-fallback:true}")
     private boolean logFallback;
@@ -73,6 +79,14 @@ public class NotificationService {
 
     public Page<NotificationResponse> getNotifications(String userId, String status, String type, Pageable pageable) {
         return notificationLogRepository.search(userId, status, type, pageable).map(this::mapToResponse);
+    }
+
+    /** Real notification-health counts for the admin dashboard. */
+    @Transactional(readOnly = true)
+    public AdminNotificationSummaryResponse getAdminSummary() {
+        return AdminNotificationSummaryResponse.builder()
+                .failedNotifications(notificationLogRepository.countByStatus("FAILED"))
+                .build();
     }
 
     // Admin-triggered resend of a previously FAILED notification. Only FAILED
@@ -132,7 +146,8 @@ public class NotificationService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(mailFrom);
+            // Set both address and display name → recipients see "StyleMind <address>".
+            helper.setFrom(fromAddress, fromName);
             helper.setTo(entry.getRecipientEmail());
             helper.setSubject(StringUtils.hasText(entry.getTitle()) ? entry.getTitle() : "StyleMind notification");
             if (StringUtils.hasText(htmlContent)) {
@@ -144,7 +159,7 @@ public class NotificationService {
             entry.setStatus("SENT");
             entry.setSentAt(LocalDateTime.now());
             entry.setErrorMessage(null);
-        } catch (MailException | jakarta.mail.MessagingException ex) {
+        } catch (MailException | jakarta.mail.MessagingException | java.io.UnsupportedEncodingException ex) {
             log.warn("Failed to send email to {}: {}", entry.getRecipientEmail(), ex.getMessage());
             entry.setStatus("FAILED");
             entry.setErrorMessage(ex.getMessage());

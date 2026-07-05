@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS product_images (
     id BIGSERIAL PRIMARY KEY,
     product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     image_url VARCHAR(500) NOT NULL,
+    image_public_id VARCHAR(255),
     is_primary BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

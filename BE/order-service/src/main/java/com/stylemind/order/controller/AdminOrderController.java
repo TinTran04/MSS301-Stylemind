@@ -2,6 +2,7 @@ package com.stylemind.order.controller;
 
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.security.UserPrincipal;
+import com.stylemind.order.dto.AdminOrderSummaryResponse;
 import com.stylemind.order.dto.OrderResponse;
 import com.stylemind.order.dto.UpdateOrderStatusRequest;
 import com.stylemind.order.service.OrderService;
@@ -40,6 +41,12 @@ public class AdminOrderController {
                 toDate != null ? toDate.atTime(23, 59, 59) : null,
                 pageable);
         return ResponseEntity.ok(ApiResponse.success("Admin orders fetched successfully", orders));
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<AdminOrderSummaryResponse>> getSummary() {
+        AdminOrderSummaryResponse summary = orderService.getAdminSummary();
+        return ResponseEntity.ok(ApiResponse.success("Admin order summary fetched successfully", summary));
     }
 
     @GetMapping("/{orderId}")

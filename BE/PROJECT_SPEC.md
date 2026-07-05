@@ -65,6 +65,7 @@
 
 ## 4. Auth & Security Pattern
 
+- **Register email OTP:** `POST /api/v1/auth/register` không tạo account ngay — lưu `pending_registrations` + gửi OTP 6 số qua email. Account `users` ACTIVE chỉ tạo khi `POST /api/v1/auth/register/verify-otp` đúng OTP; `POST /api/v1/auth/register/resend-otp` gửi lại (cooldown). OTP chỉ lưu hash, có expiry + giới hạn số lần thử. Tách hẳn khỏi forgot-password OTP.
 - **JWT** (HS256) validate tại Gateway → inject `X-User-Id`, `X-User-Roles`
 - **X-Internal-Token** cho service-to-service qua Feign (`/internal/v1/**` bị Gateway block với client)
 - CORS: `DedupeResponseHeader` tại Gateway ngăn header trùng

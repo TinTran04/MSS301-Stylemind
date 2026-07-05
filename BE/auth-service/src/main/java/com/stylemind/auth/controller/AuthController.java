@@ -6,9 +6,11 @@ import com.stylemind.auth.dto.ForgotPasswordVerifyResponse;
 import com.stylemind.auth.dto.LoginRequest;
 import com.stylemind.auth.dto.PasswordSetupRequest;
 import com.stylemind.auth.dto.RegisterRequest;
+import com.stylemind.auth.dto.ResendRegisterOtpRequest;
 import com.stylemind.auth.dto.ResetForgotPasswordRequest;
 import com.stylemind.auth.dto.UserResponse;
 import com.stylemind.auth.dto.VerifyForgotPasswordOtpRequest;
+import com.stylemind.auth.dto.VerifyRegisterOtpRequest;
 import com.stylemind.auth.service.AuthService;
 import com.stylemind.common.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,9 +35,21 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse.LoginResponse>> register(@Valid @RequestBody RegisterRequest request) {
-        AuthResponse.LoginResponse response = authService.register(request);
-        return ResponseEntity.ok(ApiResponse.success("Đăng ký thành công", response));
+    public ResponseEntity<ApiResponse<Void>> register(@Valid @RequestBody RegisterRequest request) {
+        authService.startRegistration(request);
+        return ResponseEntity.ok(ApiResponse.success("Mã OTP xác thực đã được gửi tới email của bạn", null));
+    }
+
+    @PostMapping("/register/verify-otp")
+    public ResponseEntity<ApiResponse<Void>> verifyRegisterOtp(@Valid @RequestBody VerifyRegisterOtpRequest request) {
+        authService.verifyRegistrationOtp(request);
+        return ResponseEntity.ok(ApiResponse.success("Đăng ký thành công, vui lòng đăng nhập", null));
+    }
+
+    @PostMapping("/register/resend-otp")
+    public ResponseEntity<ApiResponse<Void>> resendRegisterOtp(@Valid @RequestBody ResendRegisterOtpRequest request) {
+        authService.resendRegistrationOtp(request);
+        return ResponseEntity.ok(ApiResponse.success("Nếu yêu cầu đăng ký tồn tại, mã OTP mới đã được gửi", null));
     }
 
     @PostMapping("/password/setup")

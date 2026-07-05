@@ -9,7 +9,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +22,20 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     List<Order> findByOrderStatusAndCreatedAtBefore(OrderStatus orderStatus, LocalDateTime cutoff);
     Page<Order> findByUserId(String userId, Pageable pageable);
     Optional<Order> findByIdAndUserId(String id, String userId);
+
+    // ─── Admin dashboard aggregates (counts/sums only — no entities loaded) ───
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.orderStatus IN :statuses")
+    long countByStatuses(@Param("statuses") Collection<OrderStatus> statuses);
+
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.createdAt >= :from")
+    long countCreatedSince(@Param("from") LocalDateTime from);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.orderStatus IN :statuses")
+    BigDecimal sumRevenueByStatuses(@Param("statuses") Collection<OrderStatus> statuses);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.orderStatus IN :statuses AND o.createdAt >= :from")
+    BigDecimal sumRevenueByStatusesSince(@Param("statuses") Collection<OrderStatus> statuses,
+                                         @Param("from") LocalDateTime from);
 
     @Query("""
             SELECT o FROM Order o

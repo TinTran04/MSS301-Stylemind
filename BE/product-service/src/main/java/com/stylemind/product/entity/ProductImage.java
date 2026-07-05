@@ -23,6 +23,9 @@ public class ProductImage extends BaseEntity {
     @Column(name = "image_url", length = 500, nullable = false)
     private String imageUrl;
 
+    @Column(name = "image_public_id", length = 255)
+    private String imagePublicId;
+
     @Column(name = "is_primary", nullable = false)
     @Builder.Default
     private Boolean isPrimary = false;

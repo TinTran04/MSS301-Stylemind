@@ -5,7 +5,9 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 ## Auth (auth-service)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| POST | `/api/v1/auth/register` | Đăng ký |
+| POST | `/api/v1/auth/register` | Bắt đầu đăng ký → gửi OTP email (chưa tạo account) |
+| POST | `/api/v1/auth/register/verify-otp` | Xác thực OTP đăng ký → tạo account ACTIVE |
+| POST | `/api/v1/auth/register/resend-otp` | Gửi lại OTP đăng ký (có cooldown) |
 | POST | `/api/v1/auth/login` | Đăng nhập → JWT |
 | GET | `/api/v1/auth/me` | User hiện tại |
 | POST | `/api/v1/auth/forgot-password` | Yêu cầu reset |

@@ -37,6 +37,12 @@ public class AdminProductController {
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách sản phẩm thành công", response));
     }
 
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<AdminProductSummaryResponse>> getSummary() {
+        AdminProductSummaryResponse summary = productService.getAdminSummary();
+        return ResponseEntity.ok(ApiResponse.success("Lấy thống kê sản phẩm thành công", summary));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ProductResponse>> getProduct(@PathVariable String id) {
         ProductResponse product = productService.getProductAdmin(id);

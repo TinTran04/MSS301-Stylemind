@@ -1,6 +1,11 @@
 import apiClient from '../../services/apiClient'
 import { ENDPOINTS } from '../../services/endpoints'
 
+export async function getAdminCategories() {
+  const response = await apiClient.get(ENDPOINTS.ADMIN_CATEGORIES)
+  return Array.isArray(response) ? response : []
+}
+
 export async function createCategory({ name, slug, parentId }) {
   return apiClient.post(ENDPOINTS.ADMIN_CATEGORIES, { name, slug, parentId })
 }

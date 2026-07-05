@@ -21,9 +21,7 @@ import ResetPasswordPage from '../pages/auth/ResetPasswordPage'
 
 import AdminDashboardPage from '../pages/admin/AdminDashboardPage'
 import ProductManagementPage from '../pages/admin/ProductManagementPage'
-import InventoryManagementPage from '../pages/admin/InventoryManagementPage'
 import OrderManagementPage from '../pages/admin/OrderManagementPage'
-import CustomerManagementPage from '../pages/admin/CustomerManagementPage'
 import UserManagementPage from '../pages/admin/UserManagementPage'
 import AIPipelinePage from '../pages/admin/AIPipelinePage'
 import KnowledgeGraphPage from '../pages/admin/KnowledgeGraphPage'
@@ -66,9 +64,7 @@ export default function AppRouter() {
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/products" element={<ProductManagementPage />} />
-          <Route path="/admin/inventory" element={<InventoryManagementPage />} />
           <Route path="/admin/orders" element={<OrderManagementPage />} />
-          <Route path="/admin/customers" element={<CustomerManagementPage />} />
           <Route path="/admin/users" element={<UserManagementPage />} />
           <Route path="/admin/ai-pipeline" element={<AIPipelinePage />} />
           <Route path="/admin/knowledge-graph" element={<KnowledgeGraphPage />} />

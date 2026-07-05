@@ -4,6 +4,8 @@ import com.stylemind.common.dto.PageResponse;
 import com.stylemind.product.dto.*;
 import com.stylemind.product.entity.*;
 import com.stylemind.product.repository.*;
+import com.stylemind.product.service.image.ProductImageStorage;
+import com.stylemind.product.service.image.StoredProductImage;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.util.StringUtil;
 import lombok.RequiredArgsConstructor;
@@ -14,11 +16,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,10 +34,7 @@ public class ProductService {
     private final ProductImageRepository imageRepository;
     private final CategoryRepository categoryRepository;
     private final ProductAuditLogRepository auditLogRepository;
-    private final S3Client s3Client;
-
-    @Value("${s3.bucket:stylemind-products}")
-    private String bucket;
+    private final ProductImageStorage imageStorage;
 
     @Value("${app.product.default-currency:VND}")
     private String defaultCurrency;
@@ -113,14 +112,14 @@ public class ProductService {
                                              BigDecimal maxPrice, String sort, Pageable pageable) {
         String keyword = (search != null && !search.isBlank()) ? search : null;
         Page<Product> page = productRepository.searchAndFilter(keyword, categoryId, minPrice, maxPrice, pageable);
-        return PageResponse.of(page.map(this::mapToResponse));
+        return mapPage(page);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> getProductsAdmin(Long categoryId, String search, String status, Pageable pageable) {
         String keyword = (search != null && !search.isBlank()) ? search : null;
         Page<Product> page = productRepository.searchAndFilterAdmin(keyword, categoryId, status, pageable);
-        return PageResponse.of(page.map(this::mapToResponse));
+        return mapPage(page);
     }
 
     @Transactional(readOnly = true)
@@ -128,6 +127,18 @@ public class ProductService {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
         return mapToResponse(product);
+    }
+
+    /** Real catalogue counts for the admin dashboard. */
+    @Transactional(readOnly = true)
+    public AdminProductSummaryResponse getAdminSummary() {
+        long total = productRepository.count();
+        long active = productRepository.countByStatus("ACTIVE");
+        return AdminProductSummaryResponse.builder()
+                .totalProducts(total)
+                .activeProducts(active)
+                .inactiveProducts(total - active)
+                .build();
     }
 
     public ProductResponse updateProductStatus(String id, String status) {
@@ -172,25 +183,18 @@ public class ProductService {
     }
 
     public ProductImageResponse uploadImage(String productId, MultipartFile file, boolean isPrimary) {
-        Product product = productRepository.findById(productId)
+        productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
 
-        String key = "products/" + productId + "/" + StringUtil.generateUniqueId() + "_" + file.getOriginalFilename();
-        
-        try {
-            PutObjectRequest putRequest = PutObjectRequest.builder()
-                    .bucket(bucket)
-                    .key(key)
-                    .contentType(file.getContentType())
-                    .build();
-            
-            s3Client.putObject(putRequest, 
-                    software.amazon.awssdk.core.sync.RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
-        } catch (Exception e) {
-            throw new BusinessException("IMAGE_UPLOAD_FAILED", "Tải ảnh lên thất bại: " + e.getMessage(), 500);
-        }
+        validateImage(file);
 
-        String imageUrl = "https://" + bucket + ".s3.amazonaws.com/" + key;
+        StoredProductImage storedImage;
+        try {
+            storedImage = imageStorage.upload(productId, file);
+        } catch (Exception e) {
+            log.warn("Product image upload failed for product {}", productId);
+            throw new BusinessException("IMAGE_UPLOAD_FAILED", "Tải ảnh lên thất bại", 500);
+        }
 
         if (isPrimary) {
             imageRepository.findByProductIdAndIsPrimaryTrue(productId)
@@ -202,7 +206,8 @@ public class ProductService {
 
         ProductImage image = ProductImage.builder()
                 .productId(productId)
-                .imageUrl(imageUrl)
+                .imageUrl(storedImage.imageUrl())
+                .imagePublicId(storedImage.publicId())
                 .isPrimary(isPrimary)
                 .build();
 
@@ -249,11 +254,12 @@ public class ProductService {
             throw new BusinessException("IMAGE_MISMATCH", "Ảnh không thuộc sản phẩm này", 400);
         }
 
-        try {
-            String key = extractS3Key(image.getImageUrl());
-            s3Client.deleteObject(b -> b.bucket(bucket).key(key));
-        } catch (Exception e) {
-            log.warn("Failed to delete image from S3: {}", image.getImageUrl(), e);
+        if (image.getImagePublicId() != null && !image.getImagePublicId().isBlank()) {
+            try {
+                imageStorage.delete(image.getImagePublicId());
+            } catch (Exception e) {
+                log.warn("Cloud image deletion failed for image {}", imageId);
+            }
         }
 
         imageRepository.delete(image);
@@ -298,10 +304,51 @@ public class ProductService {
         List<ProductVariantResponse> variants = variantRepository.findByProductId(product.getId()).stream()
                 .map(this::mapToVariantResponse)
                 .collect(Collectors.toList());
+        String categoryName = product.getCategoryId() == null
+                ? null
+                : categoryRepository.findById(product.getCategoryId()).map(Category::getName).orElse(null);
 
+        return mapToResponse(product, categoryName, images, variants);
+    }
+
+    private PageResponse<ProductResponse> mapPage(Page<Product> page) {
+        List<Product> products = page.getContent();
+        if (products.isEmpty()) {
+            return PageResponse.of(page.map(product -> mapToResponse(product, null, List.of(), List.of())));
+        }
+
+        List<String> productIds = products.stream().map(Product::getId).toList();
+        List<Long> categoryIds = products.stream()
+                .map(Product::getCategoryId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, String> categoryNames = categoryRepository.findAllById(categoryIds).stream()
+                .collect(Collectors.toMap(Category::getId, Category::getName));
+        Map<String, List<ProductImageResponse>> imagesByProduct = imageRepository.findByProductIdIn(productIds).stream()
+                .collect(Collectors.groupingBy(
+                        ProductImage::getProductId,
+                        Collectors.mapping(this::mapToImageResponse, Collectors.toList())));
+        Map<String, List<ProductVariantResponse>> variantsByProduct = variantRepository.findByProductIdIn(productIds).stream()
+                .map(this::mapToVariantResponse)
+                .collect(Collectors.groupingBy(ProductVariantResponse::getProductId));
+
+        return PageResponse.of(page.map(product -> mapToResponse(
+                product,
+                categoryNames.get(product.getCategoryId()),
+                imagesByProduct.getOrDefault(product.getId(), List.of()),
+                variantsByProduct.getOrDefault(product.getId(), List.of()))));
+    }
+
+    private ProductResponse mapToResponse(
+            Product product,
+            String categoryName,
+            List<ProductImageResponse> images,
+            List<ProductVariantResponse> variants) {
         return ProductResponse.builder()
                 .id(product.getId())
                 .categoryId(product.getCategoryId())
+                .categoryName(categoryName)
                 .name(product.getName())
                 .description(product.getDescription())
                 .basePrice(product.getBasePrice())
@@ -332,18 +379,22 @@ public class ProductService {
         return ProductImageResponse.builder()
                 .id(image.getId())
                 .imageUrl(image.getImageUrl())
+                .publicId(image.getImagePublicId())
                 .isPrimary(image.getIsPrimary())
                 .build();
     }
 
-    private String extractS3Key(String url) {
-        try {
-            java.net.URL parsed = new java.net.URL(url);
-            String path = parsed.getPath();
-            return path.startsWith("/") ? path.substring(1) : path;
-        } catch (Exception e) {
-            log.warn("Could not parse S3 URL: {}", url);
-            return url;
+    private void validateImage(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("EMPTY_IMAGE", "Vui lòng chọn tệp ảnh", 400);
+        }
+        if (file.getSize() > 10 * 1024 * 1024) {
+            throw new BusinessException("IMAGE_TOO_LARGE", "Ảnh không được vượt quá 10 MB", 400);
+        }
+        Set<String> allowedTypes = Set.of(
+                "image/jpeg", "image/png", "image/webp", "image/gif", "image/avif");
+        if (file.getContentType() == null || !allowedTypes.contains(file.getContentType().toLowerCase())) {
+            throw new BusinessException("INVALID_IMAGE_TYPE", "Định dạng ảnh không được hỗ trợ", 400);
         }
     }
 }

@@ -18,6 +18,7 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     Page<Product> findByStatus(String status, Pageable pageable);
     List<Product> findByIdIn(List<String> ids);
     boolean existsByCategoryId(Long categoryId);
+    long countByStatus(String status);
     
     @Query("SELECT p FROM Product p WHERE p.status = 'ACTIVE' AND " +
            "(:categoryId IS NULL OR p.categoryId = :categoryId) AND " +

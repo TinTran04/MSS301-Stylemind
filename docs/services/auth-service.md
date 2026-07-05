@@ -8,6 +8,7 @@ Sở hữu **identity**: đăng ký, đăng nhập, quên/đặt lại mật kh�
 ## Owns (dữ liệu service này sở hữu)
 - Account: email, password hash, role (CUSTOMER/ADMIN), status (ACTIVE/DISABLED).
 - Reset token/OTP (chỉ lưu hash, có expiry, dùng một lần).
+- **Pending registration** (`pending_registrations`): sign-up chưa xác thực email — email, password hash, register OTP hash + expiry + attempts. Tách khỏi `users` để không ảnh hưởng login/admin/forgot-password. Xóa khi verify OTP thành công (lúc đó mới tạo `users` ACTIVE).
 
 ## Does NOT own
 - Không sở hữu style profile / địa chỉ (thuộc user-service).
@@ -15,7 +16,9 @@ Sở hữu **identity**: đăng ký, đăng nhập, quên/đặt lại mật kh�
 ## API — Public / Customer
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| POST | `/api/v1/auth/register` | Đăng ký |
+| POST | `/api/v1/auth/register` | Bắt đầu đăng ký → gửi OTP tới email (chưa tạo account) |
+| POST | `/api/v1/auth/register/verify-otp` | Xác thực OTP → tạo account ACTIVE |
+| POST | `/api/v1/auth/register/resend-otp` | Gửi lại OTP đăng ký (có cooldown) |
 | POST | `/api/v1/auth/login` | Đăng nhập → JWT |
 | GET | `/api/v1/auth/me` | User hiện tại |
 | POST | `/api/v1/auth/forgot-password` | Yêu cầu reset (message chung) |
@@ -36,8 +39,9 @@ _(không có)_
 
 ## Key business rules
 - Password hash (BCrypt); login sai trả message chung; disabled user không login.
+- **Register OTP:** `register` không tạo account ngay — chỉ tạo `pending_registrations` + gửi OTP 6 số (chỉ lưu hash, có expiry, giới hạn số lần thử, resend cooldown). Account `users` ACTIVE chỉ được tạo khi `register/verify-otp` đúng OTP; sau đó user login như thường. Email trùng → `EMAIL_ALREADY_EXISTS`. Không phá vỡ forgot-password OTP (tách bảng, tách config).
 - forgot-password không tiết lộ email tồn tại; OTP/token có hạn, dùng một lần, chỉ lưu hash.
-- Không trả password/OTP/reset token trong response hay log.
+- Không trả password/OTP/reset token trong response hay log (OTP chỉ nằm trong `htmlContent` của email, `content` redact `[PROTECTED]`).
 - **Self-protection:** admin không tự disable/delete/hạ role chính mình; không disable/delete/hạ **admin cuối cùng** còn ACTIVE → **409**.
 - So sánh `targetUserId` với admin id lấy từ JWT/gateway header.
 

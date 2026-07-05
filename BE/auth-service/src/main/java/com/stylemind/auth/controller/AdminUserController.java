@@ -1,6 +1,7 @@
 package com.stylemind.auth.controller;
 
 import com.stylemind.auth.dto.AdminUserResponse;
+import com.stylemind.auth.dto.AdminUserSummaryResponse;
 import com.stylemind.auth.dto.AdminCreateUserRequest;
 import com.stylemind.auth.dto.ChangeEnabledRequest;
 import com.stylemind.auth.dto.ChangeRoleRequest;
@@ -42,6 +43,12 @@ public class AdminUserController {
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách người dùng thành công", result));
     }
 
+
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<AdminUserSummaryResponse>> getSummary() {
+        AdminUserSummaryResponse summary = authService.getUserSummary();
+        return ResponseEntity.ok(ApiResponse.success("Lấy thống kê người dùng thành công", summary));
+    }
 
     @GetMapping("/{userId}")
     public ResponseEntity<ApiResponse<AdminUserResponse>> getUserById(@PathVariable String userId) {

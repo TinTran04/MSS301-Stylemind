@@ -53,6 +53,11 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/login",
                                 "/api/v1/auth/register",
+                                // Register email-OTP verification/resend: the user has no JWT yet,
+                                // so these must be public like the other pre-login auth endpoints.
+                                // Exact sub-paths (not /register/**) to keep the whitelist precise.
+                                "/api/v1/auth/register/verify-otp",
+                                "/api/v1/auth/register/resend-otp",
                                 "/api/v1/auth/password/setup",
                                 "/api/v1/auth/forgot-password",
                                 "/api/v1/auth/verify-reset-otp",

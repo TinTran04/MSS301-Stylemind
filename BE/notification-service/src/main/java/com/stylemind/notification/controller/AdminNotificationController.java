@@ -1,5 +1,6 @@
 package com.stylemind.notification.controller;
 
+import com.stylemind.notification.dto.AdminNotificationSummaryResponse;
 import com.stylemind.notification.dto.NotificationResponse;
 import com.stylemind.notification.service.NotificationService;
 import com.stylemind.common.dto.ApiResponse;
@@ -27,6 +28,12 @@ public class AdminNotificationController {
             @PageableDefault(size = 20) Pageable pageable) {
         Page<NotificationResponse> notifications = notificationService.getNotifications(userId, status, type, pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách thông báo thành công", notifications));
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<AdminNotificationSummaryResponse>> getSummary() {
+        AdminNotificationSummaryResponse summary = notificationService.getAdminSummary();
+        return ResponseEntity.ok(ApiResponse.success("Lấy thống kê thông báo thành công", summary));
     }
 
     @PostMapping("/{id}/retry")

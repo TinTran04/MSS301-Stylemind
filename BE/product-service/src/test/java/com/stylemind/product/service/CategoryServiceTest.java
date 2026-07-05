@@ -1,0 +1,73 @@
+package com.stylemind.product.service;
+
+import com.stylemind.common.exception.BusinessException;
+import com.stylemind.product.entity.Category;
+import com.stylemind.product.repository.CategoryRepository;
+import com.stylemind.product.repository.ProductRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class CategoryServiceTest {
+
+    @Mock
+    private CategoryRepository categoryRepository;
+
+    @Mock
+    private ProductRepository productRepository;
+
+    @InjectMocks
+    private CategoryService categoryService;
+
+    @Test
+    void getAllCategories_returnsRootAndChildCategories() {
+        List<Category> categories = List.of(
+                Category.builder().id(1L).name("Áo").slug("ao").build(),
+                Category.builder().id(2L).name("Áo sơ mi").slug("ao-so-mi").parentId(1L).build());
+        when(categoryRepository.findAll()).thenReturn(categories);
+
+        List<Category> result = categoryService.getAllCategories();
+
+        assertEquals(categories, result);
+    }
+
+    @Test
+    void deleteCategory_withChildCategory_returnsConflict() {
+        Category category = Category.builder().id(1L).name("Áo").slug("ao").build();
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(categoryRepository.findByParentId(1L)).thenReturn(List.of(
+                Category.builder().id(2L).name("Áo sơ mi").slug("ao-so-mi").parentId(1L).build()));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.deleteCategory(1L));
+
+        assertEquals("CATEGORY_HAS_CHILDREN", exception.getErrorCode());
+        assertEquals(409, exception.getHttpStatus());
+    }
+
+    @Test
+    void deleteCategory_withAssignedProducts_returnsConflict() {
+        Category category = Category.builder().id(1L).name("Áo").slug("ao").build();
+        when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
+        when(categoryRepository.findByParentId(1L)).thenReturn(List.of());
+        when(productRepository.existsByCategoryId(1L)).thenReturn(true);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> categoryService.deleteCategory(1L));
+
+        assertEquals("CATEGORY_IN_USE", exception.getErrorCode());
+        assertEquals(409, exception.getHttpStatus());
+    }
+}

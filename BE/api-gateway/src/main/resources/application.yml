@@ -14,7 +14,7 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
   data:
     redis:
-      host: ${REDIS_HOST:redis}
+      host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
   cloud:
     gateway:
@@ -38,63 +38,63 @@ spring:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin, RETAIN_FIRST
       routes:
         - id: auth-service
-          uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/auth/**
         - id: user-service
-          uri: ${USER_SERVICE_URL:http://user-service:8082}
+          uri: ${USER_SERVICE_URL:http://localhost:8082}
           predicates:
             - Path=/api/v1/users/**
         - id: product-service
-          uri: ${PRODUCT_SERVICE_URL:http://product-service:8083}
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
           predicates:
             - Path=/api/v1/products/**
         - id: category-service
-          uri: ${PRODUCT_SERVICE_URL:http://product-service:8083}
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
           predicates:
             - Path=/api/v1/categories/**
         - id: cart-service
-          uri: ${CART_SERVICE_URL:http://cart-service:8086}
+          uri: ${CART_SERVICE_URL:http://localhost:8086}
           predicates:
             - Path=/api/v1/cart/**
         - id: order-service
-          uri: ${ORDER_SERVICE_URL:http://order-service:8087}
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
           predicates:
             - Path=/api/v1/orders/**
         - id: admin-order-service
-          uri: ${ORDER_SERVICE_URL:http://order-service:8087}
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
           predicates:
             - Path=/api/v1/admin/orders/**
         - id: sepay-webhook
-          uri: ${PAYMENT_SERVICE_URL:http://payment-service:8088}
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8088}
           predicates:
             - Path=/api/v1/payments/webhook/**
         - id: notification-service
-          uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:8089}
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
           predicates:
             - Path=/api/v1/notifications/**
         - id: admin-notification-service
-          uri: ${NOTIFICATION_SERVICE_URL:http://notification-service:8089}
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
           predicates:
             - Path=/api/v1/admin/notifications/**
         - id: ai-service
-          uri: ${AI_SERVICE_URL:http://ai-agent-service:8085}
+          uri: ${AI_SERVICE_URL:http://localhost:8085}
           predicates:
             - Path=/api/v1/ai-stylist/**
         - id: admin-ai-service
-          uri: ${AI_SERVICE_URL:http://ai-agent-service:8085}
+          uri: ${AI_SERVICE_URL:http://localhost:8085}
           predicates:
             - Path=/api/v1/admin/ai/**
         - id: admin-users-service
-          uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/v1/admin/users/**
         - id: admin-product-service
-          uri: ${PRODUCT_SERVICE_URL:http://product-service:8083}
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
           predicates:
             - Path=/api/v1/admin/products/**
         - id: admin-category-service
-          uri: ${PRODUCT_SERVICE_URL:http://product-service:8083}
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
           predicates:
             - Path=/api/v1/admin/categories/**
         - id: internal-block

@@ -1,5 +1,6 @@
 import { Sparkles } from 'lucide-react'
 import Badge from '../common/Badge'
+import ProductImage from './ProductImage'
 
 export default function OutfitCard({ outfit, products }) {
   const outfitProducts = outfit.products.map((id) => products.find((p) => p.id === id)).filter(Boolean)
@@ -15,9 +16,9 @@ export default function OutfitCard({ outfit, products }) {
       </div>
       <div className="grid grid-cols-3 gap-2 mb-3">
         {outfitProducts.map((product) => (
-          <img
+          <ProductImage
             key={product.id}
-            src={product.images[0]}
+            src={product.primaryImageUrl}
             alt={product.name}
             className="w-full aspect-square object-cover rounded-lg"
           />

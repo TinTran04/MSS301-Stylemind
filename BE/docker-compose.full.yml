@@ -179,10 +179,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/product_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: admin
-      S3_SECRET_KEY: password
-      S3_BUCKET: stylemind-products
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER:-stylemind/products}
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
       SERVER_PORT: 8083

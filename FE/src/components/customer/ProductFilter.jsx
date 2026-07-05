@@ -1,105 +1,91 @@
-import { useState } from 'react'
-import clsx from 'clsx'
-import { PRODUCT_CATEGORIES } from '../../utils/constants'
+import { Search, X } from 'lucide-react'
 
-const colorPalette = [
-  { name: 'Black', value: '#000' },
-  { name: 'White', value: '#fff' },
-  { name: 'Cream', value: '#F5F0E8' },
-  { name: 'Navy', value: '#1B2A4A' },
-  { name: 'Grey', value: '#808080' },
-  { name: 'Brown', value: '#8B4513' },
-  { name: 'Sage', value: '#9CAF88' },
-  { name: 'Terracotta', value: '#E2725B' },
-]
-
-export default function ProductFilter({ filters, onFilterChange, categories = [] }) {
-  const [selectedColors, setSelectedColors] = useState([])
-  const displayCategories = categories.length > 0
-    ? categories.map((cat) => ({ label: cat.name, value: String(cat.id) }))
-    : PRODUCT_CATEGORIES.map((cat) => ({ label: cat, value: cat }))
-
-  const toggleColor = (color) => {
-    const updated = selectedColors.includes(color)
-      ? selectedColors.filter((c) => c !== color)
-      : [...selectedColors, color]
-    setSelectedColors(updated)
-    onFilterChange({ ...filters, colors: updated })
+export default function ProductFilter({ filters, onFilterChange, onClose }) {
+  const clearFilters = () => {
+    onFilterChange({
+      ...filters,
+      search: '',
+      minPrice: null,
+      maxPrice: null,
+    })
   }
 
   return (
-    <aside className="w-64 shrink-0 space-y-6">
-      <div>
-        <h3 className="font-label-md uppercase tracking-wider text-primary mb-3">Categories</h3>
-        <div className="space-y-2">
-          {displayCategories.map((cat) => (
-            <label key={cat.value} className="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
-              <input
-                type="checkbox"
-                checked={filters.category === cat.value}
-                onChange={() => onFilterChange({ ...filters, category: filters.category === cat.value ? null : cat.value })}
-                className="w-4 h-4 rounded border-outline-variant accent-primary"
-              />
-              {cat.label}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h3 className="font-label-md uppercase tracking-wider text-primary mb-3">Price Range</h3>
-        <div className="flex gap-2">
-          <input
-            type="number"
-            placeholder="Min"
-            value={filters.minPrice || ''}
-            onChange={(e) => onFilterChange({ ...filters, minPrice: e.target.value ? Number(e.target.value) : null })}
-            className="w-1/2 bg-transparent border-b border-outline-variant py-1.5 text-sm focus:border-tertiary-container outline-none transition-colors"
-          />
-          <input
-            type="number"
-            placeholder="Max"
-            value={filters.maxPrice || ''}
-            onChange={(e) => onFilterChange({ ...filters, maxPrice: e.target.value ? Number(e.target.value) : null })}
-            className="w-1/2 bg-transparent border-b border-outline-variant py-1.5 text-sm focus:border-tertiary-container outline-none transition-colors"
-          />
-        </div>
-      </div>
-
-      <div>
-        <h3 className="font-label-md uppercase tracking-wider text-primary mb-3">Color</h3>
-        <div className="flex flex-wrap gap-2">
-          {colorPalette.map((color) => (
-            <button
-              key={color.name}
-              onClick={() => toggleColor(color.name)}
-              className={clsx(
-                'w-7 h-7 rounded-full border-2 transition-all',
-                selectedColors.includes(color.name)
-                  ? 'border-tertiary-container scale-110'
-                  : 'border-outline-variant/30 hover:border-outline-variant'
-              )}
-              style={{ backgroundColor: color.value }}
-              title={color.name}
+    <div className="border-y border-outline-variant/20 bg-surface-container-lowest py-5">
+      <div className="grid gap-5 md:grid-cols-[minmax(220px,1fr)_180px_180px_auto] md:items-end">
+        <label className="block">
+          <span className="mb-2 block text-xs font-medium uppercase text-on-surface-variant">
+            Tìm sản phẩm
+          </span>
+          <span className="relative block">
+            <Search
+              size={16}
+              className="absolute left-0 top-1/2 -translate-y-1/2 text-on-surface-variant"
+              aria-hidden="true"
             />
-          ))}
-        </div>
-      </div>
+            <input
+              type="search"
+              value={filters.search || ''}
+              onChange={(event) => onFilterChange({ ...filters, search: event.target.value })}
+              placeholder="Tên hoặc mô tả"
+              className="w-full border-b border-outline-variant bg-transparent py-2 pl-6 text-sm outline-none transition-colors focus:border-tertiary-container"
+            />
+          </span>
+        </label>
 
-      <div>
-        <h3 className="font-label-md uppercase tracking-wider text-primary mb-3">Material</h3>
-        <div className="space-y-2">
-          {['Silk', 'Cotton', 'Wool', 'Linen', 'Leather', 'Cashmere'].map((mat) => (
-            <label key={mat} className="flex items-center gap-2 text-sm text-on-surface-variant cursor-pointer">
-              <input
-                type="checkbox"
-                className="w-4 h-4 rounded border-outline-variant accent-primary"
-              />
-              {mat}
-            </label>
-          ))}
+        <label className="block">
+          <span className="mb-2 block text-xs font-medium uppercase text-on-surface-variant">
+            Giá tối thiểu
+          </span>
+          <input
+            type="number"
+            min="0"
+            value={filters.minPrice ?? ''}
+            onChange={(event) => onFilterChange({
+              ...filters,
+              minPrice: event.target.value ? Number(event.target.value) : null,
+            })}
+            placeholder="0 ₫"
+            className="w-full border-b border-outline-variant bg-transparent py-2 text-sm outline-none transition-colors focus:border-tertiary-container"
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-2 block text-xs font-medium uppercase text-on-surface-variant">
+            Giá tối đa
+          </span>
+          <input
+            type="number"
+            min="0"
+            value={filters.maxPrice ?? ''}
+            onChange={(event) => onFilterChange({
+              ...filters,
+              maxPrice: event.target.value ? Number(event.target.value) : null,
+            })}
+            placeholder="Không giới hạn"
+            className="w-full border-b border-outline-variant bg-transparent py-2 text-sm outline-none transition-colors focus:border-tertiary-container"
+          />
+        </label>
+
+        <div className="flex items-center gap-2 md:justify-end">
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-sm text-on-surface-variant transition-colors hover:text-primary"
+          >
+            Xóa lọc
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-outline-variant/30 text-primary hover:bg-surface-container"
+            title="Đóng bộ lọc"
+            aria-label="Đóng bộ lọc"
+          >
+            <X size={16} aria-hidden="true" />
+          </button>
         </div>
       </div>
-    </aside>
+    </div>
   )
 }

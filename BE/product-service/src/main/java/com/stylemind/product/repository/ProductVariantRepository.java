@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface ProductVariantRepository extends JpaRepository<ProductVariant, String> {
     Optional<ProductVariant> findBySku(String sku);
     List<ProductVariant> findByProductId(String productId);
+    List<ProductVariant> findByProductIdIn(List<String> productIds);
     List<ProductVariant> findByIdIn(List<String> ids);
     List<ProductVariant> findBySkuIn(List<String> skus);
 }

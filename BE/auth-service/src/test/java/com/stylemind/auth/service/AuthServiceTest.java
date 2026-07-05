@@ -5,14 +5,18 @@ import com.stylemind.auth.dto.ForgotPasswordRequest;
 import com.stylemind.auth.dto.LoginRequest;
 import com.stylemind.auth.dto.PasswordSetupRequest;
 import com.stylemind.auth.dto.RegisterRequest;
+import com.stylemind.auth.dto.ResendRegisterOtpRequest;
 import com.stylemind.auth.dto.ResetForgotPasswordRequest;
 import com.stylemind.auth.dto.VerifyForgotPasswordOtpRequest;
+import com.stylemind.auth.dto.VerifyRegisterOtpRequest;
+import com.stylemind.auth.entity.PendingRegistration;
 import com.stylemind.auth.entity.User;
 import com.stylemind.auth.entity.AccountStatus;
 import com.stylemind.auth.entity.AuditLog;
 import com.stylemind.auth.feign.NotificationInternalClient;
 import com.stylemind.auth.mapper.AuthMapper;
 import com.stylemind.auth.repository.AuditLogRepository;
+import com.stylemind.auth.repository.PendingRegistrationRepository;
 import com.stylemind.auth.repository.UserRepository;
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.exception.BusinessException;
@@ -60,6 +64,7 @@ class AuthServiceTest {
     @Mock AuthenticationManager authenticationManager;
     @Mock NotificationInternalClient notificationInternalClient;
     @Mock AuditLogRepository auditLogRepository;
+    @Mock PendingRegistrationRepository pendingRegistrationRepository;
     @Spy AuthMapper authMapper = new AuthMapper();
 
     @InjectMocks AuthService authService;
@@ -74,41 +79,179 @@ class AuthServiceTest {
         ReflectionTestUtils.setField(authService, "resetTokenExpiryMinutes", 30L);
         ReflectionTestUtils.setField(authService, "resetOtpMaxAttempts", 5);
         ReflectionTestUtils.setField(authService, "resetOtpResendCooldownSeconds", 60L);
+        ReflectionTestUtils.setField(authService, "registerOtpExpiryMinutes", 10L);
+        ReflectionTestUtils.setField(authService, "registerOtpMaxAttempts", 5);
+        ReflectionTestUtils.setField(authService, "registerOtpResendCooldownSeconds", 60L);
     }
 
     @Test
-    void register_success() {
+    void startRegistration_savesPendingAndSendsOtp_noUserCreated() {
         when(userRepository.existsByEmail("new@example.com")).thenReturn(false);
-        when(passwordEncoder.encode("pass")).thenReturn("hashed");
-        when(userRepository.save(any())).thenAnswer(inv -> {
-            User u = inv.getArgument(0);
-            if (u.getCreatedAt() == null) u.setCreatedAt(LocalDateTime.now());
-            if (u.getUpdatedAt() == null) u.setUpdatedAt(LocalDateTime.now());
-            return u;
-        });
-        when(jwtUtil.generateAccessToken(any(), any(), any())).thenReturn("token-xyz");
+        when(pendingRegistrationRepository.findByEmail("new@example.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+        when(pendingRegistrationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var req = new RegisterRequest();
-        req.setEmail("new@example.com");
+        req.setEmail(" New@Example.com ");
         req.setPassword("pass");
-        var result = authService.register(req);
+        authService.startRegistration(req);
 
-        assertThat(result.getToken()).isEqualTo("token-xyz");
-        assertThat(result.getUser().getEmail()).isEqualTo("new@example.com");
-        assertThat(result.getUser().getRole()).isEqualTo("CUSTOMER");
-        assertThat(result.getUser().getAccountStatus()).isEqualTo(AccountStatus.ACTIVE);
+        // A pending row is saved for the normalized email; no real user is created.
+        verify(pendingRegistrationRepository).save(argThat((PendingRegistration p) ->
+                "new@example.com".equals(p.getEmail()) && p.getOtpHash() != null && p.getPasswordHash() != null));
+        org.mockito.Mockito.verify(userRepository, org.mockito.Mockito.never()).save(any());
+        // OTP must never appear in the log-visible content field, only in htmlContent.
+        verify(notificationInternalClient).sendEmail(argThat(payload ->
+                "new@example.com".equals(payload.getRecipientEmail())
+                        && "REGISTER_OTP".equals(payload.getType())
+                        && payload.getContent().contains("[PROTECTED]")
+                        && payload.getHtmlContent().matches("(?s).*\\d{6}.*")));
     }
 
     @Test
-    void register_duplicateEmail_throws() {
+    void startRegistration_duplicateEmail_throws() {
         when(userRepository.existsByEmail("dup@example.com")).thenReturn(true);
 
         var req = new RegisterRequest();
         req.setEmail("dup@example.com");
         req.setPassword("pass");
-        assertThatThrownBy(() -> authService.register(req))
+        assertThatThrownBy(() -> authService.startRegistration(req))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("Email đã được sử dụng");
+        org.mockito.Mockito.verifyNoInteractions(notificationInternalClient);
+    }
+
+    @Test
+    void startRegistration_withinCooldown_throws429() {
+        PendingRegistration pending = pendingRegistration("cool@example.com");
+        pending.setRequestedAt(LocalDateTime.now().minusSeconds(30)); // inside 60s cooldown
+        when(userRepository.existsByEmail("cool@example.com")).thenReturn(false);
+        when(pendingRegistrationRepository.findByEmail("cool@example.com")).thenReturn(Optional.of(pending));
+
+        var req = new RegisterRequest();
+        req.setEmail("cool@example.com");
+        req.setPassword("pass");
+        assertThatThrownBy(() -> authService.startRegistration(req))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REGISTER_OTP_COOLDOWN");
+        org.mockito.Mockito.verifyNoInteractions(notificationInternalClient);
+    }
+
+    @Test
+    void verifyRegistrationOtp_success_createsActiveUserAndDeletesPending() {
+        PendingRegistration pending = pendingRegistration("verify@example.com");
+        pending.setOtpHash("hashed-otp");
+        pending.setOtpExpiresAt(LocalDateTime.now().plusMinutes(10));
+        pending.setOtpAttempts(0);
+        pending.setPasswordHash("pre-hashed-password");
+        when(pendingRegistrationRepository.findByEmail("verify@example.com")).thenReturn(Optional.of(pending));
+        when(passwordEncoder.matches("123456", "hashed-otp")).thenReturn(true);
+        when(userRepository.existsByEmail("verify@example.com")).thenReturn(false);
+        when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        authService.verifyRegistrationOtp(VerifyRegisterOtpRequest.builder()
+                .email("verify@example.com").otp("123456").build());
+
+        verify(userRepository).save(argThat((User u) ->
+                "verify@example.com".equals(u.getEmail())
+                        && "pre-hashed-password".equals(u.getPasswordHash()) // reuses hash, not re-encoded
+                        && u.getAccountStatus() == AccountStatus.ACTIVE
+                        && "CUSTOMER".equals(u.getRole())));
+        verify(pendingRegistrationRepository).delete(pending);
+    }
+
+    @Test
+    void verifyRegistrationOtp_wrongOtp_incrementsAttempts_noUser() {
+        PendingRegistration pending = pendingRegistration("wrong@example.com");
+        pending.setOtpHash("hashed-otp");
+        pending.setOtpExpiresAt(LocalDateTime.now().plusMinutes(10));
+        pending.setOtpAttempts(2);
+        when(pendingRegistrationRepository.findByEmail("wrong@example.com")).thenReturn(Optional.of(pending));
+        when(passwordEncoder.matches("999999", "hashed-otp")).thenReturn(false);
+        when(pendingRegistrationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        assertThatThrownBy(() -> authService.verifyRegistrationOtp(VerifyRegisterOtpRequest.builder()
+                .email("wrong@example.com").otp("999999").build()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REGISTER_OTP_INVALID");
+
+        assertThat(pending.getOtpAttempts()).isEqualTo(3);
+        org.mockito.Mockito.verify(userRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void verifyRegistrationOtp_expiredOtp_throws() {
+        PendingRegistration pending = pendingRegistration("expired@example.com");
+        pending.setOtpHash("hashed-otp");
+        pending.setOtpExpiresAt(LocalDateTime.now().minusMinutes(1));
+        when(pendingRegistrationRepository.findByEmail("expired@example.com")).thenReturn(Optional.of(pending));
+
+        assertThatThrownBy(() -> authService.verifyRegistrationOtp(VerifyRegisterOtpRequest.builder()
+                .email("expired@example.com").otp("123456").build()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REGISTER_OTP_INVALID");
+    }
+
+    @Test
+    void verifyRegistrationOtp_maxAttemptsReached_blocked() {
+        PendingRegistration pending = pendingRegistration("blocked@example.com");
+        pending.setOtpHash("hashed-otp");
+        pending.setOtpExpiresAt(LocalDateTime.now().plusMinutes(10));
+        pending.setOtpAttempts(5); // at max
+        when(pendingRegistrationRepository.findByEmail("blocked@example.com")).thenReturn(Optional.of(pending));
+
+        assertThatThrownBy(() -> authService.verifyRegistrationOtp(VerifyRegisterOtpRequest.builder()
+                .email("blocked@example.com").otp("123456").build()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REGISTER_OTP_BLOCKED");
+    }
+
+    @Test
+    void verifyRegistrationOtp_noPending_throwsInvalid() {
+        when(pendingRegistrationRepository.findByEmail("ghost@example.com")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.verifyRegistrationOtp(VerifyRegisterOtpRequest.builder()
+                .email("ghost@example.com").otp("123456").build()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REGISTER_OTP_INVALID");
+    }
+
+    @Test
+    void resendRegistrationOtp_afterCooldown_reissuesOtp() {
+        PendingRegistration pending = pendingRegistration("resend@example.com");
+        pending.setRequestedAt(LocalDateTime.now().minusSeconds(90)); // past 60s cooldown
+        when(pendingRegistrationRepository.findByEmail("resend@example.com")).thenReturn(Optional.of(pending));
+        when(passwordEncoder.encode(any())).thenReturn("encoded-otp");
+        when(pendingRegistrationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        authService.resendRegistrationOtp(ResendRegisterOtpRequest.builder().email("resend@example.com").build());
+
+        assertThat(pending.getOtpHash()).isEqualTo("encoded-otp");
+        assertThat(pending.getOtpAttempts()).isZero();
+        verify(notificationInternalClient).sendEmail(argThat(payload ->
+                "REGISTER_OTP".equals(payload.getType())));
+    }
+
+    @Test
+    void resendRegistrationOtp_withinCooldown_throws429() {
+        PendingRegistration pending = pendingRegistration("hot@example.com");
+        pending.setRequestedAt(LocalDateTime.now().minusSeconds(10)); // inside cooldown
+        when(pendingRegistrationRepository.findByEmail("hot@example.com")).thenReturn(Optional.of(pending));
+
+        assertThatThrownBy(() -> authService.resendRegistrationOtp(
+                ResendRegisterOtpRequest.builder().email("hot@example.com").build()))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo("REGISTER_OTP_COOLDOWN");
+        org.mockito.Mockito.verifyNoInteractions(notificationInternalClient);
+    }
+
+    @Test
+    void resendRegistrationOtp_noPending_staysSilent() {
+        when(pendingRegistrationRepository.findByEmail("none@example.com")).thenReturn(Optional.empty());
+
+        authService.resendRegistrationOtp(ResendRegisterOtpRequest.builder().email("none@example.com").build());
+
+        org.mockito.Mockito.verifyNoInteractions(notificationInternalClient);
     }
 
     @Test
@@ -309,7 +452,8 @@ class AuthServiceTest {
                 flowManagerProvider,
                 flowNotificationClient,
                 new AuthMapper(),
-                mock(AuditLogRepository.class));
+                mock(AuditLogRepository.class),
+                mock(PendingRegistrationRepository.class));
         ReflectionTestUtils.setField(flowService, "resetOtpExpiryMinutes", 10L);
         ReflectionTestUtils.setField(flowService, "resetTokenExpiryMinutes", 30L);
         ReflectionTestUtils.setField(flowService, "resetOtpMaxAttempts", 5);
@@ -607,6 +751,18 @@ class AuthServiceTest {
         u.setCreatedAt(LocalDateTime.now());
         u.setUpdatedAt(LocalDateTime.now());
         return u;
+    }
+
+    private PendingRegistration pendingRegistration(String email) {
+        PendingRegistration p = new PendingRegistration();
+        p.setId("pending-1");
+        p.setEmail(email);
+        p.setPasswordHash("pre-hashed-password");
+        p.setOtpHash("hashed-otp");
+        p.setOtpExpiresAt(LocalDateTime.now().plusMinutes(10));
+        p.setOtpAttempts(0);
+        p.setRequestedAt(LocalDateTime.now());
+        return p;
     }
 
     private LoginRequest loginReq(String email, String password) {

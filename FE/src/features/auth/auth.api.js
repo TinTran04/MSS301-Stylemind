@@ -32,12 +32,25 @@ export async function loginUser(email, password) {
   return mapSession(response)
 }
 
+// Step 1 of registration: validates the email is free and emails a 6-digit
+// OTP. No account is created and no session is returned yet — the account is
+// only created once the OTP is verified.
 export async function registerUser(data) {
-  const response = await apiClient.post(`${ENDPOINTS.AUTH}/register`, {
+  await apiClient.post(`${ENDPOINTS.AUTH}/register`, {
     email: data.email,
     password: data.password,
   })
-  return mapSession(response)
+}
+
+// Step 2: verify the emailed OTP. On success the backend creates the ACTIVE
+// account; the caller then sends the user to /login to sign in.
+export async function verifyRegisterOtp(email, otp) {
+  await apiClient.post(`${ENDPOINTS.AUTH}/register/verify-otp`, { email, otp })
+}
+
+// Re-issue the registration OTP (subject to a server-side resend cooldown).
+export async function resendRegisterOtp(email) {
+  await apiClient.post(`${ENDPOINTS.AUTH}/register/resend-otp`, { email })
 }
 
 export async function logoutUser() {

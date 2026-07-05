@@ -2,6 +2,7 @@ package com.stylemind.auth.service;
 
 import com.stylemind.auth.dto.AdminCreateUserRequest;
 import com.stylemind.auth.dto.AdminUserResponse;
+import com.stylemind.auth.dto.AdminUserSummaryResponse;
 import com.stylemind.auth.dto.AuthResponse;
 import com.stylemind.auth.dto.ForgotPasswordRequest;
 import com.stylemind.auth.dto.ForgotPasswordVerifyResponse;
@@ -9,15 +10,19 @@ import com.stylemind.auth.dto.InternalEmailNotificationRequest;
 import com.stylemind.auth.dto.LoginRequest;
 import com.stylemind.auth.dto.PasswordSetupRequest;
 import com.stylemind.auth.dto.RegisterRequest;
+import com.stylemind.auth.dto.ResendRegisterOtpRequest;
 import com.stylemind.auth.dto.ResetForgotPasswordRequest;
 import com.stylemind.auth.dto.UserResponse;
 import com.stylemind.auth.dto.VerifyForgotPasswordOtpRequest;
+import com.stylemind.auth.dto.VerifyRegisterOtpRequest;
+import com.stylemind.auth.entity.PendingRegistration;
 import com.stylemind.auth.entity.User;
 import com.stylemind.auth.entity.AccountStatus;
 import com.stylemind.auth.entity.AuditLog;
 import com.stylemind.auth.feign.NotificationInternalClient;
 import com.stylemind.auth.mapper.AuthMapper;
 import com.stylemind.auth.repository.AuditLogRepository;
+import com.stylemind.auth.repository.PendingRegistrationRepository;
 import com.stylemind.auth.repository.UserRepository;
 import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.exception.BusinessException;
@@ -61,6 +66,7 @@ public class AuthService implements UserDetailsService {
     private final NotificationInternalClient notificationInternalClient;
     private final AuthMapper authMapper;
     private final AuditLogRepository auditLogRepository;
+    private final PendingRegistrationRepository pendingRegistrationRepository;
 
     @Value("${app.frontend-base-url:http://localhost:5173}")
     private String frontendBaseUrl;
@@ -79,6 +85,15 @@ public class AuthService implements UserDetailsService {
 
     @Value("${app.auth.reset-otp-resend-cooldown-seconds:60}")
     private long resetOtpResendCooldownSeconds;
+
+    @Value("${app.auth.register-otp-expiry-minutes:10}")
+    private long registerOtpExpiryMinutes;
+
+    @Value("${app.auth.register-otp-max-attempts:5}")
+    private int registerOtpMaxAttempts;
+
+    @Value("${app.auth.register-otp-resend-cooldown-seconds:60}")
+    private long registerOtpResendCooldownSeconds;
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
@@ -120,34 +135,116 @@ public class AuthService implements UserDetailsService {
                 .build();
     }
 
-    public AuthResponse.LoginResponse register(RegisterRequest request) {
+    /**
+     * AUTH-REG-OTP step 1: begin registration. Validates the email is free,
+     * stores the sign-up as a {@link PendingRegistration} (password already
+     * hashed), and emails a one-time code. The real {@link User} is NOT created
+     * yet — that happens only on {@link #verifyRegistrationOtp}. No account,
+     * login or forgot-password state is touched here.
+     */
+    public void startRegistration(RegisterRequest request) {
         String normalizedEmail = normalizeEmail(request.getEmail());
         if (userRepository.existsByEmail(normalizedEmail)) {
+            throw new BusinessException("EMAIL_ALREADY_EXISTS", "Email đã được sử dụng", 400);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        PendingRegistration pending = pendingRegistrationRepository.findByEmail(normalizedEmail).orElse(null);
+        if (pending != null && pending.getRequestedAt() != null
+                && pending.getRequestedAt().plusSeconds(registerOtpResendCooldownSeconds).isAfter(now)) {
+            throw new BusinessException("REGISTER_OTP_COOLDOWN",
+                    "Vui lòng đợi một chút trước khi yêu cầu mã OTP mới", 429);
+        }
+
+        if (pending == null) {
+            pending = PendingRegistration.builder()
+                    .id(StringUtil.generateUniqueId())
+                    .email(normalizedEmail)
+                    .build();
+        }
+        String otp = generateOtp();
+        pending.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        pending.setOtpHash(passwordEncoder.encode(otp));
+        pending.setOtpExpiresAt(now.plusMinutes(registerOtpExpiryMinutes));
+        pending.setOtpAttempts(0);
+        pending.setRequestedAt(now);
+        pendingRegistrationRepository.save(pending);
+
+        sendRegisterOtpEmail(normalizedEmail, otp);
+    }
+
+    /**
+     * AUTH-REG-OTP step 2: verify the emailed code. On success the pending
+     * sign-up is promoted to a real ACTIVE {@link User} (reusing the already
+     * hashed password) and the pending row is removed. The user then logs in
+     * normally via {@link #login}.
+     */
+    public void verifyRegistrationOtp(VerifyRegisterOtpRequest request) {
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        PendingRegistration pending = pendingRegistrationRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new BusinessException("REGISTER_OTP_INVALID", "Mã OTP không hợp lệ hoặc đã hết hạn", 400));
+
+        if (pending.getOtpExpiresAt() == null || pending.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new BusinessException("REGISTER_OTP_INVALID", "Mã OTP không hợp lệ hoặc đã hết hạn", 400);
+        }
+
+        int attempts = pending.getOtpAttempts() == null ? 0 : pending.getOtpAttempts();
+        if (attempts >= registerOtpMaxAttempts) {
+            throw new BusinessException("REGISTER_OTP_BLOCKED", "Mã OTP đã bị khóa, vui lòng yêu cầu mã mới", 429);
+        }
+
+        if (!passwordEncoder.matches(request.getOtp(), pending.getOtpHash())) {
+            pending.setOtpAttempts(attempts + 1);
+            pendingRegistrationRepository.save(pending);
+            throw new BusinessException("REGISTER_OTP_INVALID", "Mã OTP không hợp lệ hoặc đã hết hạn", 400);
+        }
+
+        // Guard against a race where this email got created between start & verify.
+        if (userRepository.existsByEmail(normalizedEmail)) {
+            pendingRegistrationRepository.delete(pending);
             throw new BusinessException("EMAIL_ALREADY_EXISTS", "Email đã được sử dụng", 400);
         }
 
         User user = User.builder()
                 .id(StringUtil.generateUniqueId())
                 .email(normalizedEmail)
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .passwordHash(pending.getPasswordHash()) // already BCrypt-hashed at start
                 .provider("LOCAL")
                 .role("CUSTOMER")
                 .accountStatus(AccountStatus.ACTIVE)
                 .passwordSetupRequired(false)
                 .build();
+        userRepository.save(user);
+        pendingRegistrationRepository.delete(pending);
+    }
 
-        user = userRepository.save(user);
+    /**
+     * AUTH-REG-OTP: re-issue the registration OTP for a pending sign-up.
+     * Enforces the resend cooldown. Stays silent when there is no pending
+     * sign-up so the endpoint doesn't reveal registration state.
+     */
+    public void resendRegistrationOtp(ResendRegisterOtpRequest request) {
+        String normalizedEmail = normalizeEmail(request.getEmail());
+        PendingRegistration pending = pendingRegistrationRepository.findByEmail(normalizedEmail).orElse(null);
+        if (pending == null) {
+            return;
+        }
 
-        String token = jwtUtil.generateAccessToken(
-                authMapper.toPrincipal(user),
-                user.getId(),
-                user.getRole()
-        );
+        LocalDateTime now = LocalDateTime.now();
+        if (pending.getRequestedAt() != null
+                && pending.getRequestedAt().plusSeconds(registerOtpResendCooldownSeconds).isAfter(now)) {
+            throw new BusinessException("REGISTER_OTP_COOLDOWN",
+                    "Vui lòng đợi một chút trước khi yêu cầu mã OTP mới", 429);
+        }
 
-        return AuthResponse.LoginResponse.builder()
-                .token(token)
-                .user(authMapper.toUserResponse(user))
-                .build();
+        String otp = generateOtp();
+        pending.setOtpHash(passwordEncoder.encode(otp));
+        pending.setOtpExpiresAt(now.plusMinutes(registerOtpExpiryMinutes));
+        pending.setOtpAttempts(0);
+        pending.setRequestedAt(now);
+        pendingRegistrationRepository.save(pending);
+
+        sendRegisterOtpEmail(normalizedEmail, otp);
     }
 
     public UserResponse getCurrentUser(String userId) {
@@ -279,6 +376,16 @@ public class AuthService implements UserDetailsService {
         return authMapper.toAdminUserResponse(user);
     }
 
+    /** Real user counts for the admin dashboard. No PII or credentials exposed. */
+    @Transactional(readOnly = true)
+    public AdminUserSummaryResponse getUserSummary() {
+        return AdminUserSummaryResponse.builder()
+                .totalUsers(userRepository.count())
+                .totalCustomers(userRepository.countByRole("CUSTOMER"))
+                .totalAdmins(userRepository.countByRole("ADMIN"))
+                .build();
+    }
+
     public AdminUserResponse createUserByAdmin(AdminCreateUserRequest request, String requesterId) {
         String normalizedEmail = normalizeEmail(request.getEmail());
         if (userRepository.existsByEmail(normalizedEmail)) {
@@ -385,6 +492,25 @@ public class AuthService implements UserDetailsService {
         } catch (Exception ex) {
             log.error("Failed to send setup password email to user {}: {}", user.getId(), ex.getMessage());
             throw new BusinessException("NOTIFICATION_FAILED", "Không thể gửi email thiết lập mật khẩu. Vui lòng thử lại sau.", 503);
+        }
+    }
+
+    private void sendRegisterOtpEmail(String email, String otp) {
+        try {
+            notificationInternalClient.sendEmail(InternalEmailNotificationRequest.builder()
+                    .recipientEmail(email)
+                    .type("REGISTER_OTP")
+                    .title("Mã OTP xác thực đăng ký StyleMind")
+                    // OTP is placed ONLY in htmlContent; content (which lands in logs/DB)
+                    // is redacted, matching the forgot-password OTP email.
+                    .content("Mã OTP xác thực đăng ký của bạn là: [PROTECTED]. Mã có hiệu lực trong " + registerOtpExpiryMinutes + " phút.")
+                    .htmlContent("<p>Chào mừng bạn đến với StyleMind!</p><p>Mã OTP xác thực đăng ký của bạn là <strong>" + otp + "</strong>.</p><p>Mã có hiệu lực trong " + registerOtpExpiryMinutes + " phút.</p>")
+                    .build());
+        } catch (Exception ex) {
+            // Rethrow so the whole @Transactional start/resend rolls back (no orphan
+            // pending row) and the client is told to retry. Never log the OTP/email.
+            log.error("Failed to send registration OTP email: {}", ex.getMessage());
+            throw new BusinessException("NOTIFICATION_FAILED", "Không thể gửi email xác thực. Vui lòng thử lại sau.", 503);
         }
     }
 

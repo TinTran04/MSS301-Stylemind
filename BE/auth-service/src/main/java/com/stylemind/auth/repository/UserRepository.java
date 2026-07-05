@@ -17,6 +17,7 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByProviderAndProviderId(String provider, String providerId);
     boolean existsByEmail(String email);
     long countByRoleAndAccountStatus(String role, AccountStatus accountStatus);
+    long countByRole(String role);
 
     // CAST(:search AS string) forces Hibernate to bind the nullable param as VARCHAR,
     // avoiding the "lower(bytea) does not exist" error when search is null.

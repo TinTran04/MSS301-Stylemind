@@ -10,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/admin/categories")
 @PreAuthorize("hasRole('ADMIN')")
@@ -17,6 +19,13 @@ import org.springframework.web.bind.annotation.*;
 public class AdminCategoryController {
 
     private final CategoryService categoryService;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<Category>>> getCategories() {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Lấy danh sách danh mục thành công",
+                categoryService.getAllCategories()));
+    }
 
     @PostMapping
     public ResponseEntity<ApiResponse<Category>> createCategory(@Valid @RequestBody CategoryRequest request) {

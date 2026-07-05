@@ -16,6 +16,7 @@ public interface NotificationLogRepository extends JpaRepository<NotificationLog
     List<NotificationLog> findByUserId(String userId);
     Page<NotificationLog> findByUserId(String userId, Pageable pageable);
     List<NotificationLog> findByStatus(String status);
+    long countByStatus(String status);
     Optional<NotificationLog> findByIdAndUserId(Long id, String userId);
 
     @Query("""

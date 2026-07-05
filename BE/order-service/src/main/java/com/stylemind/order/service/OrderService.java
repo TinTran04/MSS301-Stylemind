@@ -224,6 +224,33 @@ public class OrderService {
         return buildOrderResponse(order, items);
     }
 
+    /**
+     * Real order/revenue aggregates for the admin dashboard. Revenue counts only
+     * orders whose payment has been received and are progressing or done
+     * (PAID/CONFIRMED/PROCESSING/SHIPPED/COMPLETED) — never PENDING/PAYMENT_PENDING
+     * (unpaid) or CANCELLED/EXPIRED/FAILED.
+     */
+    @Transactional(readOnly = true)
+    public AdminOrderSummaryResponse getAdminSummary() {
+        var revenueStatuses = java.util.EnumSet.of(
+                OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.PROCESSING,
+                OrderStatus.SHIPPED, OrderStatus.COMPLETED);
+        java.time.LocalDateTime startOfToday = java.time.LocalDate.now().atStartOfDay();
+
+        return AdminOrderSummaryResponse.builder()
+                .totalOrders(orderRepository.count())
+                .pendingOrders(orderRepository.countByStatuses(
+                        java.util.EnumSet.of(OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING)))
+                .paidOrders(orderRepository.countByStatuses(java.util.EnumSet.of(OrderStatus.PAID)))
+                .completedOrders(orderRepository.countByStatuses(java.util.EnumSet.of(OrderStatus.COMPLETED)))
+                .cancelledOrders(orderRepository.countByStatuses(
+                        java.util.EnumSet.of(OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.FAILED)))
+                .todayOrders(orderRepository.countCreatedSince(startOfToday))
+                .totalRevenue(orderRepository.sumRevenueByStatuses(revenueStatuses))
+                .todayRevenue(orderRepository.sumRevenueByStatusesSince(revenueStatuses, startOfToday))
+                .build();
+    }
+
     public OrderResponse updateOrderStatusForAdmin(String orderId, UpdateOrderStatusRequest request, String adminUserId) {
         OrderStatus target = OrderStatus.valueOf(request.getOrderStatus());
         Order order = orderStatusService.changeStatus(orderId, target, adminUserId);

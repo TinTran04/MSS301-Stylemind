@@ -37,7 +37,8 @@ class NotificationServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(notificationService, "mailEnabled", true);
-        ReflectionTestUtils.setField(notificationService, "mailFrom", "no-reply@stylemind.ai");
+        ReflectionTestUtils.setField(notificationService, "fromAddress", "no-reply@stylemind.ai");
+        ReflectionTestUtils.setField(notificationService, "fromName", "StyleMind");
         ReflectionTestUtils.setField(notificationService, "logFallback", true);
         lenient().when(notificationLogRepository.save(any())).thenAnswer(inv -> {
             NotificationLog log = inv.getArgument(0);
@@ -82,6 +83,26 @@ class NotificationServiceTest {
 
         assertThat(response.getStatus()).isEqualTo("SENT");
         verify(mailSender).send(any(MimeMessage.class));
+    }
+
+    @Test
+    void sendInternalEmail_setsFromWithConfiguredDisplayName() throws Exception {
+        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        org.mockito.ArgumentCaptor<jakarta.mail.Address> fromCaptor =
+                org.mockito.ArgumentCaptor.forClass(jakarta.mail.Address.class);
+
+        notificationService.sendInternalEmail(InternalEmailRequest.builder()
+                .recipientEmail("user@example.com")
+                .type("REGISTER_OTP")
+                .title("OTP")
+                .content("Your code is [PROTECTED]")
+                .htmlContent("<b>123456</b>")
+                .build());
+
+        verify(mimeMessage).setFrom(fromCaptor.capture());
+        var from = (jakarta.mail.internet.InternetAddress) fromCaptor.getValue();
+        assertThat(from.getPersonal()).isEqualTo("StyleMind");
+        assertThat(from.getAddress()).isEqualTo("no-reply@stylemind.ai");
     }
 
     @Test

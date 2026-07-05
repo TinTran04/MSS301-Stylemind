@@ -5,7 +5,9 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 ## Authentication
 | ID | Requirement | Priority |
 |---|---|---|
-| AUTH-01 | Đăng ký email/password | Must |
+| AUTH-01 | Đăng ký email/password (gửi OTP xác thực email, account chỉ tạo sau khi verify OTP) | Must |
+| AUTH-01a | Verify register OTP → tạo account ACTIVE | Must |
+| AUTH-01b | Resend register OTP (có cooldown) | Must |
 | AUTH-02 | Đăng nhập | Must |
 | AUTH-03 | Cấp JWT sau login | Must |
 | AUTH-04 | API user hiện tại | Must |

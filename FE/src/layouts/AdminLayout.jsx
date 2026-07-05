@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
 import {
-  LayoutDashboard, Package, Warehouse, ShoppingCart, Users, UserCog,
+  LayoutDashboard, Package, ShoppingCart, UserCog,
   Brain, Network, BarChart3, Settings, Bell, Search, LogOut, ChevronLeft, ChevronRight, Store
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
@@ -10,9 +10,7 @@ import { getInitials } from '../features/auth/auth.utils'
 const sidebarLinks = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/products', label: 'Products', icon: Package },
-  { to: '/admin/inventory', label: 'Inventory', icon: Warehouse },
   { to: '/admin/orders', label: 'Orders', icon: ShoppingCart },
-  { to: '/admin/customers', label: 'Customers', icon: Users },
   { to: '/admin/users', label: 'User Management', icon: UserCog },
   { to: '/admin/notifications', label: 'Notifications', icon: Bell },
   { to: '/admin/ai-pipeline', label: 'AI Pipeline', icon: Brain },
