@@ -8,6 +8,11 @@ const useUserStore = create((set, get) => ({
   currentPage: 0,
   loading: false,
   error: null,
+  // Scoped separately from `error` (page-level list load failures) so the UI
+  // can show row/action-level errors (self-protection, last-admin, 403...)
+  // near the affected user's action panel instead of a page-wide banner.
+  actionError: null,
+  createError: null,
 
   loadUsers: async ({ page = 0, size = 20, search = '', role = '', enabled = null } = {}) => {
     set({ loading: true, error: null })
@@ -26,17 +31,19 @@ const useUserStore = create((set, get) => ({
   },
 
   createAccount: async ({ email, role }) => {
+    set({ createError: null })
     try {
       const created = await createUser({ email, role })
       set({ content: [created, ...get().content], totalElements: get().totalElements + 1 })
       return created
     } catch (err) {
-      set({ error: err.message || 'Không thể tạo tài khoản.' })
+      set({ createError: err.message || 'Không thể tạo tài khoản.' })
       return null
     }
   },
 
   changeRole: async (userId, role) => {
+    set({ actionError: null })
     try {
       const updated = await changeUserRole(userId, role)
       set({
@@ -44,12 +51,13 @@ const useUserStore = create((set, get) => ({
       })
       return updated
     } catch (err) {
-      set({ error: friendlyError(err, 'Không thể cập nhật role.') })
+      set({ actionError: friendlyError(err, 'Không thể cập nhật role.') })
       return null
     }
   },
 
   toggleEnabled: async (userId, enabled) => {
+    set({ actionError: null })
     // Optimistic update
     set({ content: get().content.map((u) => (u.id === userId ? { ...u, enabled } : u)) })
     try {
@@ -60,13 +68,14 @@ const useUserStore = create((set, get) => ({
       // Rollback
       set({
         content: get().content.map((u) => (u.id === userId ? { ...u, enabled: !enabled } : u)),
-        error: friendlyError(err, 'Không thể cập nhật trạng thái.'),
+        actionError: friendlyError(err, 'Không thể cập nhật trạng thái.'),
       })
       return null
     }
   },
 
   removeAccount: async (userId) => {
+    set({ actionError: null })
     try {
       await deleteUser(userId)
       set({
@@ -75,12 +84,14 @@ const useUserStore = create((set, get) => ({
       })
       return true
     } catch (err) {
-      set({ error: friendlyError(err, 'Không thể xóa tài khoản.') })
+      set({ actionError: friendlyError(err, 'Không thể xóa tài khoản.') })
       return false
     }
   },
 
   clearError: () => set({ error: null }),
+  clearActionError: () => set({ actionError: null }),
+  clearCreateError: () => set({ createError: null }),
 }))
 
 function friendlyError(err, fallback) {

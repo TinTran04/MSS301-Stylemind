@@ -18,6 +18,8 @@ public class CartItemResponse {
     private String sourceBundleId;
     private VariantInfo variant;
     private java.time.Instant addedAt;
+    private Boolean available;
+    private String unavailableMessage;
 
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -35,6 +37,10 @@ public class CartItemResponse {
     public void setVariant(VariantInfo variant) { this.variant = variant; }
     public java.time.Instant getAddedAt() { return addedAt; }
     public void setAddedAt(java.time.Instant addedAt) { this.addedAt = addedAt; }
+    public Boolean getAvailable() { return available; }
+    public void setAvailable(Boolean available) { this.available = available; }
+    public String getUnavailableMessage() { return unavailableMessage; }
+    public void setUnavailableMessage(String unavailableMessage) { this.unavailableMessage = unavailableMessage; }
 
     @Data
     @NoArgsConstructor

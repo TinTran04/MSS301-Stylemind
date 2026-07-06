@@ -200,11 +200,19 @@ public class ProductService {
 
         validateImage(file);
 
+        if (!imageStorage.isConfigured()) {
+            log.warn("Product image upload blocked for product {}: image storage provider has no credentials configured", productId);
+            throw new BusinessException("IMAGE_STORAGE_NOT_CONFIGURED",
+                    "Chưa cấu hình dịch vụ lưu ảnh. Vui lòng kiểm tra Cloudinary.", 503);
+        }
+
         StoredProductImage storedImage;
         try {
             storedImage = imageStorage.upload(productId, file);
         } catch (Exception e) {
-            log.warn("Product image upload failed for product {}", productId);
+            log.warn("Product image upload failed for product {} file={} contentType={} size={} cause={}: {}",
+                    productId, file.getOriginalFilename(), file.getContentType(), file.getSize(),
+                    e.getClass().getSimpleName(), e.getMessage());
             throw new BusinessException("IMAGE_UPLOAD_FAILED", "Tải ảnh lên thất bại", 500);
         }
 

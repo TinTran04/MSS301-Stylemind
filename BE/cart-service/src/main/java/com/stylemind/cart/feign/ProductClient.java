@@ -18,9 +18,13 @@ public interface ProductClient {
         private String productId;
         private String productName;
         private String sku;
+        private String size;
+        private String color;
+        private String material;
         private BigDecimal effectivePrice;
         private String currency;
         private String status;
+        private String primaryImageUrl;
 
         public String getVariantId() { return variantId; }
         public void setVariantId(String variantId) { this.variantId = variantId; }
@@ -30,11 +34,19 @@ public interface ProductClient {
         public void setProductName(String productName) { this.productName = productName; }
         public String getSku() { return sku; }
         public void setSku(String sku) { this.sku = sku; }
+        public String getSize() { return size; }
+        public void setSize(String size) { this.size = size; }
+        public String getColor() { return color; }
+        public void setColor(String color) { this.color = color; }
+        public String getMaterial() { return material; }
+        public void setMaterial(String material) { this.material = material; }
         public BigDecimal getEffectivePrice() { return effectivePrice; }
         public void setEffectivePrice(BigDecimal effectivePrice) { this.effectivePrice = effectivePrice; }
         public String getCurrency() { return currency; }
         public void setCurrency(String currency) { this.currency = currency; }
         public String getStatus() { return status; }
         public void setStatus(String status) { this.status = status; }
+        public String getPrimaryImageUrl() { return primaryImageUrl; }
+        public void setPrimaryImageUrl(String primaryImageUrl) { this.primaryImageUrl = primaryImageUrl; }
     }
 }

@@ -3,12 +3,21 @@ import { ShoppingCart, TrendingDown, Clock, DollarSign, Eye, RefreshCw, Filter, 
 import MetricCard from '../../components/admin/MetricCard'
 import StatusBadge from '../../components/admin/StatusBadge'
 import Drawer from '../../components/common/Drawer'
+import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
 import { getAdminOrders, updateAdminOrderStatus } from '../../features/orders/admin-order.api'
 import { getAvailableTransitions, formatStatusLabel, ORDER_STATUS_TRANSITIONS } from '../../features/orders/orderStatus'
+import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatDate } from '../../utils/formatDate'
 
 const STATUS_OPTIONS = ['All', ...Object.keys(ORDER_STATUS_TRANSITIONS)]
+
+const ORDER_KNOWN_ERROR_CODES = {
+  INVALID_ORDER_STATUS_TRANSITION: {
+    title: 'Không thể cập nhật trạng thái đơn hàng',
+    message: 'Trạng thái đơn hàng không thể chuyển theo hướng này. Vui lòng chọn trạng thái hợp lệ.',
+  },
+}
 
 export default function OrderManagementPage() {
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -16,6 +25,9 @@ export default function OrderManagementPage() {
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [toast, setToast] = useState(null)
+  const [listError, setListError] = useState(null)
+  const [statusActionError, setStatusActionError] = useState(null)
+  const [confirmDialog, setConfirmDialog] = useState(null)
   const [statusFilter, setStatusFilter] = useState('All')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -24,6 +36,7 @@ export default function OrderManagementPage() {
 
   const fetchOrders = useCallback(async () => {
     setLoading(true)
+    setListError(null)
     try {
       const data = await getAdminOrders({
         status: statusFilter === 'All' ? undefined : statusFilter,
@@ -33,7 +46,11 @@ export default function OrderManagementPage() {
       })
       setOrders(data.content || data || [])
     } catch (err) {
-      showToast(err.message || 'Error loading orders')
+      const friendly = getAdminErrorMessage(err, {
+        fallbackTitle: 'Không thể tải danh sách đơn hàng',
+        fallbackMessage: 'Hệ thống chưa thể tải danh sách đơn hàng. Vui lòng làm mới trang hoặc thử lại sau.',
+      })
+      setListError(friendly)
     } finally {
       setLoading(false)
     }
@@ -55,18 +72,33 @@ export default function OrderManagementPage() {
 
   const getOrderStatus = (order) => String(order?.orderStatus || 'PENDING').toUpperCase()
 
-  const handleStatusChange = async (order, newStatus) => {
+  const requestStatusChange = (order, newStatus) => {
     if (!newStatus) return
+    setStatusActionError(null)
+    setConfirmDialog({
+      title: 'Cập nhật trạng thái đơn hàng?',
+      message: 'Bạn có chắc chắn muốn chuyển đơn hàng sang trạng thái đã chọn không?',
+      confirmLabel: 'Cập nhật trạng thái',
+      onConfirm: () => submitStatusChange(order, newStatus),
+    })
+  }
+
+  const submitStatusChange = async (order, newStatus) => {
     setUpdating(true)
     try {
       const updated = await updateAdminOrderStatus(order.id, { orderStatus: newStatus })
-      showToast(`Order ${order.id} moved to ${formatStatusLabel(newStatus)}`)
+      showToast(`Đã chuyển đơn hàng ${order.id} sang trạng thái ${formatStatusLabel(newStatus)}`)
       setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, ...updated } : o)))
       setSelectedOrder((prev) => (prev && prev.id === order.id ? { ...prev, ...updated } : prev))
     } catch (err) {
-      // 409 = invalid transition (e.g. the order moved on since this screen loaded).
-      // Surface the backend's own message rather than a generic failure.
-      showToast(err.status === 409 ? err.message : (err.message || 'Failed to update order status'))
+      // Keep the drawer open and show the error near the status control —
+      // do not close the drawer or drop the selected order on a recoverable error.
+      const friendly = getAdminErrorMessage(err, {
+        knownCodes: ORDER_KNOWN_ERROR_CODES,
+        fallbackTitle: 'Cập nhật đơn hàng thất bại',
+        fallbackMessage: 'Hệ thống chưa thể cập nhật đơn hàng. Vui lòng thử lại sau.',
+      })
+      setStatusActionError(friendly)
     } finally {
       setUpdating(false)
     }
@@ -86,6 +118,13 @@ export default function OrderManagementPage() {
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
+
+      {listError && (
+        <div className="rounded-lg border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-error">
+          <p className="font-medium">{listError.title}</p>
+          <p className="mt-0.5">{listError.message}</p>
+        </div>
+      )}
 
       <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
         <div className="flex items-center gap-2">
@@ -166,7 +205,7 @@ export default function OrderManagementPage() {
                   <td colSpan={6} className="text-center py-12 text-sm text-on-surface-variant">No orders found.</td>
                 </tr>
               ) : orders.map((order) => (
-                <tr key={order.id} className="hover:bg-surface-container-high/30 cursor-pointer" onClick={() => setSelectedOrder(order)}>
+                <tr key={order.id} className="hover:bg-surface-container-high/30 cursor-pointer" onClick={() => { setStatusActionError(null); setSelectedOrder(order) }}>
                   <td className="px-4 py-3 text-sm font-medium text-primary">{order.id}</td>
                   <td className="px-4 py-3 text-sm text-on-surface">{order.customerName || order.userId || 'Guest'}</td>
                   <td className="px-4 py-3 text-sm text-on-surface-variant">{formatDate(order.createdAt || order.date)}</td>
@@ -196,6 +235,12 @@ export default function OrderManagementPage() {
 
             <div>
               <h4 className="font-label-sm uppercase text-on-surface-variant mb-3">Change Status</h4>
+              {statusActionError && (
+                <div className="mb-3 rounded-lg border border-error/20 bg-error-container/40 px-3 py-2 text-xs text-error">
+                  <p className="font-medium">{statusActionError.title}</p>
+                  <p className="mt-0.5">{statusActionError.message}</p>
+                </div>
+              )}
               {(() => {
                 const nextOptions = getAvailableTransitions(selectedOrder)
                 if (nextOptions.length === 0) {
@@ -209,7 +254,7 @@ export default function OrderManagementPage() {
                   <select
                     disabled={updating}
                     value=""
-                    onChange={(e) => handleStatusChange(selectedOrder, e.target.value)}
+                    onChange={(e) => requestStatusChange(selectedOrder, e.target.value)}
                     className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-tertiary-container disabled:opacity-50"
                   >
                     <option value="" disabled>Select next status&hellip;</option>
@@ -223,6 +268,20 @@ export default function OrderManagementPage() {
           </div>
         )}
       </Drawer>
+
+      <AdminConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message}
+        confirmLabel={confirmDialog?.confirmLabel}
+        loading={updating}
+        onConfirm={async () => {
+          const dialog = confirmDialog
+          setConfirmDialog(null)
+          if (dialog) await dialog.onConfirm()
+        }}
+        onCancel={() => setConfirmDialog(null)}
+      />
     </div>
   )
 }

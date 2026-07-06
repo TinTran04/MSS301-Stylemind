@@ -15,6 +15,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +32,9 @@ class CloudinaryProductImageStorageTest {
 
     @BeforeEach
     void setUp() {
-        when(cloudinary.uploader()).thenReturn(uploader);
+        // lenient: the isConfigured() tests below build their own storage
+        // instance from a real (unmocked) Cloudinary and never call uploader().
+        lenient().when(cloudinary.uploader()).thenReturn(uploader);
         storage = new CloudinaryProductImageStorage(cloudinary, "stylemind/products");
     }
 
@@ -73,5 +76,21 @@ class CloudinaryProductImageStorageTest {
                 .thenReturn(Map.of("public_id", "stylemind/products/shirt"));
 
         assertThrows(IllegalStateException.class, () -> storage.upload("p1", file));
+    }
+
+    @Test
+    void isConfigured_trueWhenCloudNameKeyAndSecretArePresent() {
+        Cloudinary configured = new Cloudinary(Map.of(
+                "cloud_name", "demo", "api_key", "123", "api_secret", "secret"));
+
+        assertEquals(true, new CloudinaryProductImageStorage(configured, "stylemind/products").isConfigured());
+    }
+
+    @Test
+    void isConfigured_falseWhenApiSecretIsBlank() {
+        Cloudinary missingSecret = new Cloudinary(Map.of(
+                "cloud_name", "demo", "api_key", "123", "api_secret", ""));
+
+        assertEquals(false, new CloudinaryProductImageStorage(missingSecret, "stylemind/products").isConfigured());
     }
 }

@@ -1,6 +1,7 @@
 package com.stylemind.cart.service;
 
 import com.stylemind.cart.dto.CartItemRequest;
+import com.stylemind.cart.dto.CartItemResponse;
 import com.stylemind.cart.dto.CartMergeRequest;
 import com.stylemind.cart.dto.CartResponse;
 import com.stylemind.cart.entity.CartItem;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -125,6 +127,81 @@ class CartServiceTest {
 
         verify(productClient, never()).getVariantSnapshot(any());
         verify(cartItemRepository, never()).save(any());
+    }
+
+    // ─── getCart display enrichment ────────────────────────────────────────────
+
+    @Test
+    void getCart_enrichesItem_withProductNameSizeColorMaterialFromSnapshot() {
+        CartItem item = cartItem("item-1", "user-1", "var-A", 2);
+        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
+        when(productClient.getVariantSnapshot("var-A")).thenReturn(
+                displayVariant("var-A", "p-1", "Silk Shirt", "M", "Black", "Silk", new BigDecimal("379000"), "http://img/1.png"));
+
+        CartResponse cart = cartService.getCart("user-1", null);
+
+        CartItemResponse response = cart.getItems().get(0);
+        assertThat(response.getAvailable()).isTrue();
+        assertThat(response.getVariant().getSize()).isEqualTo("M");
+        assertThat(response.getVariant().getColor()).isEqualTo("Black");
+        assertThat(response.getVariant().getMaterial()).isEqualTo("Silk");
+        assertThat(response.getVariant().getProduct().getName()).isEqualTo("Silk Shirt");
+        assertThat(response.getVariant().getProduct().getImages().get(0).getImageUrl()).isEqualTo("http://img/1.png");
+    }
+
+    @Test
+    void getCart_unitPriceFromSnapshot_andTotalAmountMultipliesByQuantity() {
+        CartItem item = cartItem("item-1", "user-1", "var-A", 3);
+        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
+        when(productClient.getVariantSnapshot("var-A")).thenReturn(
+                displayVariant("var-A", "p-1", "Silk Shirt", "M", "Black", "Silk", new BigDecimal("100000"), null));
+
+        CartResponse cart = cartService.getCart("user-1", null);
+
+        // unitPrice (100000) * quantity (3) = 300000
+        assertThat(cart.getTotalAmount()).isEqualByComparingTo("300000");
+    }
+
+    @Test
+    void getCart_variantSnapshotMissing_marksItemUnavailable_withZeroContributionToTotal() {
+        CartItem item = cartItem("item-1", "user-1", "var-gone", 1);
+        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
+        when(productClient.getVariantSnapshot("var-gone")).thenReturn(ApiResponse.error("VARIANT_NOT_FOUND", "Not found"));
+
+        CartResponse cart = cartService.getCart("user-1", null);
+
+        CartItemResponse response = cart.getItems().get(0);
+        assertThat(response.getAvailable()).isFalse();
+        assertThat(response.getUnavailableMessage()).isNotBlank();
+        assertThat(response.getVariant()).isNull();
+        assertThat(cart.getTotalAmount()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    void getCart_variantInactive_marksItemUnavailable() {
+        CartItem item = cartItem("item-1", "user-1", "var-A", 1);
+        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
+        when(productClient.getVariantSnapshot("var-A")).thenReturn(inactiveVariant("var-A"));
+
+        CartResponse cart = cartService.getCart("user-1", null);
+
+        assertThat(cart.getItems().get(0).getAvailable()).isFalse();
+    }
+
+    @Test
+    void getCart_productClientThrows_marksItemUnavailable_doesNotCrash() {
+        CartItem item = cartItem("item-1", "user-1", "var-A", 1);
+        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
+        when(productClient.getVariantSnapshot("var-A")).thenThrow(new RuntimeException("network error"));
+
+        CartResponse cart = cartService.getCart("user-1", null);
+
+        assertThat(cart.getItems().get(0).getAvailable()).isFalse();
     }
 
     // ─── updateQuantity ───────────────────────────────────────────────────────
@@ -256,6 +333,22 @@ class CartServiceTest {
         ProductClient.VariantSnapshot snapshot = new ProductClient.VariantSnapshot();
         snapshot.setVariantId(variantId);
         snapshot.setStatus("INACTIVE");
+        return ApiResponse.success(snapshot);
+    }
+
+    private ApiResponse<ProductClient.VariantSnapshot> displayVariant(
+            String variantId, String productId, String productName, String size, String color,
+            String material, BigDecimal effectivePrice, String primaryImageUrl) {
+        ProductClient.VariantSnapshot snapshot = new ProductClient.VariantSnapshot();
+        snapshot.setVariantId(variantId);
+        snapshot.setProductId(productId);
+        snapshot.setProductName(productName);
+        snapshot.setSize(size);
+        snapshot.setColor(color);
+        snapshot.setMaterial(material);
+        snapshot.setEffectivePrice(effectivePrice);
+        snapshot.setPrimaryImageUrl(primaryImageUrl);
+        snapshot.setStatus("ACTIVE");
         return ApiResponse.success(snapshot);
     }
 

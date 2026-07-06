@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Search, Plus, Edit, Trash2, Loader2, RefreshCw, ChevronLeft, ChevronRight, Tag, ImagePlus, X, CircleAlert } from 'lucide-react'
 import Drawer from '../../components/common/Drawer'
+import Modal from '../../components/common/Modal'
 import ProductImage from '../../components/customer/ProductImage'
 import {
   getAdminProducts,
@@ -87,9 +88,11 @@ export default function ProductManagementPage() {
   const [actionLoading, setActionLoading] = useState(false)
   const [toast, setToast] = useState(null)
   const [productActionError, setProductActionError] = useState(null)
+  const [variantActionError, setVariantActionError] = useState(null)
   const [categoryActionError, setCategoryActionError] = useState(null)
   const [productFieldErrors, setProductFieldErrors] = useState({})
   const [variantFieldErrors, setVariantFieldErrors] = useState({})
+  const [confirmDialog, setConfirmDialog] = useState(null)
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerMode, setDrawerMode] = useState('create')
@@ -117,11 +120,19 @@ export default function ProductManagementPage() {
     setTimeout(() => setToast(null), 3000)
   }
 
+  // Variant operations (add/update/delete) render their friendly error inline
+  // next to the Variants section instead of the shared drawer-top alert, so
+  // admins see it right where the affected variant lives.
   const presentProductError = (err, context = {}) => {
     const friendly = getAdminProductErrorMessage(err, context)
-    setProductActionError(friendly)
-    if (friendly.targetStep && drawerMode === 'create') {
-      setCreateStep(friendly.targetStep)
+    const isVariantScoped = context.action === 'saveVariant' || context.action === 'deleteVariant'
+    if (isVariantScoped) {
+      setVariantActionError(friendly)
+    } else {
+      setProductActionError(friendly)
+      if (friendly.targetStep && drawerMode === 'create') {
+        setCreateStep(friendly.targetStep)
+      }
     }
     if (context.action === 'saveProduct') {
       setProductFieldErrors(friendly.fieldErrors || {})
@@ -132,14 +143,31 @@ export default function ProductManagementPage() {
     if (context.action === 'uploadImage') {
       setImageError(friendly.message)
     }
-    showToast(`${friendly.title}. ${friendly.message}`)
+    // Variant errors already show inline in the Variants section; a global
+    // toast would duplicate the message and imply it happened outside the drawer.
+    if (!isVariantScoped) {
+      showToast(`${friendly.title}. ${friendly.message}`)
+    }
     return friendly
   }
 
   const clearProductErrors = () => {
     setProductActionError(null)
+    setVariantActionError(null)
     setProductFieldErrors({})
     setVariantFieldErrors({})
+  }
+
+  const requestConfirm = ({ title, message, confirmLabel, onConfirm }) => {
+    setConfirmDialog({ title, message, confirmLabel, onConfirm })
+  }
+
+  const closeConfirmDialog = () => setConfirmDialog(null)
+
+  const handleConfirmAccept = async () => {
+    const action = confirmDialog?.onConfirm
+    setConfirmDialog(null)
+    if (action) await action()
   }
 
   useEffect(() => {
@@ -216,8 +244,13 @@ export default function ProductManagementPage() {
 
   const requestCloseProductDrawer = () => {
     if (isGuidedCreate && editingProduct && !hasPersistedVariants) {
-      const shouldClose = window.confirm('This product has no variants and will remain inactive.')
-      if (!shouldClose) return
+      requestConfirm({
+        title: 'Đóng khi chưa có biến thể?',
+        message: 'Sản phẩm này chưa có biến thể và sẽ ở trạng thái INACTIVE. Bạn có chắc chắn muốn đóng lại không?',
+        confirmLabel: 'Đóng',
+        onConfirm: closeProductDrawer,
+      })
+      return
     }
     closeProductDrawer()
   }
@@ -268,15 +301,21 @@ export default function ProductManagementPage() {
     setDrawerOpen(true)
   }
 
-  const handleDelete = async (productId) => {
-    if (!window.confirm('Bạn có chắc muốn xóa sản phẩm này?')) return
-    try {
-      await deleteProduct(productId)
-      showToast('Đã xóa sản phẩm')
-      fetchProducts(currentPage)
-    } catch (err) {
-      presentProductError(err, { action: 'deleteProduct' })
-    }
+  const handleDelete = (productId) => {
+    requestConfirm({
+      title: 'Xóa sản phẩm?',
+      message: 'Bạn có chắc chắn muốn xóa sản phẩm này không? Thao tác này không thể hoàn tác.',
+      confirmLabel: 'Xóa sản phẩm',
+      onConfirm: async () => {
+        try {
+          await deleteProduct(productId)
+          showToast('Đã xóa sản phẩm')
+          fetchProducts(currentPage)
+        } catch (err) {
+          presentProductError(err, { action: 'deleteProduct' })
+        }
+      },
+    })
   }
 
   const handleToggleStatus = async (product) => {
@@ -382,7 +421,7 @@ export default function ProductManagementPage() {
 
   // ─── Variants ──────────────────────────────────────────────────────────────
   const startEditVariant = (variant) => {
-    setProductActionError(null)
+    setVariantActionError(null)
     setVariantFieldErrors({})
     setEditingVariantId(variant.id)
     setVariantForm({
@@ -398,6 +437,7 @@ export default function ProductManagementPage() {
     setEditingVariantId(null)
     setVariantForm(EMPTY_VARIANT_FORM)
     setVariantFieldErrors({})
+    setVariantActionError(null)
   }
 
   const handleVariantSubmit = async (e) => {
@@ -412,7 +452,7 @@ export default function ProductManagementPage() {
       return
     }
     setActionLoading(true)
-    setProductActionError(null)
+    setVariantActionError(null)
     setVariantFieldErrors({})
     try {
       const payload = {
@@ -447,22 +487,31 @@ export default function ProductManagementPage() {
     }
   }
 
-  const handleDeleteVariant = async (variantId) => {
+  const handleDeleteVariant = (variantId) => {
     if (!editingProduct) return
-    if (!window.confirm('Xóa biến thể này?')) return
-    try {
-      setProductActionError(null)
-      await deleteVariant(editingProduct.id, variantId)
-      const remainingVariants = (editingProduct.variants || []).filter((v) => v.id !== variantId)
-      setEditingProduct((prev) => ({ ...prev, variants: remainingVariants }))
-      if (isGuidedCreate && remainingVariants.length === 0) {
-        setFlowMessage('Product has been created as INACTIVE. Add at least one variant before publishing it.')
-      }
-      showToast('Đã xóa biến thể')
-      await fetchProducts(currentPage)
-    } catch (err) {
-      presentProductError(err, { action: 'deleteVariant' })
-    }
+    requestConfirm({
+      title: 'Xóa biến thể?',
+      message: 'Bạn có chắc chắn muốn xóa biến thể này không? Thao tác này không thể hoàn tác.',
+      confirmLabel: 'Xóa biến thể',
+      onConfirm: async () => {
+        try {
+          setVariantActionError(null)
+          await deleteVariant(editingProduct.id, variantId)
+          // Only remove the variant from the UI after the API confirms the
+          // delete succeeded — if it fails (e.g. LAST_ACTIVE_VARIANT), the
+          // variant must stay visible so the inline error below still applies to it.
+          const remainingVariants = (editingProduct.variants || []).filter((v) => v.id !== variantId)
+          setEditingProduct((prev) => ({ ...prev, variants: remainingVariants }))
+          if (isGuidedCreate && remainingVariants.length === 0) {
+            setFlowMessage('Product has been created as INACTIVE. Add at least one variant before publishing it.')
+          }
+          showToast('Đã xóa biến thể')
+          await fetchProducts(currentPage)
+        } catch (err) {
+          presentProductError(err, { action: 'deleteVariant' })
+        }
+      },
+    })
   }
 
   // ─── Images ────────────────────────────────────────────────────────────────
@@ -578,7 +627,7 @@ export default function ProductManagementPage() {
       setCategoryForm(EMPTY_CATEGORY_FORM)
       fetchCategories()
     } catch (err) {
-      const friendly = getAdminProductErrorMessage(err, { action: 'saveCategory' })
+      const friendly = getAdminProductErrorMessage(err, { action: editingCategoryId ? 'updateCategory' : 'createCategory' })
       setCategoryActionError(friendly)
       showToast(`${friendly.title}. ${friendly.message}`)
     } finally {
@@ -586,39 +635,47 @@ export default function ProductManagementPage() {
     }
   }
 
-  const handleDeleteCategory = async (categoryId) => {
-    if (!window.confirm('Xóa danh mục này?')) return
-    try {
-      setCategoryActionError(null)
-      await deleteCategory(categoryId)
-      showToast('Đã xóa danh mục')
-      fetchCategories()
-    } catch (err) {
-      const friendly = getAdminProductErrorMessage(err, { action: 'deleteCategory' })
-      setCategoryActionError(friendly)
-      showToast(`${friendly.title}. ${friendly.message}`)
-    }
+  const handleDeleteCategory = (categoryId) => {
+    requestConfirm({
+      title: 'Xóa danh mục?',
+      message: 'Bạn có chắc chắn muốn xóa danh mục này không? Thao tác này không thể hoàn tác.',
+      confirmLabel: 'Xóa danh mục',
+      onConfirm: async () => {
+        try {
+          setCategoryActionError(null)
+          await deleteCategory(categoryId)
+          showToast('Đã xóa danh mục')
+          fetchCategories()
+        } catch (err) {
+          const friendly = getAdminProductErrorMessage(err, { action: 'deleteCategory' })
+          setCategoryActionError(friendly)
+          showToast(`${friendly.title}. ${friendly.message}`)
+        }
+      },
+    })
   }
 
   const handleProductErrorAction = async () => {
-    if (productActionError?.errorCode === 'LAST_ACTIVE_VARIANT' && editingProduct) {
+    if (productActionError?.targetStep) {
+      setCreateStep(productActionError.targetStep)
+    }
+  }
+
+  const handleVariantErrorAction = async () => {
+    if (variantActionError?.errorCode === 'LAST_ACTIVE_VARIANT' && editingProduct) {
       setActionLoading(true)
       try {
         const updated = await updateProductStatus(editingProduct.id, 'INACTIVE')
         setEditingProduct((current) => ({ ...current, ...updated }))
         setForm((current) => ({ ...current, status: 'INACTIVE' }))
-        setProductActionError(null)
-        showToast('Product deactivated. You can now delete its final variant.')
+        setVariantActionError(null)
+        showToast('Đã chuyển sản phẩm sang INACTIVE. Giờ bạn có thể xóa biến thể cuối cùng.')
         await fetchProducts(currentPage)
       } catch (err) {
         presentProductError(err, { action: 'updateStatus' })
       } finally {
         setActionLoading(false)
       }
-      return
-    }
-    if (productActionError?.targetStep) {
-      setCreateStep(productActionError.targetStep)
     }
   }
 
@@ -916,6 +973,10 @@ export default function ProductManagementPage() {
                   </div>
                 ))}
               </div>
+              <FriendlyErrorAlert
+                error={variantActionError}
+                onAction={variantActionError?.actionLabel ? handleVariantErrorAction : null}
+              />
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <input
@@ -1128,6 +1189,26 @@ export default function ProductManagementPage() {
           ))}
         </div>
       </Drawer>
+
+      <Modal isOpen={Boolean(confirmDialog)} onClose={closeConfirmDialog} title={confirmDialog?.title}>
+        <p className="text-sm text-on-surface-variant">{confirmDialog?.message}</p>
+        <div className="flex gap-3 pt-4">
+          <button
+            type="button"
+            onClick={closeConfirmDialog}
+            className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-surface-container text-on-surface hover:bg-surface-container-high"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirmAccept}
+            className="flex-1 bg-error text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90"
+          >
+            {confirmDialog?.confirmLabel || 'Xóa'}
+          </button>
+        </div>
+      </Modal>
     </div>
   )
 }

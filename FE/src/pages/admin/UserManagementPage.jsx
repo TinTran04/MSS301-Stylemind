@@ -3,6 +3,7 @@ import { Search, Shield, ShieldOff, UserCheck, UserX, ChevronLeft, ChevronRight,
 import useUserStore from '../../features/users/user.store'
 import useAuthStore from '../../features/auth/auth.store'
 import Drawer from '../../components/common/Drawer'
+import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
 
 const ROLE_STYLES = {
   ADMIN: 'bg-ai-lavender text-ai-indigo',
@@ -19,12 +20,16 @@ export default function UserManagementPage() {
     currentPage,
     loading,
     error,
+    actionError,
+    createError,
     loadUsers,
     createAccount,
     changeRole,
     toggleEnabled,
     removeAccount,
     clearError,
+    clearActionError,
+    clearCreateError,
   } = useUserStore()
   const currentUserId = useAuthStore((s) => s.user?.id)
 
@@ -37,6 +42,20 @@ export default function UserManagementPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [createForm, setCreateForm] = useState({ email: '', role: 'CUSTOMER' })
   const [createLoading, setCreateLoading] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState(null)
+
+  const requestConfirm = (dialog) => setConfirmDialog(dialog)
+  const closeConfirmDialog = () => setConfirmDialog(null)
+  const handleConfirmAccept = async () => {
+    if (!confirmDialog) return
+    setActionLoading(true)
+    try {
+      await confirmDialog.onConfirm()
+    } finally {
+      setActionLoading(false)
+      setConfirmDialog(null)
+    }
+  }
 
   // Debounce search 400ms
   useEffect(() => {
@@ -71,19 +90,45 @@ export default function UserManagementPage() {
     setActionLoading(false)
   }
 
-  async function handleToggleEnabled(userId, currentEnabled) {
+  function handleToggleEnabled(userId, currentEnabled) {
+    // Disabling is impactful (locks the account out) — confirm first.
+    // Re-enabling is not destructive, so it applies immediately.
+    if (currentEnabled) {
+      requestConfirm({
+        title: 'Vô hiệu hóa tài khoản?',
+        message: 'Tài khoản này sẽ không thể đăng nhập sau khi bị vô hiệu hóa.',
+        confirmLabel: 'Vô hiệu hóa',
+        destructive: true,
+        onConfirm: async () => {
+          const updated = await toggleEnabled(userId, false)
+          if (updated) setSelected(updated)
+        },
+      })
+      return
+    }
     setActionLoading(true)
-    const updated = await toggleEnabled(userId, !currentEnabled)
-    if (updated) setSelected(updated)
-    setActionLoading(false)
+    toggleEnabled(userId, true).then((updated) => {
+      if (updated) setSelected(updated)
+      setActionLoading(false)
+    })
   }
 
-  async function handleDelete(userId) {
-    if (!window.confirm('Bạn có chắc muốn xóa tài khoản này? Hành động này không thể hoàn tác.')) return
-    setActionLoading(true)
-    const ok = await removeAccount(userId)
-    if (ok) setSelected(null)
-    setActionLoading(false)
+  function handleDelete(userId) {
+    requestConfirm({
+      title: 'Xóa tài khoản?',
+      message: 'Bạn có chắc chắn muốn xóa tài khoản này không? Thao tác này không thể hoàn tác.',
+      confirmLabel: 'Xóa tài khoản',
+      destructive: true,
+      onConfirm: async () => {
+        const ok = await removeAccount(userId)
+        if (ok) setSelected(null)
+      },
+    })
+  }
+
+  function handleSelectUser(user) {
+    clearActionError()
+    setSelected(user)
   }
 
   async function handleCreateSubmit(e) {
@@ -95,6 +140,11 @@ export default function UserManagementPage() {
       setDrawerOpen(false)
       setCreateForm({ email: '', role: 'CUSTOMER' })
     }
+  }
+
+  function handleOpenCreateDrawer() {
+    clearCreateError()
+    setDrawerOpen(true)
   }
 
   const initials = (name) =>
@@ -125,7 +175,7 @@ export default function UserManagementPage() {
             Làm mới
           </button>
           <button
-            onClick={() => setDrawerOpen(true)}
+            onClick={handleOpenCreateDrawer}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-primary text-on-primary hover:opacity-90 transition-opacity"
           >
             <Plus size={14} />
@@ -207,7 +257,7 @@ export default function UserManagementPage() {
                 {content.map((u) => (
                   <tr
                     key={u.id}
-                    onClick={() => setSelected(u)}
+                    onClick={() => handleSelectUser(u)}
                     className={`cursor-pointer hover:bg-surface-container-high/30 transition-colors ${
                       selected?.id === u.id ? 'bg-surface-container-low' : ''
                     } ${!u.enabled ? 'opacity-50' : ''}`}
@@ -310,6 +360,15 @@ export default function UserManagementPage() {
                 </div>
               </div>
 
+              {/* Row/action-level error: self-protection, last-admin, 403, etc.
+                  Shown near the action panel instead of a page-wide banner. */}
+              {actionError && (
+                <div className="bg-error/10 border border-error/20 rounded-lg px-3 py-2 text-xs text-error flex items-start justify-between gap-2">
+                  <span>{actionError}</span>
+                  <button onClick={clearActionError} className="font-medium underline shrink-0">Đóng</button>
+                </div>
+              )}
+
               {/* Actions — hidden for the signed-in admin's own row.
                   This is convenience only; the backend rejects self/last-admin actions with 409 regardless. */}
               {selected.id !== currentUserId ? (
@@ -363,6 +422,12 @@ export default function UserManagementPage() {
       {/* Create account drawer */}
       <Drawer isOpen={drawerOpen} onClose={() => setDrawerOpen(false)} title="Tạo tài khoản">
         <form onSubmit={handleCreateSubmit} className="space-y-4">
+          {createError && (
+            <div className="bg-error/10 border border-error/20 rounded-lg px-3 py-2 text-xs text-error flex items-start justify-between gap-2">
+              <span>{createError}</span>
+              <button type="button" onClick={clearCreateError} className="font-medium underline shrink-0">Đóng</button>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-medium text-on-surface-variant mb-1">Email</label>
             <input
@@ -397,6 +462,17 @@ export default function UserManagementPage() {
           </button>
         </form>
       </Drawer>
+
+      <AdminConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message}
+        confirmLabel={confirmDialog?.confirmLabel}
+        destructive={confirmDialog?.destructive}
+        loading={actionLoading}
+        onConfirm={handleConfirmAccept}
+        onCancel={closeConfirmDialog}
+      />
     </div>
   )
 }

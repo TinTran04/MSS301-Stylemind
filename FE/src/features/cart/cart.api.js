@@ -1,46 +1,12 @@
 import apiClient, { getGuestSessionId } from '../../services/apiClient'
 import { ENDPOINTS } from '../../services/endpoints'
+import { mapCart, mapCartItem } from './cart.mapper.js'
 
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=800&fit=crop'
+export { mapCartItem }
 
 function cartHeaders() {
   return {
     'X-Guest-Session-Id': getGuestSessionId(),
-  }
-}
-
-function getImage(images = []) {
-  return images.find((image) => image.isPrimary)?.imageUrl || images[0]?.imageUrl || FALLBACK_IMAGE
-}
-
-export function mapCartItem(item) {
-  const variant = item.variant || {}
-  const product = variant.product || {}
-  const price = Number(variant.priceOverride || product.basePrice || 0)
-
-  return {
-    id: product.id || variant.id || item.variantId,
-    cartItemId: item.id,
-    variantId: item.variantId,
-    availableVariantId: item.variantId,
-    name: product.name || variant.sku || 'Product',
-    price,
-    quantity: item.quantity || 1,
-    size: variant.size || 'One Size',
-    color: variant.color || 'Default',
-    material: variant.material || 'Material pending',
-    images: [getImage(product.images)],
-    isAiRecommended: item.isAiRecommended,
-    sourceBundleId: item.sourceBundleId,
-  }
-}
-
-function mapCart(response) {
-  return {
-    cartId: response?.cartId || null,
-    items: (response?.items || []).map(mapCartItem),
-    totalAmount: Number(response?.totalAmount || 0),
-    totalQuantity: Number(response?.totalQuantity || 0),
   }
 }
 

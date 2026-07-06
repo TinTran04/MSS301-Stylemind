@@ -82,6 +82,10 @@ class ProductServiceTest {
                 .sku("SKU-1")
                 .priceOverride(null)
                 .build();
+
+        // Default to "configured" so existing upload tests exercise the actual
+        // upload path; the not-configured test below overrides this to false.
+        lenient().when(imageStorage.isConfigured()).thenReturn(true);
     }
 
     @Test
@@ -384,6 +388,22 @@ class ProductServiceTest {
 
         assertEquals("IMAGE_UPLOAD_FAILED", exception.getErrorCode());
         assertFalse(exception.getMessage().contains("do-not-leak"));
+    }
+
+    @Test
+    void uploadImage_storageNotConfigured_failsFastWithoutCallingProvider() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "shirt.png", "image/png", new byte[]{1, 2, 3});
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageStorage.isConfigured()).thenReturn(false);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.uploadImage("p1", file, false));
+
+        assertEquals("IMAGE_STORAGE_NOT_CONFIGURED", exception.getErrorCode());
+        assertEquals(503, exception.getHttpStatus());
+        verify(imageStorage, never()).upload(any(), any());
     }
 
     private ProductRequest validProductRequest(String status) {

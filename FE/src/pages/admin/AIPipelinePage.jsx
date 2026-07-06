@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Brain, RefreshCw, AlertTriangle, CheckCircle, Clock, Activity, Plus, Database } from 'lucide-react'
 import StatusBadge from '../../components/admin/StatusBadge'
+import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
 import { getAIPipelineEvents } from '../../features/analytics/analytics.api'
 import { getIndexJobs, createIndexJob } from '../../features/ai-stylist/adminAiIndexJobs.api'
+import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatRelativeTime, formatDateTime } from '../../utils/formatDate'
 
 const TARGET_TYPES = ['PRODUCT', 'INVENTORY', 'RULE']
@@ -17,6 +19,8 @@ function IndexJobsPanel() {
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ targetType: 'PRODUCT', targetId: '', operationType: 'UPDATE' })
   const [toast, setToast] = useState('')
+  const [formError, setFormError] = useState(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const fetchJobs = useCallback(async () => {
     setLoading(true)
@@ -35,20 +39,29 @@ function IndexJobsPanel() {
     fetchJobs()
   }, [fetchJobs])
 
-  const handleCreate = async (e) => {
+  const handleCreateSubmit = (e) => {
     e.preventDefault()
     if (!form.targetId.trim()) return
+    setFormError(null)
+    setConfirmOpen(true)
+  }
+
+  const handleCreateConfirm = async () => {
+    setConfirmOpen(false)
     setCreating(true)
     try {
       await createIndexJob(form)
-      setToast('Index job created')
+      setToast('Đã tạo AI index job')
       setTimeout(() => setToast(''), 3000)
       setForm({ targetType: 'PRODUCT', targetId: '', operationType: 'UPDATE' })
       setShowForm(false)
       fetchJobs()
     } catch (err) {
-      setToast(err.message || 'Failed to create index job')
-      setTimeout(() => setToast(''), 4000)
+      const friendly = getAdminErrorMessage(err, {
+        fallbackTitle: 'Không thể tạo index job',
+        fallbackMessage: 'Hệ thống chưa thể tạo AI index job. Vui lòng thử lại sau.',
+      })
+      setFormError(friendly)
     } finally {
       setCreating(false)
     }
@@ -85,7 +98,13 @@ function IndexJobsPanel() {
       {toast && <div className="px-4 py-2 text-xs text-primary bg-primary/10">{toast}</div>}
 
       {showForm && (
-        <form onSubmit={handleCreate} className="p-4 border-b border-outline-variant/20 flex flex-wrap items-end gap-3">
+        <form onSubmit={handleCreateSubmit} className="p-4 border-b border-outline-variant/20 flex flex-wrap items-end gap-3">
+          {formError && (
+            <div className="w-full rounded-lg border border-error/20 bg-error-container/40 px-3 py-2 text-xs text-error">
+              <p className="font-medium">{formError.title}</p>
+              <p className="mt-0.5">{formError.message}</p>
+            </div>
+          )}
           <div>
             <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Target Type</label>
             <select
@@ -155,6 +174,16 @@ function IndexJobsPanel() {
           </tbody>
         </table>
       </div>
+
+      <AdminConfirmDialog
+        open={confirmOpen}
+        title="Tạo AI index job?"
+        message="Hệ thống sẽ bắt đầu quá trình index dữ liệu AI. Quá trình này có thể mất một lúc."
+        confirmLabel="Tạo job"
+        loading={creating}
+        onConfirm={handleCreateConfirm}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }

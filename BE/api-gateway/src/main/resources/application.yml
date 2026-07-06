@@ -32,10 +32,13 @@ spring:
             allowedHeaders: '*'
             exposedHeaders: 'X-Request-Id,X-User-Id,X-User-Roles'
             allowCredentials: false
-      # Strip duplicate CORS headers that downstream services add on top of gateway's own headers.
-      # Without this, browser sees two Access-Control-Allow-Origin values and blocks the response.
+      # Strip duplicate CORS headers that downstream services add on top of gateway's own headers
+      # (every service's own common-lib SecurityConfig also has a CorsConfigurationSource).
+      # Without this, browser sees two values for these headers and can block the response —
+      # covers Allow-Origin/Allow-Credentials plus Expose-Headers/Vary, which the gateway's own
+      # globalcors filter and each downstream service both add independently.
       default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin, RETAIN_FIRST
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Access-Control-Expose-Headers Vary, RETAIN_FIRST
       routes:
         - id: auth-service
           uri: ${AUTH_SERVICE_URL:http://localhost:8081}

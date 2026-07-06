@@ -66,6 +66,7 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 | CART-06 | Merge sau login | Must |
 | CART-07 | Clear sau checkout | Must |
 | CART-08 | Track AI recommended item | Should |
+| CART-09 | Cart item hiển thị tên/ảnh/size/color/material/giá thật lấy từ product-service, không dùng placeholder cho item hợp lệ; item mất/ngừng bán hiển thị trạng thái "không còn khả dụng" thay vì giá "$0" | Must |
 
 ## Order
 | ID | Requirement | Priority |

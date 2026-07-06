@@ -63,6 +63,7 @@ Image upload dùng `multipart/form-data`, field `file`, query `isPrimary` (defau
 - Image chỉ nhận JPEG, PNG, WebP, GIF hoặc AVIF, tối đa 10 MB.
 - Image lưu `imageUrl` và nullable `publicId`; dữ liệu ảnh seed/legacy không có `publicId` vẫn hợp lệ.
 - Cloudinary credential chỉ tồn tại ở backend. Frontend không upload trực tiếp và không được biết `CLOUDINARY_API_SECRET`.
+- Nếu Cloudinary chưa có đủ `cloud-name`/`api-key`/`api-secret` (biến môi trường trống), upload trả HTTP `503`, `errorCode=IMAGE_STORAGE_NOT_CONFIGURED` thay vì lỗi upload chung chung — tránh nhầm lẫn giữa "chưa cấu hình" và "provider từ chối request". Lỗi upload thật sự (Cloudinary ném exception) vẫn trả HTTP `500`, `errorCode=IMAGE_UPLOAD_FAILED`; log server chỉ ghi tên file/content-type/size/loại exception, không ghi secret.
 - Khi thay primary image: upload ảnh mới trước, đánh dấu primary mới, rồi xóa ảnh cũ best-effort. Lỗi cleanup không rollback product/image mới.
 - Public UI chỉ hiển thị dữ liệu product/category/image/variant thật; thiếu image dùng empty state trung tính, không dùng ảnh giả.
 - Internal variant API chỉ gọi bằng `X-Internal-Token`; trả giá authoritative dùng cho cart/order.
@@ -78,3 +79,24 @@ Snapshot nên gồm: variantId, productId, name, sku, price, currency, active.
 Cloudinary environment:
 `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`,
 `CLOUDINARY_FOLDER` (default `stylemind/products`).
+
+Local dev without Docker (e.g. running `ProductServiceApplication` from IntelliJ):
+IntelliJ run configurations do not source `BE/.env` the way `docker compose
+--env-file` does. With `SPRING_PROFILES_ACTIVE=local` active,
+`application-local.yml` uses Spring Boot's own
+[`spring.config.import`](https://docs.spring.io/spring-boot/reference/features/external-config.html#features.external-config.files.importing)
+to load `../.env` / `.env` / `../../.env` / `BE/.env` / `../BE/.env` (covering
+running from `BE/`, `BE/product-service/`, or the repo root) as a
+`.properties`-format source, via the `optional:file:...[.properties]` syntax —
+no custom Java loader is needed. Config-imported sources have **lower
+precedence** than real OS environment variables and system properties, so
+real values are never overridden; if no `.env` is found (`optional:` prefix),
+startup proceeds unchanged (existing `IMAGE_STORAGE_NOT_CONFIGURED` behavior
+applies) and nothing errors. Startup logs only presence booleans, the active
+profiles, `user.dir`, and the folder value, never the actual key/secret
+(`Cloudinary config loaded: profiles=..., userDir=..., cloudNamePresent=...,
+apiKeyPresent=..., apiSecretPresent=..., folder=...`) — `profiles`/`userDir`
+are diagnostic aids for confirming the `local` profile is active and which
+working directory the relative `.env` paths were resolved against. `BE/.env`
+itself must never be committed —
+it stays gitignored; use `BE/.env.example` as the template.

@@ -193,21 +193,12 @@ public class CartService {
     }
 
     private CartResponse buildCartResponse(ShoppingCart cart, List<CartItem> items) {
-        List<CartItemResponse> itemResponses = items.stream().map(item ->
-            CartItemResponse.builder()
-                .id(item.getId())
-                .cartId(item.getCartId())
-                .variantId(item.getVariantId())
-                .quantity(item.getQuantity())
-                .isAiRecommended(item.getIsAiRecommended())
-                .sourceBundleId(item.getSourceBundleId())
-                .addedAt(item.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
-                .build()
-        ).collect(Collectors.toList());
+        List<CartItemResponse> itemResponses = items.stream()
+            .map(this::buildItemResponse)
+            .collect(Collectors.toList());
 
         BigDecimal totalAmount = itemResponses.stream()
-            .filter(ir -> ir.getVariant() != null && ir.getVariant().getProduct() != null)
-            .map(ir -> ir.getVariant().getPriceOverride() != null ? ir.getVariant().getPriceOverride() : ir.getVariant().getProduct().getBasePrice())
+            .map(ir -> unitPrice(ir).multiply(BigDecimal.valueOf(ir.getQuantity())))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         int totalQuantity = itemResponses.stream().mapToInt(CartItemResponse::getQuantity).sum();
@@ -218,5 +209,75 @@ public class CartService {
             .totalAmount(totalAmount)
             .totalQuantity(totalQuantity)
             .build();
+    }
+
+    // Display-only price: authoritative price is re-fetched from product-service
+    // by order-service at checkout and stored as price_at_purchase, so it is
+    // safe (and expected) for this figure to go stale between cart view and order.
+    private BigDecimal unitPrice(CartItemResponse item) {
+        if (!Boolean.TRUE.equals(item.getAvailable()) || item.getVariant() == null || item.getVariant().getProduct() == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal priceOverride = item.getVariant().getPriceOverride();
+        BigDecimal basePrice = item.getVariant().getProduct().getBasePrice();
+        BigDecimal price = priceOverride != null ? priceOverride : basePrice;
+        return price != null ? price : BigDecimal.ZERO;
+    }
+
+    private CartItemResponse buildItemResponse(CartItem item) {
+        CartItemResponse.CartItemResponseBuilder response = CartItemResponse.builder()
+            .id(item.getId())
+            .cartId(item.getCartId())
+            .variantId(item.getVariantId())
+            .quantity(item.getQuantity())
+            .isAiRecommended(item.getIsAiRecommended())
+            .sourceBundleId(item.getSourceBundleId())
+            .addedAt(item.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant());
+
+        ProductClient.VariantSnapshot snapshot = fetchSnapshot(item.getVariantId());
+        if (snapshot == null || !"ACTIVE".equalsIgnoreCase(snapshot.getStatus())) {
+            return response
+                .available(false)
+                .unavailableMessage("This item is no longer available.")
+                .build();
+        }
+
+        CartItemResponse.VariantInfo.ProductInfo.ImageInfo image = snapshot.getPrimaryImageUrl() != null
+            ? CartItemResponse.VariantInfo.ProductInfo.ImageInfo.builder()
+                .imageUrl(snapshot.getPrimaryImageUrl())
+                .isPrimary(true)
+                .build()
+            : null;
+
+        CartItemResponse.VariantInfo.ProductInfo product = CartItemResponse.VariantInfo.ProductInfo.builder()
+            .id(snapshot.getProductId())
+            .name(snapshot.getProductName())
+            .basePrice(snapshot.getEffectivePrice())
+            .images(image != null ? List.of(image) : List.of())
+            .build();
+
+        CartItemResponse.VariantInfo variant = CartItemResponse.VariantInfo.builder()
+            .id(snapshot.getVariantId())
+            .sku(snapshot.getSku())
+            .size(snapshot.getSize())
+            .color(snapshot.getColor())
+            .material(snapshot.getMaterial())
+            .product(product)
+            .build();
+
+        return response
+            .available(true)
+            .variant(variant)
+            .build();
+    }
+
+    private ProductClient.VariantSnapshot fetchSnapshot(String variantId) {
+        try {
+            var response = productClient.getVariantSnapshot(variantId);
+            return response != null && response.isSuccess() ? response.getData() : null;
+        } catch (Exception ex) {
+            log.warn("Failed to fetch variant snapshot {} for cart display: {}", variantId, ex.getMessage());
+            return null;
+        }
     }
 }

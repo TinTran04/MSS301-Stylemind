@@ -36,6 +36,9 @@ _(không có)_
 - Merge không tạo duplicate variant.
 - Checkout thành công → cart rỗng.
 - Frontend cấm gọi `/internal/v1/cart/**`.
+- **Cart item display**: mỗi item trong `GET /api/v1/cart` được enrich bằng snapshot từ product-service (`GET /internal/v1/products/variants/{variantId}`) — trả `productName`, `size`, `color`, `material`, `imageUrl`, giá hiệu lực (`variant.product.basePrice`). Đây là **giá hiển thị**, không phải nguồn giá cho order; order-service tự lấy lại giá authoritative từ product-service khi checkout và lưu `price_at_purchase`.
+- Nếu product-service không tìm thấy variant hoặc variant không còn `ACTIVE`, item được đánh dấu `available: false` kèm `unavailableMessage`; item đó không cộng vào `totalAmount` và không hiển thị giá giả.
+- `totalAmount` = tổng (`unitPrice × quantity`) của các item còn `available`.
 
 ## Dependencies
 - **Gọi ra:** product-service (validate variant).

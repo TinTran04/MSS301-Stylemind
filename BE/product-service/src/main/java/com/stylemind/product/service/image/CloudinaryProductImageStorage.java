@@ -22,6 +22,19 @@ public class CloudinaryProductImageStorage implements ProductImageStorage {
     }
 
     @Override
+    public boolean isConfigured() {
+        // Read straight off the client's own config (single source of truth)
+        // rather than re-injecting the same three @Value properties here.
+        return isNotBlank(cloudinary.config.cloudName)
+                && isNotBlank(cloudinary.config.apiKey)
+                && isNotBlank(cloudinary.config.apiSecret);
+    }
+
+    private static boolean isNotBlank(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    @Override
     public StoredProductImage upload(String productId, MultipartFile file) throws Exception {
         Map<?, ?> result = cloudinary.uploader().upload(
                 file.getBytes(),

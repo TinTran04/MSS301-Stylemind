@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Bell, Filter, Search, ShoppingCart, RefreshCw, RotateCcw, AlertTriangle } from 'lucide-react'
 import Badge from '../../components/common/Badge'
+import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
 import { getAdminNotifications, retryAdminNotification } from '../../features/notifications/notification.api'
+import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatDateTime } from '../../utils/formatDate'
 
 const STATUS_VARIANT = {
@@ -24,6 +26,9 @@ export default function NotificationManagementPage() {
   const [loading, setLoading] = useState(true)
   const [retryingId, setRetryingId] = useState(null)
   const [toast, setToast] = useState(null)
+  const [listError, setListError] = useState(null)
+  const [rowErrors, setRowErrors] = useState({})
+  const [confirmDialog, setConfirmDialog] = useState(null)
 
   const showToast = (message) => {
     setToast(message)
@@ -32,11 +37,16 @@ export default function NotificationManagementPage() {
 
   const fetchNotifications = useCallback(async () => {
     setLoading(true)
+    setListError(null)
     try {
       const data = await getAdminNotifications(statusFilter === 'All' ? {} : { status: statusFilter })
       setNotifications(data.content || data || [])
     } catch (err) {
-      showToast(err.message || 'Error loading notifications')
+      const friendly = getAdminErrorMessage(err, {
+        fallbackTitle: 'Không thể tải danh sách thông báo',
+        fallbackMessage: 'Hệ thống chưa thể tải danh sách thông báo. Vui lòng làm mới trang hoặc thử lại sau.',
+      })
+      setListError(friendly)
     } finally {
       setLoading(false)
     }
@@ -46,14 +56,28 @@ export default function NotificationManagementPage() {
     fetchNotifications()
   }, [fetchNotifications])
 
-  const handleRetry = async (notification) => {
+  const requestRetry = (notification) => {
+    setRowErrors((prev) => ({ ...prev, [notification.id]: null }))
+    setConfirmDialog({
+      title: 'Gửi lại thông báo?',
+      message: 'Hệ thống sẽ thử gửi lại thông báo thất bại này.',
+      confirmLabel: 'Gửi lại',
+      onConfirm: () => submitRetry(notification),
+    })
+  }
+
+  const submitRetry = async (notification) => {
     setRetryingId(notification.id)
     try {
       const updated = await retryAdminNotification(notification.id)
       setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, ...updated } : n)))
-      showToast(`Notification #${notification.id} resent — status: ${updated.status}`)
+      showToast(`Đã gửi lại thông báo #${notification.id} — trạng thái: ${updated.status}`)
     } catch (err) {
-      showToast(err.message || 'Failed to retry notification')
+      const friendly = getAdminErrorMessage(err, {
+        fallbackTitle: 'Gửi lại thông báo thất bại',
+        fallbackMessage: 'Hệ thống chưa thể gửi lại thông báo này. Vui lòng thử lại sau.',
+      })
+      setRowErrors((prev) => ({ ...prev, [notification.id]: friendly }))
     } finally {
       setRetryingId(null)
     }
@@ -83,6 +107,13 @@ export default function NotificationManagementPage() {
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
         </button>
       </div>
+
+      {listError && (
+        <div className="rounded-lg border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-error">
+          <p className="font-medium">{listError.title}</p>
+          <p className="mt-0.5">{listError.message}</p>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -141,11 +172,17 @@ export default function NotificationManagementPage() {
                   {n.errorMessage && (
                     <p className="text-xs text-error mt-1">{n.errorMessage}</p>
                   )}
+                  {rowErrors[n.id] && (
+                    <div className="mt-2 rounded-lg border border-error/20 bg-error-container/40 px-3 py-2 text-xs text-error">
+                      <p className="font-medium">{rowErrors[n.id].title}</p>
+                      <p className="mt-0.5">{rowErrors[n.id].message}</p>
+                    </div>
+                  )}
                   <p className="text-xs text-on-surface-variant/60 mt-1">{formatDateTime(n.createdAt)}</p>
                 </div>
                 {n.status === 'FAILED' && (
                   <button
-                    onClick={() => handleRetry(n)}
+                    onClick={() => requestRetry(n)}
                     disabled={retryingId === n.id}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 shrink-0"
                   >
@@ -157,6 +194,20 @@ export default function NotificationManagementPage() {
           })
         )}
       </div>
+
+      <AdminConfirmDialog
+        open={!!confirmDialog}
+        title={confirmDialog?.title}
+        message={confirmDialog?.message}
+        confirmLabel={confirmDialog?.confirmLabel}
+        loading={retryingId !== null}
+        onConfirm={async () => {
+          const dialog = confirmDialog
+          setConfirmDialog(null)
+          if (dialog) await dialog.onConfirm()
+        }}
+        onCancel={() => setConfirmDialog(null)}
+      />
     </div>
   )
 }

@@ -20,25 +20,25 @@ const DUPLICATE_SKU_CODES = new Set([
 
 export function validateProductFields(product) {
   const errors = {}
-  if (!product?.name?.trim()) errors.name = 'Product name is required.'
+  if (!product?.name?.trim()) errors.name = 'Tên sản phẩm là bắt buộc.'
   if (!Number.isFinite(Number(product?.basePrice)) || Number(product.basePrice) <= 0) {
-    errors.basePrice = 'Base price must be greater than 0.'
+    errors.basePrice = 'Giá gốc phải lớn hơn 0.'
   }
-  if (!product?.categoryId) errors.categoryId = 'Category is required.'
+  if (!product?.categoryId) errors.categoryId = 'Danh mục là bắt buộc.'
   if (!['ACTIVE', 'INACTIVE', 'DISCONTINUED'].includes(product?.status)) {
-    errors.status = 'Select a valid product status.'
+    errors.status = 'Vui lòng chọn trạng thái sản phẩm hợp lệ.'
   }
   return errors
 }
 
 export function validateVariantFields(variant) {
   const errors = {}
-  if (!variant?.sku?.trim()) errors.sku = 'SKU is required.'
-  if (!variant?.size?.trim()) errors.size = 'Size is required.'
-  if (!variant?.color?.trim()) errors.color = 'Color is required.'
+  if (!variant?.sku?.trim()) errors.sku = 'SKU là bắt buộc.'
+  if (!variant?.size?.trim()) errors.size = 'Kích thước là bắt buộc.'
+  if (!variant?.color?.trim()) errors.color = 'Màu sắc là bắt buộc.'
   if (variant?.priceOverride !== '' && variant?.priceOverride != null
       && (!Number.isFinite(Number(variant.priceOverride)) || Number(variant.priceOverride) <= 0)) {
-    errors.priceOverride = 'Price override must be greater than 0.'
+    errors.priceOverride = 'Giá ghi đè phải lớn hơn 0.'
   }
   return errors
 }
@@ -55,57 +55,57 @@ export function getAdminProductErrorMessage(error, context = {}) {
   // 1) Known business contracts — exact backend codes, friendly presentation.
   if (code === 'PRODUCT_REQUIRES_VARIANT') {
     return {
-      title: 'Product cannot be published yet',
-      message: 'Add at least one variant before publishing this product.',
-      actionLabel: 'Go to Variants',
+      title: 'Chưa thể công khai sản phẩm',
+      message: 'Vui lòng thêm ít nhất một biến thể trước khi công khai sản phẩm này.',
+      actionLabel: 'Đi tới phần Biến thể',
       targetStep: CREATE_PRODUCT_STEPS.VARIANTS,
       errorCode: code,
     }
   }
   if (code === 'LAST_ACTIVE_VARIANT') {
     return {
-      title: 'Cannot delete the final variant',
-      message: 'This is the last variant of an active product. Deactivate the product before deleting it.',
-      actionLabel: 'Deactivate product first',
+      title: 'Không thể xóa biến thể cuối cùng',
+      message: 'Đây là biến thể cuối cùng của một sản phẩm đang hoạt động. Vui lòng chuyển sản phẩm sang INACTIVE trước khi xóa biến thể này.',
+      actionLabel: 'Chuyển sản phẩm sang INACTIVE trước',
       targetStep: CREATE_PRODUCT_STEPS.VARIANTS,
       errorCode: code,
     }
   }
   if (DUPLICATE_SKU_CODES.has(code)) {
     return {
-      title: 'SKU already exists',
-      message: 'Use a different SKU. Each variant SKU must be unique.',
+      title: 'SKU đã tồn tại',
+      message: 'Vui lòng dùng SKU khác. Mỗi biến thể phải có một SKU duy nhất.',
       targetStep: CREATE_PRODUCT_STEPS.VARIANTS,
-      fieldErrors: { sku: 'This SKU is already in use.' },
+      fieldErrors: { sku: 'SKU này đã được sử dụng.' },
       errorCode: code,
     }
   }
   if (code === 'CATEGORY_IN_USE') {
     return {
-      title: 'Category is still in use',
-      message: 'Please reassign those products before deleting this category.',
+      title: 'Danh mục đang được sử dụng',
+      message: 'Vui lòng chuyển các sản phẩm đó sang danh mục khác trước khi xóa danh mục này.',
       errorCode: code,
     }
   }
   if (code === 'CATEGORY_HAS_CHILDREN') {
     return {
-      title: 'Category has subcategories',
-      message: 'Move or delete its subcategories before deleting this category.',
+      title: 'Danh mục có danh mục con',
+      message: 'Vui lòng di chuyển hoặc xóa các danh mục con trước khi xóa danh mục này.',
       errorCode: code,
     }
   }
   if (code === 'SLUG_EXISTS') {
     return {
-      title: 'Category slug already exists',
-      message: 'Use a different slug for this category.',
-      fieldErrors: { slug: 'This category slug is already in use.' },
+      title: 'Slug danh mục đã tồn tại',
+      message: 'Vui lòng dùng slug khác cho danh mục này.',
+      fieldErrors: { slug: 'Slug danh mục này đã được sử dụng.' },
       errorCode: code,
     }
   }
   if (code === 'VALIDATION_ERROR' && context.action === 'saveVariant') {
     return {
-      title: 'Please check the variant information',
-      message: 'SKU, size, and color are required. Price override must be greater than 0 if provided.',
+      title: 'Vui lòng kiểm tra thông tin biến thể',
+      message: 'SKU, kích thước và màu sắc là bắt buộc. Giá ghi đè phải lớn hơn 0 nếu được nhập.',
       targetStep: CREATE_PRODUCT_STEPS.VARIANTS,
       fieldErrors: context.fieldErrors || {},
       errorCode: code,
@@ -113,10 +113,18 @@ export function getAdminProductErrorMessage(error, context = {}) {
   }
   if (code === 'VALIDATION_ERROR') {
     return {
-      title: 'Please check the product information',
-      message: 'Some required product information is missing or invalid.',
+      title: 'Vui lòng kiểm tra thông tin sản phẩm',
+      message: 'Một số thông tin sản phẩm đang bị thiếu hoặc không hợp lệ.',
       targetStep: CREATE_PRODUCT_STEPS.PRODUCT_INFO,
       fieldErrors: context.fieldErrors || {},
+      errorCode: code,
+    }
+  }
+  if (code === 'IMAGE_STORAGE_NOT_CONFIGURED') {
+    return {
+      title: 'Chưa cấu hình dịch vụ lưu ảnh',
+      message: 'Hệ thống chưa thể lưu ảnh sản phẩm. Vui lòng kiểm tra cấu hình Cloudinary.',
+      targetStep: CREATE_PRODUCT_STEPS.IMAGES,
       errorCode: code,
     }
   }
@@ -124,24 +132,48 @@ export function getAdminProductErrorMessage(error, context = {}) {
   // 2) Auth — take precedence over generic/context handling.
   if (status === 401) {
     return {
-      title: 'Session expired',
-      message: 'Your session has expired. Please sign in again.',
+      title: 'Phiên đăng nhập đã hết hạn',
+      message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
       errorCode: code,
     }
   }
   if (status === 403) {
     return {
-      title: 'Permission denied',
-      message: 'You do not have permission to perform this admin action.',
+      title: 'Không có quyền truy cập',
+      message: 'Bạn không có quyền thực hiện thao tác quản trị này.',
       errorCode: code,
     }
   }
 
   if (context.action === 'loadCategories') {
     return {
-      title: 'Could not load categories',
-      message: 'Product categories could not be loaded. Please refresh or try again later.',
-      actionLabel: 'Retry',
+      title: 'Không thể tải danh mục',
+      message: 'Hệ thống chưa thể tải danh mục sản phẩm. Vui lòng làm mới trang hoặc thử lại sau.',
+      actionLabel: 'Thử lại',
+      errorCode: code,
+    }
+  }
+  // Category conflicts (CATEGORY_IN_USE/CATEGORY_HAS_CHILDREN/SLUG_EXISTS) are
+  // already handled above by errorCode; these are the generic fallback when a
+  // create/update/delete fails for another reason (validation, network, 5xx).
+  if (context.action === 'createCategory') {
+    return {
+      title: 'Không thể tạo danh mục',
+      message: 'Không thể tạo danh mục. Vui lòng kiểm tra thông tin và thử lại.',
+      errorCode: code,
+    }
+  }
+  if (context.action === 'updateCategory') {
+    return {
+      title: 'Không thể cập nhật danh mục',
+      message: 'Không thể cập nhật danh mục. Vui lòng thử lại sau.',
+      errorCode: code,
+    }
+  }
+  if (context.action === 'deleteCategory') {
+    return {
+      title: 'Không thể xóa danh mục',
+      message: 'Không thể xóa danh mục. Vui lòng thử lại sau.',
       errorCode: code,
     }
   }
@@ -150,8 +182,8 @@ export function getAdminProductErrorMessage(error, context = {}) {
   //    The product must NOT be rolled back; admin can retry from the Images step.
   if (context.action === 'uploadImage') {
     return {
-      title: 'Product saved, but image upload failed',
-      message: 'The product was created successfully, but one or more images could not be uploaded. You can retry uploading images from this product form.',
+      title: 'Sản phẩm đã được lưu, nhưng tải ảnh thất bại',
+      message: 'Không thể tải ảnh lên. Vui lòng kiểm tra định dạng, dung lượng ảnh hoặc thử lại sau.',
       targetStep: CREATE_PRODUCT_STEPS.IMAGES,
       errorCode: code,
     }
@@ -160,16 +192,16 @@ export function getAdminProductErrorMessage(error, context = {}) {
   // 4) Network / service unavailable (no status, or 5xx).
   if (status === undefined || status === 0 || status >= 500) {
     return {
-      title: 'Service temporarily unavailable',
-      message: 'We could not reach the server. Please check your connection or try again.',
+      title: 'Dịch vụ tạm thời không khả dụng',
+      message: 'Không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau.',
       errorCode: code,
     }
   }
 
   // 5) Fallback — friendly primary; keep the raw server message as the detail.
   return {
-    title: 'Something went wrong',
-    message: 'The action could not be completed. Please try again.',
+    title: 'Đã xảy ra lỗi',
+    message: 'Không thể hoàn tất thao tác. Vui lòng thử lại sau.',
     technicalMessage: error?.message,
     errorCode: code,
   }
