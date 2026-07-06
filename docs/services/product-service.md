@@ -14,10 +14,10 @@ Catalog: danh mục, sản phẩm, biến thể (variant), hình ảnh. Cung c�
 ## API — Public / Customer
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/api/v1/categories` | Public root categories; `parentId` trả direct children |
-| GET | `/api/v1/products` | Public ACTIVE listing; search/category/price/sort/pagination |
-| GET | `/api/v1/products/{id}` | ACTIVE product detail |
-| GET | `/api/v1/products/{productId}/variants` | Variants của ACTIVE product |
+| GET | `/api/v1/categories` | Public: **danh sách phẳng toàn bộ category** (gồm cả con) để customer lọc; `parentId` trả direct children |
+| GET | `/api/v1/products` | Public listing sản phẩm ACTIVE có ít nhất một variant; search/category/price/sort/pagination |
+| GET | `/api/v1/products/{id}` | Detail sản phẩm ACTIVE có ít nhất một variant |
+| GET | `/api/v1/products/{productId}/variants` | Variants của sản phẩm ACTIVE có ít nhất một variant |
 
 ## API — Admin (role ADMIN)
 | Method | Endpoint | Mô tả |
@@ -29,13 +29,13 @@ Catalog: danh mục, sản phẩm, biến thể (variant), hình ảnh. Cung c�
 | GET | `/api/v1/admin/products` | List/search/filter/pagination cho admin |
 | GET | `/api/v1/admin/products/summary` | Tổng số product theo trạng thái |
 | GET | `/api/v1/admin/products/{id}` | Product detail cho admin |
-| POST | `/api/v1/admin/products` | Tạo product |
+| POST | `/api/v1/admin/products` | Tạo thông tin cơ bản của product ở trạng thái INACTIVE |
 | PUT | `/api/v1/admin/products/{id}` | Cập nhật product |
-| PATCH | `/api/v1/admin/products/{id}/status` | Đổi trạng thái product |
+| PATCH | `/api/v1/admin/products/{id}/status` | Đổi trạng thái product; ACTIVE yêu cầu có variant |
 | DELETE | `/api/v1/admin/products/{id}` | Soft-delete bằng trạng thái INACTIVE |
 | POST | `/api/v1/admin/products/{productId}/variants` | Tạo variant |
 | PUT | `/api/v1/admin/products/{productId}/variants/{variantId}` | Cập nhật variant |
-| DELETE | `/api/v1/admin/products/{productId}/variants/{variantId}` | Xóa variant |
+| DELETE | `/api/v1/admin/products/{productId}/variants/{variantId}` | Xóa variant; không được xóa final variant của ACTIVE product |
 | POST | `/api/v1/admin/products/{productId}/images` | Upload image multipart lên Cloudinary |
 | DELETE | `/api/v1/admin/products/{productId}/images/{imageId}` | Xóa image metadata và best-effort cloud asset |
 
@@ -49,11 +49,17 @@ Image upload dùng `multipart/form-data`, field `file`, query `isPrimary` (defau
 | GET | `/internal/v1/products/variants/{variantId}` | Variant snapshot (giá authoritative) |
 
 ## Key business rules
-- Public chỉ thấy sản phẩm `ACTIVE`.
+- Public chỉ thấy sản phẩm `ACTIVE` có ít nhất một variant.
+- **Customer Shop category filter** dùng `GET /api/v1/categories` (không param) → danh sách phẳng thật gồm cả category con (products gắn với category lá), không hardcode; `parentId` vẫn để drill-down. Admin quản lý category qua `/api/v1/admin/categories` (không đổi).
 - Variant SKU không trùng.
 - Product create/update nhận category có thật hoặc `null`; response trả cả `categoryId` và `categoryName`.
 - Không xóa category đang có category con hoặc product tham chiếu; trả `409` với `CATEGORY_HAS_CHILDREN` hoặc `CATEGORY_IN_USE`.
 - Product được tạo trước; image và variant được quản lý sau bằng product subresource. Không có aggregate create API và không tạo inventory/stock.
+- `POST /api/v1/admin/products` giữ nguyên request/`ProductResponse`; service luôn tạo product ở trạng thái `INACTIVE`, kể cả khi client gửi `ACTIVE`.
+- Admin Add Product là flow Product Info → Variants → Images / Finish. Step 2 và Step 3 dùng các variant/image subresource hiện có; không thay đổi schema.
+- Product chỉ được chuyển sang `ACTIVE` sau khi có ít nhất một variant. Vi phạm trả HTTP `409`, `errorCode=PRODUCT_REQUIRES_VARIANT`, message `Cannot activate a product without variants. Add at least one variant before publishing it.`
+- Nếu ACTIVE product chỉ còn đúng một variant, xóa variant đó trả HTTP `409`, `errorCode=LAST_ACTIVE_VARIANT`, message `Cannot delete the last variant of an active product. Deactivate the product before deleting its final variant.`
+- Đóng flow sau Step 1 không xóa product; product tiếp tục tồn tại ở trạng thái `INACTIVE`.
 - Image chỉ nhận JPEG, PNG, WebP, GIF hoặc AVIF, tối đa 10 MB.
 - Image lưu `imageUrl` và nullable `publicId`; dữ liệu ảnh seed/legacy không có `publicId` vẫn hợp lệ.
 - Cloudinary credential chỉ tồn tại ở backend. Frontend không upload trực tiếp và không được biết `CLOUDINARY_API_SECRET`.

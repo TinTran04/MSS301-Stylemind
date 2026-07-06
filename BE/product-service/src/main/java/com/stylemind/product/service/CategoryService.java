@@ -27,10 +27,14 @@ public class CategoryService {
 
     @Transactional(readOnly = true)
     public List<Category> getCategories(Long parentId) {
+        // With an explicit parentId, return that parent's direct children (drill-down).
+        // Without one (the customer Shop filter), return the full flat list so every
+        // usable category is selectable — not just top-level roots. Products are tagged
+        // with leaf/child categories, so a roots-only list hid most of the catalogue.
         if (parentId != null) {
             return categoryRepository.findByParentId(parentId);
         }
-        return categoryRepository.findByParentIdIsNull();
+        return categoryRepository.findAll();
     }
 
     @Transactional

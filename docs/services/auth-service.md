@@ -29,6 +29,7 @@ Sở hữu **identity**: đăng ký, đăng nhập, quên/đặt lại mật kh�
 | Method | Endpoint | Mô tả |
 |---|---|---|
 | GET | `/api/v1/admin/accounts` | Danh sách (search/filter keyword,role,status) |
+| GET | `/api/v1/admin/users/summary` | Admin dashboard: user counts (total/customers/admins) |
 | POST | `/api/v1/admin/accounts` | Tạo account |
 | PATCH | `/api/v1/admin/accounts/{userId}/status` | Enable/disable |
 | PATCH | `/api/v1/admin/accounts/{userId}/role` | Cập nhật role |

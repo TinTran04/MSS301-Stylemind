@@ -18,6 +18,7 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 | Method | Endpoint | Mô tả |
 |---|---|---|
 | GET | `/api/v1/admin/accounts` | Danh sách (search/filter) |
+| GET | `/api/v1/admin/users/summary` | Dashboard: user counts (total/customers/admins) |
 | POST | `/api/v1/admin/accounts` | Tạo account |
 | PATCH | `/api/v1/admin/accounts/{userId}/status` | Enable/disable |
 | PATCH | `/api/v1/admin/accounts/{userId}/role` | Cập nhật role |
@@ -36,10 +37,10 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 ## Product (product-service)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| GET | `/api/v1/categories` | Public root categories / children by `parentId` |
-| GET | `/api/v1/products` | ACTIVE listing; search/filter/sort/pagination |
-| GET | `/api/v1/products/{id}` | ACTIVE product detail |
-| GET | `/api/v1/products/{productId}/variants` | ACTIVE product variants |
+| GET | `/api/v1/categories` | Public: full flat category list (incl. children); `parentId` → direct children |
+| GET | `/api/v1/products` | ACTIVE listing có ít nhất một variant; search/filter/sort/pagination |
+| GET | `/api/v1/products/{id}` | ACTIVE product detail có ít nhất một variant |
+| GET | `/api/v1/products/{productId}/variants` | Variants của ACTIVE product có ít nhất một variant |
 | GET | `/api/v1/admin/categories` | Toàn bộ category cho admin |
 | POST | `/api/v1/admin/categories` | Tạo category |
 | PUT | `/api/v1/admin/categories/{id}` | Cập nhật category |
@@ -47,16 +48,27 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 | GET | `/api/v1/admin/products` | Admin product list/search/filter |
 | GET | `/api/v1/admin/products/summary` | Product counts |
 | GET | `/api/v1/admin/products/{id}` | Admin product detail |
-| POST | `/api/v1/admin/products` | Tạo product |
+| POST | `/api/v1/admin/products` | Tạo basic product ở trạng thái INACTIVE; request/response giữ nguyên |
 | PUT | `/api/v1/admin/products/{id}` | Cập nhật product |
-| PATCH | `/api/v1/admin/products/{id}/status` | Đổi trạng thái product |
+| PATCH | `/api/v1/admin/products/{id}/status` | Đổi trạng thái; ACTIVE yêu cầu ít nhất một variant |
 | DELETE | `/api/v1/admin/products/{id}` | Soft-delete product |
 | POST | `/api/v1/admin/products/{productId}/variants` | Tạo variant |
 | PUT | `/api/v1/admin/products/{productId}/variants/{variantId}` | Cập nhật variant |
-| DELETE | `/api/v1/admin/products/{productId}/variants/{variantId}` | Xóa variant |
+| DELETE | `/api/v1/admin/products/{productId}/variants/{variantId}` | Xóa variant; chặn final variant của ACTIVE product |
 | POST | `/api/v1/admin/products/{productId}/images` | Upload image multipart |
 | DELETE | `/api/v1/admin/products/{productId}/images/{imageId}` | Xóa product image |
 | GET | `/internal/v1/products/variants/{variantId}` | Variant snapshot (giá authoritative) |
+
+Product create không nhận variants và tiếp tục trả `ProductResponse` hiện có
+(`categoryId`/`categoryName`, không dùng nested category và không thêm
+`effectivePrice`). Admin tạo variants và images qua các subresource sau khi nhận
+`productId`.
+
+Product conflict responses dùng error envelope chuẩn:
+- Activate product chưa có variant: HTTP `409`, `PRODUCT_REQUIRES_VARIANT`,
+  `Cannot activate a product without variants. Add at least one variant before publishing it.`
+- Xóa final variant của ACTIVE product: HTTP `409`, `LAST_ACTIVE_VARIANT`,
+  `Cannot delete the last variant of an active product. Deactivate the product before deleting its final variant.`
 
 ## Cart (cart-service)
 | Method | Endpoint | Mô tả |
@@ -77,6 +89,7 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 | GET | `/api/v1/orders` | Danh sách order của customer |
 | GET | `/api/v1/orders/{id}` | Chi tiết order |
 | GET | `/api/v1/admin/orders` | Admin danh sách |
+| GET | `/api/v1/admin/orders/summary` | Dashboard: order + revenue counts |
 | GET | `/api/v1/admin/orders/{id}` | Admin chi tiết |
 | PATCH | `/api/v1/admin/orders/{id}/status` | Admin đổi trạng thái (validate transition) |
 
@@ -97,6 +110,7 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 | GET | `/api/v1/notifications` | Customer list |
 | GET | `/api/v1/notifications/{id}` | Detail |
 | GET | `/api/v1/admin/notifications` | Admin logs |
+| GET | `/api/v1/admin/notifications/summary` | Dashboard: failed notification count |
 | POST | `/api/v1/admin/notifications/{id}/retry` | Retry failed |
 
 ## AI Stylist (ai-agent-service)

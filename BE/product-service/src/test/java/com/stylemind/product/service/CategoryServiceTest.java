@@ -42,6 +42,32 @@ class CategoryServiceTest {
     }
 
     @Test
+    void getCategories_noParent_returnsFullFlatList() {
+        // Public Shop filter: must include child categories, not just roots.
+        List<Category> all = List.of(
+                Category.builder().id(1L).name("Áo").slug("ao").build(),
+                Category.builder().id(2L).name("Quần").slug("quan").build(),
+                Category.builder().id(3L).name("Áo sơ mi").slug("ao-so-mi").parentId(1L).build(),
+                Category.builder().id(4L).name("Áo polo").slug("ao-polo").parentId(1L).build());
+        when(categoryRepository.findAll()).thenReturn(all);
+
+        List<Category> result = categoryService.getCategories(null);
+
+        assertEquals(all, result);
+    }
+
+    @Test
+    void getCategories_withParent_returnsChildren() {
+        List<Category> children = List.of(
+                Category.builder().id(3L).name("Áo sơ mi").slug("ao-so-mi").parentId(1L).build());
+        when(categoryRepository.findByParentId(1L)).thenReturn(children);
+
+        List<Category> result = categoryService.getCategories(1L);
+
+        assertEquals(children, result);
+    }
+
+    @Test
     void deleteCategory_withChildCategory_returnsConflict() {
         Category category = Category.builder().id(1L).name("Áo").slug("ao").build();
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));

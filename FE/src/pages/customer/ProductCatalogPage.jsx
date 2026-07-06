@@ -16,6 +16,7 @@ export default function ProductCatalogPage() {
     totalPages: 0,
   })
   const [categories, setCategories] = useState([])
+  const [categoryError, setCategoryError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -50,7 +51,16 @@ export default function ProductCatalogPage() {
   }, [filters])
 
   useEffect(() => {
-    getCategories().then(setCategories).catch(() => setCategories([]))
+    getCategories()
+      .then((data) => {
+        setCategories(data)
+        setCategoryError(false)
+      })
+      .catch(() => {
+        // Don't crash the Shop page: fall back to "Tất cả" only and tell the user.
+        setCategories([])
+        setCategoryError(true)
+      })
   }, [])
 
   const updateFilters = (nextFilters) => {
@@ -118,6 +128,12 @@ export default function ProductCatalogPage() {
           )
         })}
       </nav>
+
+      {categoryError ? (
+        <p className="-mt-2 pb-2 text-xs text-on-surface-variant">
+          Không thể tải danh mục. Bạn vẫn có thể xem tất cả sản phẩm.
+        </p>
+      ) : null}
 
       <div className="flex min-h-12 items-center justify-between gap-4 border-y border-outline-variant/20 py-3">
         <button

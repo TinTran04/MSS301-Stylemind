@@ -22,6 +22,7 @@
 | Method | Endpoint | Mô tả |
 |---|---|---|
 | GET | `/api/v1/admin/orders` | Admin danh sách order |
+| GET | `/api/v1/admin/orders/summary` | Admin dashboard: order + revenue counts (aggregates only) |
 | GET | `/api/v1/admin/orders/{id}` | Admin chi tiết |
 | PATCH | `/api/v1/admin/orders/{id}/status` | Admin đổi trạng thái (validate transition → 409) |
 
@@ -36,6 +37,7 @@ _(không có)_
 - SePay quá hạn → EXPIRED/CANCELLED (timeout job).
 - Customer chỉ xem order của mình; admin xem tất cả.
 - MỌI đổi trạng thái đi qua `OrderStatusService.changeStatus()`.
+- **Dashboard revenue rule:** doanh thu chỉ tính order đã thanh toán & đang xử lý/hoàn tất — `PAID, CONFIRMED, PROCESSING, SHIPPED, COMPLETED`; KHÔNG tính `PENDING`/`PAYMENT_PENDING` (chưa trả) hay `CANCELLED`/`EXPIRED`/`FAILED`. Summary chỉ trả count/sum, không lộ dữ liệu order.
 
 ## Dependencies
 - **Gọi ra:** cart-service (get/clear), product-service (giá), payment-service (tạo payment), notification-service.

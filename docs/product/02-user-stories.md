@@ -15,5 +15,8 @@
 - As an admin, I want to manage account users, so that I control access and account status.
 - As an admin, I want to be prevented from locking/deleting my own account, so that I don't lock the system out.
 - As an admin, I want to manage products and categories, so that the catalog stays updated.
+- As an admin, I want Add Product to guide me from basic information to persisted variants and images, so that an unsellable product cannot be published accidentally.
+- As an admin, I want product errors to explain what happened and how to recover without clearing my work, so that validation, conflicts, and upload retries are safe and efficient.
+- As an admin, I want an incomplete product to remain INACTIVE when I close the flow, so that I can safely finish it later.
 - As an admin, I want to update order status only via valid transitions, so that orders stay consistent.
 - As an admin, I want to manage notifications, so that I can monitor system communication logs.

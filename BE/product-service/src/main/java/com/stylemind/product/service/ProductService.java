@@ -50,6 +50,15 @@ public class ProductService {
         log.info("Product admin action | actor={} action={} productId={} detail={}", actorId, action, productId, detail);
     }
 
+    private void ensureProductCanBeActive(String productId, String status) {
+        if ("ACTIVE".equals(status) && !variantRepository.existsByProductId(productId)) {
+            throw new BusinessException(
+                    "PRODUCT_REQUIRES_VARIANT",
+                    "Cannot activate a product without variants. Add at least one variant before publishing it.",
+                    409);
+        }
+    }
+
     // Product CRUD
     public ProductResponse createProduct(ProductRequest request) {
         if (request.getCategoryId() != null && !categoryRepository.existsById(request.getCategoryId())) {
@@ -65,7 +74,7 @@ public class ProductService {
                 .aestheticStyle(request.getAestheticStyle())
                 .targetDemographic(request.getTargetDemographic())
                 .seasonalProperty(request.getSeasonalProperty())
-                .status(request.getStatus())
+                .status("INACTIVE")
                 .build();
 
         product = productRepository.save(product);
@@ -73,12 +82,14 @@ public class ProductService {
     }
 
     public ProductResponse updateProduct(String id, ProductRequest request) {
-        Product product = productRepository.findById(id)
+        Product product = productRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
 
         if (request.getCategoryId() != null && !categoryRepository.existsById(request.getCategoryId())) {
             throw new BusinessException("CATEGORY_NOT_FOUND", "Danh mục không tồn tại", 400);
         }
+
+        ensureProductCanBeActive(id, request.getStatus());
 
         product.setCategoryId(request.getCategoryId());
         product.setName(request.getName());
@@ -103,7 +114,7 @@ public class ProductService {
     }
 
     public ProductResponse getProduct(String id) {
-        Product product = productRepository.findByIdAndStatus(id, "ACTIVE")
+        Product product = productRepository.findSellableById(id)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm hoặc sản phẩm không hoạt động", 404));
         return mapToResponse(product);
     }
@@ -142,8 +153,9 @@ public class ProductService {
     }
 
     public ProductResponse updateProductStatus(String id, String status) {
-        Product product = productRepository.findById(id)
+        Product product = productRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
+        ensureProductCanBeActive(id, status);
         product.setStatus(status);
         product = productRepository.save(product);
         return mapToResponse(product);
@@ -175,7 +187,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public List<ProductVariantResponse> getVariants(String productId) {
         // Public callers must never see variants belonging to an INACTIVE/DISCONTINUED product.
-        productRepository.findByIdAndStatus(productId, "ACTIVE")
+        productRepository.findSellableById(productId)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm hoặc sản phẩm không hoạt động", 404));
         return variantRepository.findByProductId(productId).stream()
                 .map(this::mapToVariantResponse)
@@ -242,6 +254,14 @@ public class ProductService {
                 .orElseThrow(() -> new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể", 404));
         if (!variant.getProductId().equals(productId)) {
             throw new BusinessException("VARIANT_MISMATCH", "Biến thể không thuộc sản phẩm này", 400);
+        }
+        Product product = productRepository.findByIdForUpdate(productId)
+                .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
+        if ("ACTIVE".equals(product.getStatus()) && variantRepository.countByProductId(productId) <= 1) {
+            throw new BusinessException(
+                    "LAST_ACTIVE_VARIANT",
+                    "Cannot delete the last variant of an active product. Deactivate the product before deleting its final variant.",
+                    409);
         }
         variantRepository.delete(variant);
         recordAudit(actorId, "DELETE_VARIANT", productId, "variantId=" + variantId);

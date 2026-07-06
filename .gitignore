@@ -36,3 +36,5 @@ Thumbs.db
 HIOS/
 change/
 .agent/skills/
+.playwright-cli/
+output/

@@ -11,5 +11,8 @@
 | 6 | Định nghĩa **Checkout orchestration + Saga**; saga cơ bản đưa vào Sprint 3. | order-service, roadmap |
 | 7 | Làm rõ **ranh giới auth-service ↔ user-service** (Identity vs Profile) + lazy-init. | auth-service, user-service |
 | 8 | Hoàn thiện catalog: category conflict guard, Cloudinary image metadata/upload, variant wiring và product-first public listing không dùng dữ liệu giả. | product-service, frontend |
+| 9 | Add Product chuyển sang guided flow; product mới mặc định INACTIVE, chỉ ACTIVE khi có variant và chặn xóa final variant của ACTIVE product. | product-service, frontend, docs |
+| 10 | Admin Product Management hiển thị lỗi thân thiện, field guidance và recovery action; recoverable errors giữ nguyên drawer/form, image upload failure là partial success. | frontend, docs |
+| 10 | Customer Shop category filter hiển thị **toàn bộ category thật** (gồm cả con) từ `GET /api/v1/categories`; endpoint public không param nay trả danh sách phẳng thay vì chỉ root. "Tất cả" là option FE để clear filter; không hardcode category. | product-service, frontend, docs |
 
 Chi tiết kỹ thuật của mục 4–8 nằm trong thư mục `architecture/` và `decisions/`.

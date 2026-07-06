@@ -31,6 +31,8 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 | ADM-SELF-03 | Không tự xóa | Must |
 | ADM-SELF-04 | Bảo vệ admin cuối cùng | Must |
 | ADM-SELF-05 | Audit log hành động nhạy cảm | Should |
+| ADM-DASH-01 | Admin dashboard hiển thị số liệu **thật** (orders/revenue/products/users/notifications) qua per-service `/admin/**/summary`, compose ở FE; không dùng dữ liệu giả, có loading/error/empty | Should |
+| ADM-DASH-02 | Summary API dưới `/api/v1/admin/**`, yêu cầu ADMIN; chỉ trả count/sum, không lộ trường nhạy cảm | Must |
 
 ## User Profile
 | ID | Requirement | Priority |
@@ -51,6 +53,10 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 | PROD-06 | Admin quản lý variants với unique SKU; không thêm stock/inventory | Must |
 | PROD-07 | Admin upload/replace images qua backend Cloudinary; validate type/10 MB; lưu URL/public ID | Should |
 | PROD-08 | Internal variant snapshot (giá authoritative) | Must |
+| PROD-09 | Add Product dùng flow Product Info → Variants → Images / Finish; Step 1 luôn tạo INACTIVE và giữ nguyên create API/`ProductResponse` | Must |
+| PROD-10 | Product chỉ được ACTIVE khi có variant; chặn xóa final variant của ACTIVE product bằng `409 LAST_ACTIVE_VARIANT` | Must |
+| PROD-11 | Public list/detail/variants không trả product thiếu variant, kể cả dữ liệu legacy mang trạng thái ACTIVE | Must |
+| PROD-12 | Admin product actions map backend/auth/network errors to friendly actionable UI; recoverable errors preserve drawer/form state, duplicate SKU marks SKU, and image upload failure does not rollback product | Must |
 
 ## Cart
 | ID | Requirement | Priority |

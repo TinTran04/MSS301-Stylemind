@@ -85,8 +85,73 @@ class ProductServiceTest {
     }
 
     @Test
-    void getProduct_inactive_throws404() {
-        when(productRepository.findByIdAndStatus("p2", "ACTIVE")).thenReturn(Optional.empty());
+    void createProduct_requestedActiveStatus_persistsInactive() {
+        ProductRequest request = validProductRequest("ACTIVE");
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            saved.setCreatedAt(java.time.LocalDateTime.now());
+            saved.setUpdatedAt(java.time.LocalDateTime.now());
+            return saved;
+        });
+
+        ProductResponse response = productService.createProduct(request);
+
+        org.mockito.ArgumentCaptor<Product> captor = org.mockito.ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(captor.capture());
+        assertEquals("INACTIVE", captor.getValue().getStatus());
+        assertEquals("INACTIVE", response.getStatus());
+    }
+
+    @Test
+    void updateProduct_requestedActiveWithoutVariants_throws409() {
+        ProductRequest request = validProductRequest("ACTIVE");
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+        when(variantRepository.existsByProductId("p2")).thenReturn(false);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.updateProduct("p2", request));
+
+        assertEquals(409, exception.getHttpStatus());
+        assertEquals("PRODUCT_REQUIRES_VARIANT", exception.getErrorCode());
+        assertEquals(
+                "Cannot activate a product without variants. Add at least one variant before publishing it.",
+                exception.getMessage());
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void updateProductStatus_activeWithoutVariants_throws409() {
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+        when(variantRepository.existsByProductId("p2")).thenReturn(false);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.updateProductStatus("p2", "ACTIVE"));
+
+        assertEquals(409, exception.getHttpStatus());
+        assertEquals("PRODUCT_REQUIRES_VARIANT", exception.getErrorCode());
+        assertEquals(
+                "Cannot activate a product without variants. Add at least one variant before publishing it.",
+                exception.getMessage());
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void updateProductStatus_activeWithVariant_succeeds() {
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+        when(variantRepository.existsByProductId("p2")).thenReturn(true);
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductResponse response = productService.updateProductStatus("p2", "ACTIVE");
+
+        assertEquals("ACTIVE", response.getStatus());
+        verify(productRepository).save(inactiveProduct);
+    }
+
+    @Test
+    void getProduct_notSellable_throws404() {
+        when(productRepository.findSellableById("p2")).thenReturn(Optional.empty());
 
         assertThrows(BusinessException.class, () -> productService.getProduct("p2"));
     }
@@ -94,7 +159,7 @@ class ProductServiceTest {
     @Test
     void getProduct_active_returnsProduct() {
         activeProduct.setCategoryId(10L);
-        when(productRepository.findByIdAndStatus("p1", "ACTIVE")).thenReturn(Optional.of(activeProduct));
+        when(productRepository.findSellableById("p1")).thenReturn(Optional.of(activeProduct));
         when(categoryRepository.findById(10L)).thenReturn(Optional.of(
                 Category.builder().id(10L).name("Áo sơ mi").slug("ao-so-mi").build()));
         when(imageRepository.findByProductId("p1")).thenReturn(List.of());
@@ -164,15 +229,16 @@ class ProductServiceTest {
     }
 
     @Test
-    void getVariants_inactiveProduct_throws404() {
-        when(productRepository.findByIdAndStatus("p2", "ACTIVE")).thenReturn(Optional.empty());
+    void getVariants_notSellableProduct_throws404() {
+        when(productRepository.findSellableById("p2")).thenReturn(Optional.empty());
 
         assertThrows(BusinessException.class, () -> productService.getVariants("p2"));
+        verify(variantRepository, never()).findByProductId(any(String.class));
     }
 
     @Test
     void getVariants_activeProduct_returnsVariants() {
-        when(productRepository.findByIdAndStatus("p1", "ACTIVE")).thenReturn(Optional.of(activeProduct));
+        when(productRepository.findSellableById("p1")).thenReturn(Optional.of(activeProduct));
         when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant));
 
         List<ProductVariantResponse> variants = productService.getVariants("p1");
@@ -218,6 +284,8 @@ class ProductServiceTest {
     @Test
     void deleteVariant_recordsAuditLogWithActor() {
         when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findByIdForUpdate("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.countByProductId("p1")).thenReturn(2L);
 
         productService.deleteVariant("p1", "v1", "admin-1");
 
@@ -225,6 +293,47 @@ class ProductServiceTest {
         verify(auditLogRepository).save(captor.capture());
         assertEquals("admin-1", captor.getValue().getActorId());
         assertEquals("DELETE_VARIANT", captor.getValue().getAction());
+    }
+
+    @Test
+    void deleteVariant_lastVariantOfActiveProduct_throws409() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findByIdForUpdate("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.countByProductId("p1")).thenReturn(1L);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.deleteVariant("p1", "v1", "admin-1"));
+
+        assertEquals(409, exception.getHttpStatus());
+        assertEquals("LAST_ACTIVE_VARIANT", exception.getErrorCode());
+        assertEquals(
+                "Cannot delete the last variant of an active product. Deactivate the product before deleting its final variant.",
+                exception.getMessage());
+        verify(variantRepository, never()).delete(any(ProductVariant.class));
+        verify(auditLogRepository, never()).save(any(ProductAuditLog.class));
+    }
+
+    @Test
+    void deleteVariant_lastVariantOfInactiveProduct_deletesVariant() {
+        variant.setProductId("p2");
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+
+        productService.deleteVariant("p2", "v1", "admin-1");
+
+        verify(variantRepository).delete(variant);
+    }
+
+    @Test
+    void deleteVariant_oneOfMultipleVariantsOfActiveProduct_deletesVariant() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findByIdForUpdate("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.countByProductId("p1")).thenReturn(2L);
+
+        productService.deleteVariant("p1", "v1", "admin-1");
+
+        verify(variantRepository).delete(variant);
     }
 
     @Test
@@ -275,5 +384,17 @@ class ProductServiceTest {
 
         assertEquals("IMAGE_UPLOAD_FAILED", exception.getErrorCode());
         assertFalse(exception.getMessage().contains("do-not-leak"));
+    }
+
+    private ProductRequest validProductRequest(String status) {
+        return ProductRequest.builder()
+                .name("Cotton Shirt")
+                .description("Everyday shirt")
+                .basePrice(new BigDecimal("379000"))
+                .aestheticStyle("Korean")
+                .targetDemographic("NU")
+                .seasonalProperty("ALL_SEASON")
+                .status(status)
+                .build();
     }
 }
