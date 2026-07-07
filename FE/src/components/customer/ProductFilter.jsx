@@ -7,6 +7,7 @@ export default function ProductFilter({ filters, onFilterChange, onClose }) {
       search: '',
       minPrice: null,
       maxPrice: null,
+      targetDemographic: '',
     })
   }
 

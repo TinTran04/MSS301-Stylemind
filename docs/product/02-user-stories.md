@@ -10,6 +10,8 @@
 - As a customer, I want to checkout and pay via COD or SePay, so that I can place an order.
 - As a customer, I want to track my orders, so that I know their status.
 - As a customer, I want to chat with an AI stylist, so that I get outfit recommendations.
+- As a customer, I want to browse products by target demographic (Tất cả / Nam / Nữ / Unisex), so that I can narrow the catalog to the style I need.
+- As a customer, I want the cart icon on a product card to open the product detail page, so that I can choose the correct variant before adding to cart.
 - As a customer, I want to only pick size/color combinations that actually exist and are in stock on a product's detail page, so that I never add an invalid or unavailable item to my cart.
 
 ## Admin

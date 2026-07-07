@@ -59,6 +59,28 @@ public class ProductService {
         }
     }
 
+    private static String normalizeComparable(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private List<String> demographicAliases(String targetDemographic) {
+        String normalized = normalizeComparable(targetDemographic);
+        if (normalized.isBlank()) {
+            return List.of("__all__");
+        }
+
+        if (normalized.equals("nam") || normalized.equals("male") || normalized.equals("men")) {
+            return List.of("nam", "male", "men");
+        }
+        if (normalized.equals("nu") || normalized.equals("nữ") || normalized.equals("female") || normalized.equals("women")) {
+            return List.of("nu", "nữ", "female", "women");
+        }
+        if (normalized.equals("unisex")) {
+            return List.of("unisex");
+        }
+        return List.of(normalized);
+    }
+
     // Product CRUD
     public ProductResponse createProduct(ProductRequest request) {
         if (request.getCategoryId() != null && !categoryRepository.existsById(request.getCategoryId())) {
@@ -119,10 +141,18 @@ public class ProductService {
         return mapToResponse(product);
     }
 
-    public PageResponse<ProductResponse> getProducts(Long categoryId, String search, BigDecimal minPrice, 
-                                             BigDecimal maxPrice, String sort, Pageable pageable) {
+    public PageResponse<ProductResponse> getProducts(Long categoryId, String search, String targetDemographic,
+                                             BigDecimal minPrice, BigDecimal maxPrice, String sort, Pageable pageable) {
         String keyword = (search != null && !search.isBlank()) ? search : null;
-        Page<Product> page = productRepository.searchAndFilter(keyword, categoryId, minPrice, maxPrice, pageable);
+        String demographicFilter = (targetDemographic != null && !targetDemographic.isBlank()) ? targetDemographic.trim() : null;
+        Page<Product> page = productRepository.searchAndFilter(
+                keyword,
+                categoryId,
+                demographicFilter,
+                demographicAliases(targetDemographic),
+                minPrice,
+                maxPrice,
+                pageable);
         return mapPage(page);
     }
 
@@ -327,9 +357,16 @@ public class ProductService {
                 ? variant.getPriceOverride()
                 : product.getBasePrice();
 
-        String primaryImageUrl = imageRepository.findByProductIdAndIsPrimaryTrue(product.getId())
+        List<ProductImage> productImages = imageRepository.findByProductId(product.getId());
+        String primaryImageUrl = productImages.stream()
+                .filter(image -> Boolean.TRUE.equals(image.getIsPrimary()))
                 .map(ProductImage::getImageUrl)
-                .orElse(null);
+                .findFirst()
+                .orElseGet(() -> productImages.stream()
+                        .map(ProductImage::getImageUrl)
+                        .filter(url -> url != null && !url.isBlank())
+                        .findFirst()
+                        .orElse(null));
 
         return VariantSnapshotResponse.builder()
                 .variantId(variant.getId())

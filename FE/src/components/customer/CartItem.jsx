@@ -1,18 +1,21 @@
 import { Minus, Plus, Trash2 } from 'lucide-react'
 import useCartStore from '../../features/cart/cart.store'
 import { formatCurrency } from '../../utils/formatCurrency'
+import ProductImage from './ProductImage'
+import { formatCartVariantSummary, resolveCartItemImage } from '../../features/cart/cart.display'
 
 export default function CartItem({ item }) {
   const updateQuantity = useCartStore((s) => s.updateQuantity)
   const removeItem = useCartStore((s) => s.removeItem)
   const unavailable = item.available === false
+  const imageUrl = resolveCartItemImage(item)
 
   return (
     <div className="flex gap-4 py-4 border-b border-outline-variant/10">
-      <img
-        src={item.images?.[0]}
+      <ProductImage
+        src={imageUrl}
         alt={item.name}
-        className={`w-20 h-24 object-cover rounded-lg ${unavailable ? 'opacity-40 grayscale' : ''}`}
+        className={`w-20 h-24 rounded-lg object-cover ${unavailable ? 'opacity-40 grayscale' : ''}`}
       />
       <div className="flex-1 min-w-0">
         <h4 className="text-sm font-medium text-primary truncate">{item.name}</h4>
@@ -21,8 +24,7 @@ export default function CartItem({ item }) {
         ) : (
           <>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              Kích cỡ: {item.size} &middot; Màu sắc: {item.color}
-              {item.material ? <> &middot; Chất liệu: {item.material}</> : null}
+              {formatCartVariantSummary(item)}
             </p>
             <p className="text-sm font-semibold text-primary mt-2">{formatCurrency(item.price)}</p>
           </>

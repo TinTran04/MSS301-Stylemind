@@ -30,6 +30,7 @@ test('mapCartItem renders real product name, variant, price from an available it
   assert.equal(item.color, 'Black')
   assert.equal(item.material, 'Silk')
   assert.equal(item.price, 379000)
+  assert.equal(item.imageUrl, 'https://cdn.example/shirt.jpg')
   assert.equal(item.images[0], 'https://cdn.example/shirt.jpg')
   assert.equal(item.available, true)
 })
@@ -64,10 +65,12 @@ test('mapCartItem does not fall back to "Product" when productName is provided',
 test('mapCartItem falls back to "Product" only when variant/product data is truly missing', () => {
   const item = mapCartItem({ id: 'ci-1', variantId: 'v1', quantity: 1, available: true })
 
-  assert.equal(item.name, 'Product')
-  assert.equal(item.size, 'One Size')
-  assert.equal(item.color, 'Default')
+  assert.equal(item.name, 'Sản phẩm')
+  assert.equal(item.size, 'Một cỡ')
+  assert.equal(item.color, 'Mặc định')
   assert.equal(item.price, 0)
+  assert.equal(item.imageUrl, null)
+  assert.deepEqual(item.images, [])
 })
 
 test('mapCartItem marks unavailable items instead of showing a fake price', () => {

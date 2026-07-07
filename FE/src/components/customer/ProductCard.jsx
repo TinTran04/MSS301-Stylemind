@@ -1,6 +1,5 @@
 import { ShoppingBag } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import useCartStore from '../../features/cart/cart.store'
+import { Link, useNavigate } from 'react-router-dom'
 import ProductImage from './ProductImage'
 
 const priceFormatter = new Intl.NumberFormat('vi-VN', {
@@ -10,8 +9,7 @@ const priceFormatter = new Intl.NumberFormat('vi-VN', {
 })
 
 export default function ProductCard({ product }) {
-  const addItem = useCartStore((state) => state.addItem)
-  const hasVariant = Boolean(product.availableVariantId)
+  const navigate = useNavigate()
   const variantSummary = [
     product.colors.length > 0 ? `${product.colors.length} màu` : null,
     product.sizes.length > 0 ? product.sizes.join(', ') : null,
@@ -20,7 +18,7 @@ export default function ProductCard({ product }) {
   const handleAddToCart = (event) => {
     event.preventDefault()
     event.stopPropagation()
-    if (hasVariant) addItem(product)
+    navigate(`/products/${product.id}`)
   }
 
   return (
@@ -49,10 +47,9 @@ export default function ProductCard({ product }) {
           <button
             type="button"
             onClick={handleAddToCart}
-            disabled={!hasVariant}
             className="absolute right-0 top-3 flex h-8 w-8 items-center justify-center rounded-lg border border-outline-variant/30 text-primary transition-colors hover:bg-surface-container disabled:cursor-not-allowed disabled:opacity-35"
-            title={hasVariant ? 'Thêm vào giỏ hàng' : 'Sản phẩm chưa có biến thể'}
-            aria-label={hasVariant ? `Thêm ${product.name} vào giỏ hàng` : `${product.name} chưa có biến thể`}
+            title="Xem chi tiết để chọn phân loại"
+            aria-label={`Xem chi tiết ${product.name} để chọn phân loại`}
           >
             <ShoppingBag size={15} aria-hidden="true" />
           </button>

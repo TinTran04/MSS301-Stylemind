@@ -15,7 +15,7 @@ Catalog: danh mục, sản phẩm, biến thể (variant), hình ảnh. Cung c�
 | Method | Endpoint | Mô tả |
 |---|---|---|
 | GET | `/api/v1/categories` | Public: **danh sách phẳng toàn bộ category** (gồm cả con) để customer lọc; `parentId` trả direct children |
-| GET | `/api/v1/products` | Public listing sản phẩm ACTIVE có ít nhất một variant; search/category/price/sort/pagination |
+| GET | `/api/v1/products` | Public listing sản phẩm ACTIVE có ít nhất một variant; search/category/targetDemographic/price/sort/pagination |
 | GET | `/api/v1/products/{id}` | Detail sản phẩm ACTIVE có ít nhất một variant |
 | GET | `/api/v1/products/{productId}/variants` | Variants của sản phẩm ACTIVE có ít nhất một variant |
 
@@ -51,6 +51,7 @@ Image upload dùng `multipart/form-data`, field `file`, query `isPrimary` (defau
 ## Key business rules
 - Public chỉ thấy sản phẩm `ACTIVE` có ít nhất một variant.
 - **Customer Shop category filter** dùng `GET /api/v1/categories` (không param) → danh sách phẳng thật gồm cả category con (products gắn với category lá), không hardcode; `parentId` vẫn để drill-down. Admin quản lý category qua `/api/v1/admin/categories` (không đổi).
+- **Customer Shop demographic filter** dùng field `targetDemographic` của product với UI tiếng Việt `Tất cả / Nam / Nữ / Unisex`; public list hỗ trợ query param `targetDemographic` để FE kết hợp an toàn với category/search/sort, không cần schema mới.
 - Variant SKU không trùng (`SKU_EXISTS`, `400`).
 - **Variant là tổ hợp cụ thể của size + color + material** (SKU/priceOverride/stockQuantity/active riêng cho từng tổ hợp). Tạo/cập nhật variant với cùng size+color+material (so sánh không phân biệt hoa/thường và khoảng trắng) như một variant khác của cùng product bị chặn: `409`, `errorCode=DUPLICATE_VARIANT`, message `Biến thể này đã tồn tại. Vui lòng kiểm tra lại kích cỡ, màu sắc và chất liệu.` — material khác nhau thì không tính là trùng.
 - **Stock**: `ProductVariant.stockQuantity` (mặc định `0`, không âm — validate ở request) và `ProductVariant.active` (mặc định `true`) là các trường thật trên bảng `product_variants` (migration `V3__product_variant_stock.sql`), không phải trường suy diễn. Admin variant DTO và public variant/snapshot response đều expose hai trường này; `getVariants`/product detail trả toàn bộ variant kể cả hết hàng — hết hàng chỉ ảnh hưởng UI (disabled/"Hết hàng"), không ẩn khỏi response.

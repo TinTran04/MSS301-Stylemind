@@ -32,6 +32,7 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     @Query("SELECT p FROM Product p WHERE p.status = 'ACTIVE' AND " +
            "EXISTS (SELECT v.id FROM ProductVariant v WHERE v.productId = p.id) AND " +
            "(:categoryId IS NULL OR p.categoryId = :categoryId) AND " +
+           "(:targetDemographic IS NULL OR LOWER(COALESCE(p.targetDemographic, '')) IN :targetDemographics) AND " +
            "(:minPrice IS NULL OR p.basePrice >= :minPrice) AND " +
            "(:maxPrice IS NULL OR p.basePrice <= :maxPrice) AND " +
            "(:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')) OR " +
@@ -40,6 +41,8 @@ public interface ProductRepository extends JpaRepository<Product, String> {
     Page<Product> searchAndFilter(
             @org.springframework.data.repository.query.Param("keyword") String keyword,
             @org.springframework.data.repository.query.Param("categoryId") Long categoryId,
+            @org.springframework.data.repository.query.Param("targetDemographic") String targetDemographic,
+            @org.springframework.data.repository.query.Param("targetDemographics") java.util.List<String> targetDemographics,
             @org.springframework.data.repository.query.Param("minPrice") java.math.BigDecimal minPrice,
             @org.springframework.data.repository.query.Param("maxPrice") java.math.BigDecimal maxPrice,
             Pageable pageable);

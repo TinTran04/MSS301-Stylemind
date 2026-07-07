@@ -30,6 +30,7 @@ public class PublicProductController {
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getProducts(
             @RequestParam(required = false) Long category,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String targetDemographic,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(defaultValue = "createdAt,desc") String sort,
@@ -42,7 +43,14 @@ public class PublicProductController {
         
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortParts[0]));
         
-        PageResponse<ProductResponse> response = productService.getProducts(category, search, minPrice, maxPrice, sort, pageable);
+        PageResponse<ProductResponse> response = productService.getProducts(
+                category,
+                search,
+                targetDemographic,
+                minPrice,
+                maxPrice,
+                sort,
+                pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách sản phẩm thành công", response));
     }
 

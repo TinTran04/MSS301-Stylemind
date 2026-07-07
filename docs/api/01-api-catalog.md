@@ -38,7 +38,7 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 | Method | Endpoint | Mô tả |
 |---|---|---|
 | GET | `/api/v1/categories` | Public: full flat category list (incl. children); `parentId` → direct children |
-| GET | `/api/v1/products` | ACTIVE listing có ít nhất một variant; search/filter/sort/pagination |
+| GET | `/api/v1/products` | ACTIVE listing có ít nhất một variant; search/filter/sort/pagination (`targetDemographic` optional) |
 | GET | `/api/v1/products/{id}` | ACTIVE product detail có ít nhất một variant |
 | GET | `/api/v1/products/{productId}/variants` | Variants của ACTIVE product có ít nhất một variant |
 | GET | `/api/v1/admin/categories` | Toàn bộ category cho admin |
@@ -63,6 +63,9 @@ Product create không nhận variants và tiếp tục trả `ProductResponse` h
 (`categoryId`/`categoryName`, không dùng nested category và không thêm
 `effectivePrice`). Admin tạo variants và images qua các subresource sau khi nhận
 `productId`.
+
+Public product list hỗ trợ filter `targetDemographic` để FE hiển thị bộ lọc
+`Tất cả / Nam / Nữ / Unisex` mà không cần schema hay path mới.
 
 Product conflict responses dùng error envelope chuẩn:
 - Activate product chưa có variant: HTTP `409`, `PRODUCT_REQUIRES_VARIANT`,

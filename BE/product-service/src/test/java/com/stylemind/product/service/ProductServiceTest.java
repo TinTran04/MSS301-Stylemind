@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
@@ -184,7 +185,7 @@ class ProductServiceTest {
     void getProducts_batchLoadsCategoryImagesAndVariants() {
         activeProduct.setCategoryId(10L);
         PageRequest pageable = PageRequest.of(0, 20);
-        when(productRepository.searchAndFilter(isNull(), isNull(), isNull(), isNull(), eq(pageable)))
+        when(productRepository.searchAndFilter(isNull(), isNull(), isNull(), anyList(), isNull(), isNull(), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(activeProduct), pageable, 1));
         when(categoryRepository.findAllById(List.of(10L))).thenReturn(List.of(
                 Category.builder().id(10L).name("Áo sơ mi").slug("ao-so-mi").build()));
@@ -192,13 +193,24 @@ class ProductServiceTest {
         when(variantRepository.findByProductIdIn(List.of("p1"))).thenReturn(List.of(variant));
 
         PageResponse<ProductResponse> response = productService.getProducts(
-                null, null, null, null, "createdAt,desc", pageable);
+                null, null, null, null, null, "createdAt,desc", pageable);
 
         assertEquals(1, response.getContent().size());
         assertEquals("Áo sơ mi", response.getContent().get(0).getCategoryName());
         assertEquals(1, response.getContent().get(0).getVariants().size());
         verify(imageRepository, never()).findByProductId("p1");
         verify(variantRepository, never()).findByProductId("p1");
+    }
+
+    @Test
+    void getProducts_normalizesTargetDemographicAliases() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(productRepository.searchAndFilter(isNull(), isNull(), eq("Nam"), eq(List.of("nam", "male", "men")), isNull(), isNull(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        productService.getProducts(null, null, "Nam", null, null, "createdAt,desc", pageable);
+
+        verify(productRepository).searchAndFilter(isNull(), isNull(), eq("Nam"), eq(List.of("nam", "male", "men")), isNull(), isNull(), eq(pageable));
     }
 
     @Test
@@ -281,7 +293,7 @@ class ProductServiceTest {
     void getVariantSnapshot_priceOverrideNull_usesBasePrice() {
         when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
         when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
-        when(imageRepository.findByProductIdAndIsPrimaryTrue("p1")).thenReturn(Optional.empty());
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
 
         VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
 
@@ -293,7 +305,7 @@ class ProductServiceTest {
         variant.setPriceOverride(new BigDecimal("120.00"));
         when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
         when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
-        when(imageRepository.findByProductIdAndIsPrimaryTrue("p1")).thenReturn(Optional.empty());
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
 
         VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
 
@@ -304,7 +316,7 @@ class ProductServiceTest {
     void getVariantSnapshot_includesStockAndActive() {
         when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
         when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
-        when(imageRepository.findByProductIdAndIsPrimaryTrue("p1")).thenReturn(Optional.empty());
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
 
         VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
 
@@ -335,11 +347,28 @@ class ProductServiceTest {
     void getVariantSnapshot_includesCurrency() {
         when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
         when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
-        when(imageRepository.findByProductIdAndIsPrimaryTrue("p1")).thenReturn(Optional.empty());
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
 
         VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
 
         assertEquals("VND", response.getCurrency());
+    }
+
+    @Test
+    void getVariantSnapshot_fallsBackToFirstImageWhenNoPrimaryImageExists() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of(
+                ProductImage.builder()
+                        .id(1L)
+                        .productId("p1")
+                        .imageUrl("https://cdn.example/product.jpg")
+                        .isPrimary(false)
+                        .build()));
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
+
+        assertEquals("https://cdn.example/product.jpg", response.getPrimaryImageUrl());
     }
 
     @Test

@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import ProductCard from '../../components/customer/ProductCard'
 import ProductFilter from '../../components/customer/ProductFilter'
 import { getCategories, getProductPage } from '../../features/products/product.api'
+import { getTargetDemographicOptions, normalizeTargetDemographic } from '../../features/products/product.demographic'
 
 const PAGE_SIZE = 12
 
@@ -26,6 +27,7 @@ export default function ProductCatalogPage() {
     minPrice: null,
     maxPrice: null,
     sort: 'newest',
+    targetDemographic: normalizeTargetDemographic(searchParams.get('targetDemographic')),
     page: 0,
   })
 
@@ -71,6 +73,14 @@ export default function ProductCatalogPage() {
     setFilters((current) => ({
       ...current,
       category: category ? String(category.id) : null,
+      page: 0,
+    }))
+  }
+
+  const selectDemographic = (targetDemographic) => {
+    setFilters((current) => ({
+      ...current,
+      targetDemographic,
       page: 0,
     }))
   }
@@ -128,6 +138,27 @@ export default function ProductCatalogPage() {
           )
         })}
       </nav>
+
+      <div className="flex flex-wrap items-center gap-2 pb-4 pt-1">
+        <span className="text-xs font-medium uppercase text-on-surface-variant">Đối tượng</span>
+        {getTargetDemographicOptions().map((option) => {
+          const active = normalizeTargetDemographic(filters.targetDemographic) === normalizeTargetDemographic(option.value)
+          return (
+            <button
+              key={option.value || 'all'}
+              type="button"
+              onClick={() => selectDemographic(option.value)}
+              className={`shrink-0 rounded-lg border px-4 py-2 text-sm transition-colors ${
+                active
+                  ? 'border-primary bg-primary text-on-primary'
+                  : 'border-outline-variant/30 bg-surface-container-lowest text-primary hover:border-primary'
+              }`}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
 
       {categoryError ? (
         <p className="-mt-2 pb-2 text-xs text-on-surface-variant">

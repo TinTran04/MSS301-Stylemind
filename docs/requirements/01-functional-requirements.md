@@ -47,7 +47,8 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 | ID | Requirement | Priority |
 |---|---|---|
 | PROD-01..02 | Public xem list/detail ACTIVE | Must |
-| PROD-03 | Search/category/price/sort/pagination; chỉ dữ liệu thật | Must |
+| PROD-03 | Search/category/targetDemographic/price/sort/pagination; chỉ dữ liệu thật | Must |
+| PROD-03a | Product card cart icon mở product detail để chọn variant, không quick-add trực tiếp từ card | Must |
 | PROD-04 | Admin CRUD category; chặn xóa category đang dùng/có child bằng `409` | Must |
 | PROD-05 | Admin create/update/deactivate product; product được tạo trước subresources | Must |
 | PROD-06 | Admin quản lý variants với unique SKU; mỗi variant là tổ hợp size/color/material với `stockQuantity`/`active` riêng; chặn trùng tổ hợp size+color+material cho cùng product | Must |

@@ -28,6 +28,10 @@ import {
   validateVariantFields,
 } from '../../features/products/admin-product-errors'
 import {
+  getTargetDemographicAdminOptions,
+  normalizeTargetDemographic,
+} from '../../features/products/product.demographic'
+import {
   formatVariantPrice,
   formatVariantStock,
   formatVariantStatus,
@@ -312,7 +316,7 @@ export default function ProductManagementPage() {
       basePrice: String(product.basePrice ?? ''),
       categoryId: product.categoryId ? String(product.categoryId) : '',
       aestheticStyle: product.aestheticStyle || '',
-      targetDemographic: product.targetDemographic || '',
+      targetDemographic: normalizeTargetDemographic(product.targetDemographic),
       seasonalProperty: product.seasonalProperty || '',
       status: product.status || 'ACTIVE',
     })
@@ -961,7 +965,18 @@ export default function ProductManagementPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Đối tượng khách hàng</label>
-                  <input value={form.targetDemographic} onChange={(e) => setForm({ ...form, targetDemographic: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+                  <select
+                    value={form.targetDemographic}
+                    onChange={(e) => setForm({ ...form, targetDemographic: e.target.value })}
+                    className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none"
+                  >
+                    <option value="">Tất cả</option>
+                    {getTargetDemographicAdminOptions().map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Mùa sử dụng</label>

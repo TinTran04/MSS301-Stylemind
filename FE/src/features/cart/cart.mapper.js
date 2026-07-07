@@ -1,8 +1,4 @@
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=800&fit=crop'
-
-function getImage(images = []) {
-  return images.find((image) => image.isPrimary)?.imageUrl || images[0]?.imageUrl || FALLBACK_IMAGE
-}
+import { resolveCartItemImage } from './cart.display.js'
 
 export function mapCartItem(item) {
   if (item.available === false) {
@@ -18,7 +14,8 @@ export function mapCartItem(item) {
       size: null,
       color: null,
       material: null,
-      images: [FALLBACK_IMAGE],
+      imageUrl: null,
+      images: [],
       isAiRecommended: item.isAiRecommended,
       sourceBundleId: item.sourceBundleId,
     }
@@ -27,6 +24,15 @@ export function mapCartItem(item) {
   const variant = item.variant || {}
   const product = variant.product || {}
   const price = Number(variant.priceOverride || product.basePrice || 0)
+  const resolvedImage = resolveCartItemImage({
+    imageUrl: item.imageUrl,
+    productImageUrl: item.productImageUrl,
+    primaryImageUrl: item.primaryImageUrl,
+    mainImageUrl: item.mainImageUrl,
+    variantInfo: item.variantInfo,
+    variant,
+    images: item.images,
+  }) || resolveCartItemImage(product)
 
   return {
     id: product.id || variant.id || item.variantId,
@@ -40,7 +46,8 @@ export function mapCartItem(item) {
     size: variant.size || 'Một cỡ',
     color: variant.color || 'Mặc định',
     material: variant.material || null,
-    images: [getImage(product.images)],
+    imageUrl: resolvedImage,
+    images: resolvedImage ? [resolvedImage] : [],
     isAiRecommended: item.isAiRecommended,
     sourceBundleId: item.sourceBundleId,
   }

@@ -40,6 +40,8 @@ Stack: ReactJS/Vite. Frontend chỉ gọi API qua Gateway (`VITE_API_BASE_URL`, 
 - UI payment ghi "Thanh toán qua SePay (VietQR)", không dùng "Simulated Online Payment".
 - CUSTOMER không thấy admin menu; chỉ ADMIN vào `/admin/**`.
 - Shop (`/shop`) load category từ `GET /api/v1/categories` (qua gateway), render danh sách phẳng thật gồm cả category con; **không hardcode**. "Tất cả" là option FE để clear filter; chọn category lọc theo `category=<id>`. Lỗi tải category → giữ "Tất cả" + thông báo thân thiện, không crash.
+- Shop (`/shop`) có thêm filter target demographic thật từ field `targetDemographic` của product: `Tất cả / Nam / Nữ / Unisex`, kết hợp an toàn với category/search/sort; frontend chỉ hiển thị copy tiếng Việt, còn giá trị backend giữ nguyên.
+- Product card cart icon trên storefront không quick-add nữa: bấm vào icon cart trên card sẽ mở `/products/{productId}` để customer tự chọn phân loại, còn icon cart ở header vẫn giữ hành vi đi `/cart`.
 - `/admin/products` Add Product dùng ba bước: Product Info → Variants → Images / Finish.
 - Step 1 gọi create product API hiện có với `INACTIVE`, giữ drawer mở và lưu `productId`; Step 2/3 tái sử dụng variant/image API hiện có.
 - Continue, Finish và Publish bị disable tới khi có ít nhất một persisted variant. Backend `409` vẫn là guard authoritative.

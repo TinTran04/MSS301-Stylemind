@@ -21,6 +21,7 @@ export async function getProductPage(filters = {}) {
   if (filters.search) params.search = filters.search
   if (filters.minPrice != null) params.minPrice = filters.minPrice
   if (filters.maxPrice != null) params.maxPrice = filters.maxPrice
+  if (filters.targetDemographic) params.targetDemographic = filters.targetDemographic
   if (filters.category && !Number.isNaN(Number(filters.category))) {
     params.category = Number(filters.category)
   }

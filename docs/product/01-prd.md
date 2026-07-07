@@ -31,3 +31,7 @@ StyleMind giúp khách mua sắm nhanh hơn, chọn sản phẩm phù hợp hơn
 - Admin quản lý stock trực tiếp trên từng variant (thêm/sửa/xóa, xem và chỉnh số lượng tồn kho).
 - Customer chỉ được chọn tổ hợp size/color thực sự tồn tại trong dữ liệu variant; nhãn màu/kích cỡ trùng lặp do khác hoa/thường (`trắng`/`Trắng`) được gộp khi hiển thị nhưng vẫn khớp đúng variant gốc khi thêm vào giỏ.
 - Tổ hợp hết hàng (`stockQuantity = 0`) hoặc bị vô hiệu hóa (`active = false`) hiển thị nhưng bị disable, nhãn "Hết hàng"; Add to Cart chỉ bật khi đã chọn variant hợp lệ và còn hàng.
+
+## Customer Browsing
+- Shop cho phép lọc sản phẩm theo `targetDemographic` với 4 chế độ hiển thị: `Tất cả`, `Nam`, `Nữ`, `Unisex`.
+- Product card cart icon trên storefront là shortcut đi tới trang chi tiết sản phẩm để chọn variant, không phải quick-add trực tiếp vào giỏ.
