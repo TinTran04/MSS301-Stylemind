@@ -69,6 +69,7 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 | CART-08 | Track AI recommended item | Should |
 | CART-09 | Cart item hiển thị tên/ảnh/size/color/material/giá thật lấy từ product-service, không dùng placeholder cho item hợp lệ; item mất/ngừng bán hiển thị trạng thái "không còn khả dụng" thay vì giá "$0" | Must |
 | CART-10 | Thêm vào giỏ chặn variant hết hàng (`stockQuantity=0`) hoặc bị vô hiệu hóa (`active=false`), trả `VARIANT_OUT_OF_STOCK` với thông báo "Biến thể này đã hết hàng." | Must |
+| CART-11 | Checkout từ cart luôn khởi tạo session thanh toán mới của cart hiện tại, không tái sử dụng state xác nhận/thanh toán cũ của order trước | Must |
 
 ## Order
 | ID | Requirement | Priority |

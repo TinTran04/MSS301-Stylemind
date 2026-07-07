@@ -116,6 +116,13 @@ export default function CustomerLayout() {
                       <p className="text-xs text-on-surface-variant truncate">{user?.email}</p>
                     </div>
                     <Link
+                      to="/profile"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"
+                    >
+                      <User size={14} /> Hồ sơ cá nhân
+                    </Link>
+                    <Link
                       to="/orders"
                       onClick={() => setProfileOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"

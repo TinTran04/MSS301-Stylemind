@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { MapPin, CreditCard, Lock, AlertTriangle, Check, Sparkles, Loader2, ArrowRight, RotateCcw, Banknote } from 'lucide-react'
 import usePaymentStore from '../../features/payment/payment.store'
 import { useCart } from '../../hooks/useCart'
@@ -14,6 +14,7 @@ const paymentMethods = [
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart()
   const { status, steps, error, method, setMethod, processPayment, stopPolling, reset, lastOrder } = usePaymentStore()
+  const location = useLocation()
   const navigate = useNavigate()
 
   const [shippingAddress, setShippingAddress] = useState('')
@@ -30,6 +31,12 @@ export default function CheckoutPage() {
       navigate('/shop')
     }
   }, [items.length, status, navigate])
+
+  useLayoutEffect(() => {
+    if (location.state?.freshCheckout) {
+      reset()
+    }
+  }, [location.state, reset])
 
   // Cart is cleared here (rather than only in the sandbox-confirm handler) so
   // it also happens if a PAID transition is ever observed purely via polling.

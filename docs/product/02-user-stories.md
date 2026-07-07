@@ -5,7 +5,7 @@
 - As a guest, I want to add products to a guest cart, so that I can keep shopping before login.
 
 ## Customer
-- As a customer, I want to login and manage my profile, so that I can use the platform with my info.
+- As a customer, I want to login and manage my profile, shipping addresses, and style profile, so that I can use the platform with my info.
 - As a customer, I want to reset my password when I forget it, so that I can recover access.
 - As a customer, I want to checkout and pay via COD or SePay, so that I can place an order.
 - As a customer, I want to track my orders, so that I know their status.

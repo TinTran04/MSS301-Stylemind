@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ShoppingBag, ArrowRight, Sparkles } from 'lucide-react'
 import CartItem from '../../components/customer/CartItem'
 import { useCart } from '../../hooks/useCart'
@@ -6,10 +6,15 @@ import { formatCurrency } from '../../utils/formatCurrency'
 
 export default function CartPage() {
   const { items, subtotal, loading, error } = useCart()
+  const navigate = useNavigate()
 
   const shipping = subtotal > 200 ? 0 : 15
   const tax = Math.round(subtotal * 0.08 * 100) / 100
   const total = subtotal + shipping + tax
+
+  const handleCheckout = () => {
+    navigate('/checkout', { state: { freshCheckout: true } })
+  }
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 md:px-16 py-8">
@@ -71,12 +76,13 @@ export default function CartPage() {
                 </div>
               )}
 
-              <Link
-                to="/checkout"
+              <button
+                type="button"
+                onClick={handleCheckout}
                 className="block w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium text-center hover:opacity-90 transition-opacity tracking-[0.1em] uppercase no-underline"
               >
                 Thanh toán
-              </Link>
+              </button>
 
               <div className="flex items-center justify-center gap-1.5 text-xs text-on-surface-variant">
                 <span className="material-symbols-outlined text-sm">lock</span>

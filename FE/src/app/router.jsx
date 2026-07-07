@@ -40,6 +40,7 @@ export default function AppRouter() {
         <Route path="/verify-reset-otp" element={<VerifyResetOtpPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<RequireAuth />}>
+          <Route path="/profile" element={<StyleProfilePage />} />
           <Route path="/style-profile" element={<StyleProfilePage />} />
         </Route>
       </Route>
