@@ -10,6 +10,24 @@ const ROLE_STYLES = {
   CUSTOMER: 'bg-surface-container-high text-on-surface-variant',
 }
 
+const ROLE_LABELS = {
+  ADMIN: 'Quản trị viên',
+  CUSTOMER: 'Khách hàng',
+  MANAGER: 'Quản lý',
+  STAFF: 'Nhân viên',
+  ANALYST: 'Nhà phân tích',
+}
+
+const PROVIDER_LABELS = {
+  LOCAL: 'Nội bộ',
+  GOOGLE: 'Google',
+}
+
+const STATUS_LABELS = {
+  active: 'Đang hoạt động',
+  disabled: 'Ngừng hoạt động',
+}
+
 const PAGE_SIZE = 20
 
 export default function UserManagementPage() {
@@ -94,15 +112,15 @@ export default function UserManagementPage() {
     // Disabling is impactful (locks the account out) — confirm first.
     // Re-enabling is not destructive, so it applies immediately.
     if (currentEnabled) {
-      requestConfirm({
-        title: 'Vô hiệu hóa tài khoản?',
-        message: 'Tài khoản này sẽ không thể đăng nhập sau khi bị vô hiệu hóa.',
-        confirmLabel: 'Vô hiệu hóa',
-        destructive: true,
-        onConfirm: async () => {
-          const updated = await toggleEnabled(userId, false)
-          if (updated) setSelected(updated)
-        },
+    requestConfirm({
+      title: 'Vô hiệu hóa tài khoản?',
+      message: 'Tài khoản này sẽ không thể đăng nhập sau khi bị vô hiệu hóa.',
+      confirmLabel: 'Vô hiệu hóa',
+      destructive: true,
+      onConfirm: async () => {
+        const updated = await toggleEnabled(userId, false)
+        if (updated) setSelected(updated)
+      },
       })
       return
     }
@@ -160,7 +178,7 @@ export default function UserManagementPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-headline-md text-primary">User Management</h1>
+          <h1 className="font-headline-md text-primary">Quản lý người dùng</h1>
           <p className="text-sm text-on-surface-variant mt-1">
             {loading ? 'Đang tải…' : `${totalElements} người dùng`}
           </p>
@@ -197,34 +215,34 @@ export default function UserManagementPage() {
         <div className="flex-1 bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden">
           {/* Search + filter bar */}
           <div className="p-4 border-b border-outline-variant/20 flex flex-wrap gap-3">
-            <div className="relative max-w-sm flex-1 min-w-[200px]">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Tìm theo email…"
-                className="w-full pl-9 pr-4 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none"
-              />
-            </div>
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none"
-            >
-              <option value="">Mọi role</option>
-              <option value="ADMIN">ADMIN</option>
-              <option value="CUSTOMER">CUSTOMER</option>
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none"
-            >
-              <option value="">Mọi trạng thái</option>
-              <option value="active">Active</option>
-              <option value="disabled">Banned</option>
-            </select>
+          <div className="relative max-w-sm flex-1 min-w-[200px]">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm theo email..."
+              className="w-full pl-9 pr-4 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none"
+            />
+          </div>
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="px-3 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none"
+          >
+            <option value="">Mọi vai trò</option>
+            <option value="ADMIN">Quản trị viên</option>
+            <option value="CUSTOMER">Khách hàng</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none"
+          >
+            <option value="">Mọi trạng thái</option>
+            <option value="active">Đang hoạt động</option>
+            <option value="disabled">Ngừng hoạt động</option>
+          </select>
           </div>
 
           {/* Table body */}
@@ -233,8 +251,8 @@ export default function UserManagementPage() {
               <thead>
                 <tr className="bg-surface-container-low/50">
                   <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Người dùng</th>
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Role</th>
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Provider</th>
+                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Vai trò</th>
+                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Nhà cung cấp</th>
                   <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Trạng thái</th>
                   <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Ngày tạo</th>
                 </tr>
@@ -274,13 +292,13 @@ export default function UserManagementPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_STYLES[u.role] || ROLE_STYLES.CUSTOMER}`}>
-                        {u.role}
+                        {ROLE_LABELS[u.role] || u.role}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-on-surface-variant uppercase">{u.provider}</td>
+                    <td className="px-4 py-3 text-xs text-on-surface-variant uppercase">{PROVIDER_LABELS[u.provider] || u.provider}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${u.enabled ? 'bg-tertiary-fixed/30 text-tertiary' : 'bg-error/15 text-error'}`}>
-                        {u.enabled ? 'Active' : 'Banned'}
+                        {u.enabled ? 'Đang hoạt động' : 'Ngừng hoạt động'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-on-surface-variant">
@@ -296,7 +314,7 @@ export default function UserManagementPage() {
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant/20 text-sm text-on-surface-variant">
               <span>
-                Trang {currentPage + 1} / {totalPages} · {totalElements} users
+                Trang {currentPage + 1} / {totalPages} · {totalElements} người dùng
               </span>
               <div className="flex gap-2">
                 <button
@@ -330,7 +348,7 @@ export default function UserManagementPage() {
                 <h3 className="font-title-lg text-primary leading-tight break-all">{selected.email}</h3>
                 <div className="flex items-center gap-2 mt-2">
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${ROLE_STYLES[selected.role] || ROLE_STYLES.CUSTOMER}`}>
-                    {selected.role}
+                    {ROLE_LABELS[selected.role] || selected.role}
                   </span>
                   {selected.id === currentUserId && (
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant">
@@ -343,13 +361,13 @@ export default function UserManagementPage() {
               {/* Info */}
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Provider</span>
-                  <span className="font-medium text-primary uppercase">{selected.provider}</span>
+                  <span className="text-on-surface-variant">Nhà cung cấp</span>
+                  <span className="font-medium text-primary uppercase">{PROVIDER_LABELS[selected.provider] || selected.provider}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-on-surface-variant">Trạng thái</span>
                   <span className={`font-medium ${selected.enabled ? 'text-tertiary' : 'text-error'}`}>
-                    {selected.enabled ? 'Active' : 'Banned'}
+                    {selected.enabled ? 'Đang hoạt động' : 'Ngừng hoạt động'}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -379,9 +397,9 @@ export default function UserManagementPage() {
                     className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-medium bg-surface-container hover:bg-surface-container-high transition-colors disabled:opacity-40"
                   >
                     {selected.role === 'ADMIN' ? (
-                      <><ShieldOff size={14} /> Hạ xuống CUSTOMER</>
+                      <><ShieldOff size={14} /> Chuyển thành Khách hàng</>
                     ) : (
-                      <><Shield size={14} /> Nâng lên ADMIN</>
+                      <><Shield size={14} /> Chuyển thành Quản trị viên</>
                     )}
                   </button>
 
@@ -410,10 +428,10 @@ export default function UserManagementPage() {
                   </button>
                 </div>
               ) : (
-                <p className="text-xs text-on-surface-variant text-center border-t border-outline-variant/20 pt-3">
-                  Bạn không thể tự khóa, xóa hoặc đổi role của chính mình.
-                </p>
-              )}
+              <p className="text-xs text-on-surface-variant text-center border-t border-outline-variant/20 pt-3">
+                Bạn không thể tự khóa, xóa hoặc đổi role của chính mình.
+              </p>
+            )}
             </div>
           </div>
         )}
@@ -435,19 +453,19 @@ export default function UserManagementPage() {
               required
               value={createForm.email}
               onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-              placeholder="user@example.com"
+              placeholder="ten@vidu.com"
               className="w-full px-3 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-on-surface-variant mb-1">Role</label>
+            <label className="block text-xs font-medium text-on-surface-variant mb-1">Vai trò</label>
             <select
               value={createForm.role}
               onChange={(e) => setCreateForm({ ...createForm, role: e.target.value })}
               className="w-full px-3 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none"
             >
-              <option value="CUSTOMER">CUSTOMER</option>
-              <option value="ADMIN">ADMIN</option>
+              <option value="CUSTOMER">Khách hàng</option>
+              <option value="ADMIN">Quản trị viên</option>
             </select>
           </div>
           <p className="text-xs text-on-surface-variant">

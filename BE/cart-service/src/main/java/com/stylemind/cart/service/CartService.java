@@ -131,6 +131,8 @@ public class CartService {
             return getCart(userId, null);
         }
 
+        log.info("Merging guest cart into user cart: userId={}, guestCartPresent=true", userId);
+
         ShoppingCart userCart = cartRepository.findById(userCartId).orElse(null);
         if (userCart == null) {
             List<CartItem> guestOnlyItems = cartItemRepository.findByCartId(guestCartId);
@@ -145,18 +147,19 @@ public class CartService {
         }
 
         List<CartItem> guestItems = cartItemRepository.findByCartId(guestCartId);
+        log.info("Guest cart merge details: userId={}, guestCartId={}, guestItemCount={}", userId, guestCartId, guestItems.size());
         for (CartItem guestItem : guestItems) {
             CartItem existing = cartItemRepository.findByCartIdAndVariantId(userCartId, guestItem.getVariantId()).orElse(null);
             if (existing != null) {
                 existing.setQuantity(existing.getQuantity() + guestItem.getQuantity());
                 cartItemRepository.save(existing);
+                cartItemRepository.delete(guestItem);
             } else {
                 guestItem.setCartId(userCartId);
                 cartItemRepository.save(guestItem);
             }
         }
 
-        cartItemRepository.deleteAll(guestItems);
         cartRepository.delete(guestCart);
 
         return getCart(userId, null);
@@ -189,6 +192,10 @@ public class CartService {
 
         if (!"ACTIVE".equalsIgnoreCase(snapshot.getStatus())) {
             throw new BusinessException("PRODUCT_NOT_ACTIVE", "Sản phẩm hiện không khả dụng", 400);
+        }
+        if (Boolean.FALSE.equals(snapshot.getActive())
+                || (snapshot.getStockQuantity() != null && snapshot.getStockQuantity() <= 0)) {
+            throw new BusinessException("VARIANT_OUT_OF_STOCK", "Biến thể này đã hết hàng.", 400);
         }
     }
 

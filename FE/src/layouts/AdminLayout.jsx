@@ -8,15 +8,15 @@ import { useAuth } from '../hooks/useAuth'
 import { getInitials } from '../features/auth/auth.utils'
 
 const sidebarLinks = [
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin/products', label: 'Products', icon: Package },
-  { to: '/admin/orders', label: 'Orders', icon: ShoppingCart },
-  { to: '/admin/users', label: 'User Management', icon: UserCog },
-  { to: '/admin/notifications', label: 'Notifications', icon: Bell },
-  { to: '/admin/ai-pipeline', label: 'AI Pipeline', icon: Brain },
-  { to: '/admin/knowledge-graph', label: 'Knowledge Graph', icon: Network },
-  { to: '/admin/recommendations', label: 'Recommendations', icon: BarChart3 },
-  { to: '/admin/settings', label: 'Settings', icon: Settings },
+  { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
+  { to: '/admin/products', label: 'Sản phẩm', icon: Package },
+  { to: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
+  { to: '/admin/users', label: 'Quản lý người dùng', icon: UserCog },
+  { to: '/admin/notifications', label: 'Thông báo', icon: Bell },
+  { to: '/admin/ai-pipeline', label: 'Quy trình AI', icon: Brain },
+  { to: '/admin/knowledge-graph', label: 'Đồ thị tri thức', icon: Network },
+  { to: '/admin/recommendations', label: 'Gợi ý AI', icon: BarChart3 },
+  { to: '/admin/settings', label: 'Cài đặt', icon: Settings },
 ]
 
 export default function AdminLayout() {
@@ -31,7 +31,7 @@ export default function AdminLayout() {
   }
 
   const initials = getInitials(user?.name || user?.email)
-  const displayName = user?.name || user?.email || 'Admin'
+  const displayName = user?.name || user?.email || 'Quản trị viên'
 
   return (
     <div className="min-h-screen bg-background">
@@ -62,7 +62,7 @@ export default function AdminLayout() {
               </div>
               <div className="overflow-hidden">
                 <p className="text-sm font-medium text-on-surface truncate">{displayName}</p>
-                <p className="text-xs text-on-surface-variant truncate">Administrator</p>
+                <p className="text-xs text-on-surface-variant truncate">Quản trị viên</p>
               </div>
             </div>
           )}
@@ -103,27 +103,27 @@ export default function AdminLayout() {
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm no-underline text-on-surface-variant hover:bg-surface-container-high transition-all ${
               collapsed ? 'justify-center' : ''
             }`}
-            title={collapsed ? 'Back to Store' : undefined}
+            title={collapsed ? 'Quay lại cửa hàng' : undefined}
           >
             <Store size={18} />
-            {!collapsed && <span>Back to Store</span>}
+            {!collapsed && <span>Quay lại cửa hàng</span>}
           </Link>
           <button
             onClick={handleLogout}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-error hover:bg-error-container/20 transition-all ${
               collapsed ? 'justify-center' : ''
             }`}
-            title={collapsed ? 'Sign Out' : undefined}
+            title={collapsed ? 'Đăng xuất' : undefined}
           >
             <LogOut size={18} />
-            {!collapsed && <span>Sign Out</span>}
+            {!collapsed && <span>Đăng xuất</span>}
           </button>
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-all"
           >
             {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            {!collapsed && <span>Collapse</span>}
+            {!collapsed && <span>Thu gọn</span>}
           </button>
         </div>
       </aside>
@@ -137,7 +137,7 @@ export default function AdminLayout() {
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Tìm kiếm..."
                 className="w-full pl-9 pr-4 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none focus:ring-1 focus:ring-tertiary-container"
               />
             </div>
@@ -153,10 +153,10 @@ export default function AdminLayout() {
             <button
               onClick={handleLogout}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-error hover:bg-error-container/20 transition-colors"
-              title="Sign Out"
+              title="Đăng xuất"
             >
               <LogOut size={16} />
-              <span className="hidden md:inline">Sign Out</span>
+              <span className="hidden md:inline">Đăng xuất</span>
             </button>
             <div className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center text-sm font-semibold">
               {initials}

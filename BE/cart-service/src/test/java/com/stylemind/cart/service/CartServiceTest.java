@@ -316,8 +316,124 @@ class CartServiceTest {
         cartService.mergeCart("user-1", req);
 
         assertThat(userItem.getQuantity()).isEqualTo(5);
-        verify(cartItemRepository).deleteAll(List.of(guestItem));
+        verify(cartItemRepository).delete(guestItem);
         verify(cartItemRepository, never()).save(argThat(item -> item.getCartId().equals("guest_sess-1")));
+    }
+
+    @Test
+    void mergeCart_existingUserCart_differentVariant_copiedAsSeparateItemNotMerged() {
+        ShoppingCart guestCart = cart("guest_sess-1");
+        ShoppingCart userCart = cart("user-1");
+        CartItem guestItem = cartItem("g-item-1", "guest_sess-1", "var-B", 2);
+        CartItem userItem = cartItem("u-item-1", "user-1", "var-A", 3);
+
+        when(cartRepository.findById("guest_sess-1")).thenReturn(Optional.of(guestCart));
+        when(cartRepository.findById("user-1")).thenReturn(Optional.of(userCart));
+        when(cartItemRepository.findByCartId("guest_sess-1")).thenReturn(List.of(guestItem));
+        // No existing item for var-B in the user's cart -> should be copied over, not merged.
+        when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-B")).thenReturn(Optional.empty());
+        when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(userItem, guestItem));
+
+        CartMergeRequest req = new CartMergeRequest();
+        req.setGuestSessionId("sess-1");
+
+        cartService.mergeCart("user-1", req);
+
+        // The distinct-variant guest item is repointed to the user's cart as its own row,
+        // and the pre-existing user item for a different variant is left untouched.
+        assertThat(guestItem.getCartId()).isEqualTo("user-1");
+        assertThat(guestItem.getQuantity()).isEqualTo(2);
+        assertThat(userItem.getQuantity()).isEqualTo(3);
+        verify(cartItemRepository).save(guestItem);
+        verify(cartItemRepository, never()).save(userItem);
+        verify(cartItemRepository, never()).deleteAll(List.of(guestItem));
+        verify(cartItemRepository, never()).delete(guestItem);
+    }
+
+    @Test
+    void mergeCart_existingUserCart_mixedVariants_movesDistinctItemAndDeletesOnlyMergedGuestDuplicate() {
+        ShoppingCart guestCart = cart("guest_sess-1");
+        ShoppingCart userCart = cart("user-1");
+        CartItem guestDuplicate = cartItem("g-item-1", "guest_sess-1", "var-A", 2);
+        CartItem guestDistinct = cartItem("g-item-2", "guest_sess-1", "var-B", 1);
+        CartItem userItem = cartItem("u-item-1", "user-1", "var-A", 3);
+
+        when(cartRepository.findById("guest_sess-1")).thenReturn(Optional.of(guestCart));
+        when(cartRepository.findById("user-1")).thenReturn(Optional.of(userCart));
+        when(cartItemRepository.findByCartId("guest_sess-1")).thenReturn(List.of(guestDuplicate, guestDistinct));
+        when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-A")).thenReturn(Optional.of(userItem));
+        when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-B")).thenReturn(Optional.empty());
+        when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(userItem, guestDistinct));
+
+        CartMergeRequest req = new CartMergeRequest();
+        req.setGuestSessionId("sess-1");
+
+        cartService.mergeCart("user-1", req);
+
+        assertThat(userItem.getQuantity()).isEqualTo(5);
+        assertThat(guestDistinct.getCartId()).isEqualTo("user-1");
+        verify(cartItemRepository).delete(guestDuplicate);
+        verify(cartItemRepository, never()).delete(guestDistinct);
+        verify(cartRepository).delete(guestCart);
+    }
+
+    @Test
+    void addItem_outOfStockVariant_rejectedWithFriendlyMessage() {
+        when(productClient.getVariantSnapshot("var-A")).thenReturn(outOfStockVariant("var-A"));
+
+        CartItemRequest req = new CartItemRequest();
+        req.setVariantId("var-A");
+        req.setQuantity(1);
+
+        assertThatThrownBy(() -> cartService.addItem("user-1", null, req))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo("VARIANT_OUT_OF_STOCK");
+        verify(cartItemRepository, never()).save(any());
+    }
+
+    @Test
+    void addItem_inactiveVariantFlag_rejectedEvenIfProductStatusActive() {
+        ProductClient.VariantSnapshot snapshot = new ProductClient.VariantSnapshot();
+        snapshot.setVariantId("var-A");
+        snapshot.setStatus("ACTIVE");
+        snapshot.setActive(false);
+        snapshot.setStockQuantity(5);
+        when(productClient.getVariantSnapshot("var-A")).thenReturn(ApiResponse.success(snapshot));
+
+        CartItemRequest req = new CartItemRequest();
+        req.setVariantId("var-A");
+        req.setQuantity(1);
+
+        assertThatThrownBy(() -> cartService.addItem("user-1", null, req))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo("VARIANT_OUT_OF_STOCK");
+    }
+
+    @Test
+    void addItem_inStockActiveVariant_succeeds() {
+        ShoppingCart cart = cart("user-1");
+        ProductClient.VariantSnapshot snapshot = new ProductClient.VariantSnapshot();
+        snapshot.setVariantId("var-A");
+        snapshot.setStatus("ACTIVE");
+        snapshot.setActive(true);
+        snapshot.setStockQuantity(5);
+        when(productClient.getVariantSnapshot("var-A")).thenReturn(ApiResponse.success(snapshot));
+        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart));
+        when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-A")).thenReturn(Optional.empty());
+        when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of());
+
+        CartItemRequest req = new CartItemRequest();
+        req.setVariantId("var-A");
+        req.setQuantity(1);
+
+        cartService.addItem("user-1", null, req);
+
+        verify(cartItemRepository).save(any());
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────
@@ -326,6 +442,15 @@ class CartServiceTest {
         ProductClient.VariantSnapshot snapshot = new ProductClient.VariantSnapshot();
         snapshot.setVariantId(variantId);
         snapshot.setStatus("ACTIVE");
+        return ApiResponse.success(snapshot);
+    }
+
+    private ApiResponse<ProductClient.VariantSnapshot> outOfStockVariant(String variantId) {
+        ProductClient.VariantSnapshot snapshot = new ProductClient.VariantSnapshot();
+        snapshot.setVariantId(variantId);
+        snapshot.setStatus("ACTIVE");
+        snapshot.setActive(true);
+        snapshot.setStockQuantity(0);
         return ApiResponse.success(snapshot);
     }
 

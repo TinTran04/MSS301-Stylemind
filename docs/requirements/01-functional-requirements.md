@@ -50,7 +50,7 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 | PROD-03 | Search/category/price/sort/pagination; chỉ dữ liệu thật | Must |
 | PROD-04 | Admin CRUD category; chặn xóa category đang dùng/có child bằng `409` | Must |
 | PROD-05 | Admin create/update/deactivate product; product được tạo trước subresources | Must |
-| PROD-06 | Admin quản lý variants với unique SKU; không thêm stock/inventory | Must |
+| PROD-06 | Admin quản lý variants với unique SKU; mỗi variant là tổ hợp size/color/material với `stockQuantity`/`active` riêng; chặn trùng tổ hợp size+color+material cho cùng product | Must |
 | PROD-07 | Admin upload/replace images qua backend Cloudinary; validate type/10 MB; lưu URL/public ID | Should |
 | PROD-08 | Internal variant snapshot (giá authoritative) | Must |
 | PROD-09 | Add Product dùng flow Product Info → Variants → Images / Finish; Step 1 luôn tạo INACTIVE và giữ nguyên create API/`ProductResponse` | Must |
@@ -63,10 +63,11 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 |---|---|---|
 | CART-01..02 | Guest & auth cart | Must |
 | CART-03..05 | Add/update/remove | Must |
-| CART-06 | Merge sau login | Must |
+| CART-06 | Merge sau login: cùng variant cộng dồn quantity (không tạo dòng trùng); guest session id chỉ xóa khi merge thành công, giữ lại và báo lỗi thân thiện nếu merge thất bại | Must |
 | CART-07 | Clear sau checkout | Must |
 | CART-08 | Track AI recommended item | Should |
 | CART-09 | Cart item hiển thị tên/ảnh/size/color/material/giá thật lấy từ product-service, không dùng placeholder cho item hợp lệ; item mất/ngừng bán hiển thị trạng thái "không còn khả dụng" thay vì giá "$0" | Must |
+| CART-10 | Thêm vào giỏ chặn variant hết hàng (`stockQuantity=0`) hoặc bị vô hiệu hóa (`active=false`), trả `VARIANT_OUT_OF_STOCK` với thông báo "Biến thể này đã hết hàng." | Must |
 
 ## Order
 | ID | Requirement | Priority |

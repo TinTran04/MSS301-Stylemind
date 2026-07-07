@@ -5,6 +5,16 @@ import ProductCard from '../../components/customer/ProductCard'
 import ProductImage from '../../components/customer/ProductImage'
 import useCartStore from '../../features/cart/cart.store'
 import { getProductById, getProducts } from '../../features/products/product.api'
+import {
+  getSizeOptions,
+  getColorOptions,
+  isOptionOutOfStock,
+  getAddToCartState,
+  getDisplayedPrice,
+  getVisibleAddToCartMessage,
+  resolveVariant,
+  normalizeLabel,
+} from '../../features/products/product.variant-selection.js'
 
 const priceFormatter = new Intl.NumberFormat('vi-VN', {
   style: 'currency',
@@ -20,6 +30,8 @@ export default function ProductDetailPage() {
   const [error, setError] = useState('')
   const [selectedSize, setSelectedSize] = useState(null)
   const [selectedColor, setSelectedColor] = useState(null)
+  const [selectedVariantId, setSelectedVariantId] = useState(null)
+  const [addToCartAttempted, setAddToCartAttempted] = useState(false)
   const addItem = useCartStore((state) => state.addItem)
 
   useEffect(() => {
@@ -34,8 +46,10 @@ export default function ProductDetailPage() {
       .then(([detail, products]) => {
         if (cancelled) return
         setProduct(detail)
-        setSelectedSize(detail?.sizes?.[0] || null)
-        setSelectedColor(detail?.colors?.[0] || null)
+        setSelectedSize(null)
+        setSelectedColor(null)
+        setSelectedVariantId(null)
+        setAddToCartAttempted(false)
         setRecommendations(products.filter((item) => item.id !== id).slice(0, 3))
       })
       .catch((requestError) => {
@@ -65,7 +79,42 @@ export default function ProductDetailPage() {
     )
   }
 
-  const hasVariant = Boolean(product.availableVariantId)
+  const variants = product.variants || []
+  const hasAnyVariant = variants.length > 0
+  // Selection is size-first: sizes are always the full list (never filtered
+  // by color, since a color can't be picked before its size), and colors
+  // only exist once a size is chosen.
+  const sizeOptions = getSizeOptions(variants, null)
+  const colorOptions = selectedSize ? getColorOptions(variants, selectedSize) : []
+  const addToCartState = getAddToCartState(variants, selectedSize, selectedColor)
+  const selectedVariant = selectedVariantId
+    ? variants.find((variant) => variant.id === selectedVariantId) || null
+    : null
+  const displayPrice = getDisplayedPrice(product.basePrice, selectedVariant)
+  const addToCartMessage = getVisibleAddToCartMessage(variants, selectedSize, selectedColor, addToCartAttempted)
+
+  const handleSelectSize = (size) => {
+    const isSameSize = normalizeLabel(selectedSize) === normalizeLabel(size)
+    // Clicking the already-selected size unselects it; picking a different
+    // size always clears the color, since it belonged to the previous size.
+    setSelectedSize(isSameSize ? null : size)
+    setSelectedColor(null)
+    setSelectedVariantId(null)
+    setAddToCartAttempted(false)
+  }
+
+  const handleSelectColor = (color) => {
+    setSelectedColor(color)
+    setSelectedVariantId(resolveVariant(variants, selectedSize, color)?.id || null)
+    setAddToCartAttempted(false)
+  }
+
+  const handleAddToCart = () => {
+    setAddToCartAttempted(true)
+    if (addToCartState.disabled) return
+    setAddToCartAttempted(false)
+    addItem(product, 1, selectedSize, selectedColor)
+  }
 
   return (
     <main className="mx-auto max-w-[1440px] px-6 py-8 md:px-16">
@@ -85,7 +134,7 @@ export default function ProductDetailPage() {
             ) : null}
             <h1 className="font-headline-md text-primary">{product.name}</h1>
             <p className="mt-3 text-xl font-semibold text-primary">
-              {priceFormatter.format(product.price)}
+              {priceFormatter.format(displayPrice)}
             </p>
           </div>
 
@@ -93,69 +142,92 @@ export default function ProductDetailPage() {
             <p className="leading-relaxed text-on-surface-variant">{product.description}</p>
           ) : null}
 
-          {product.colors.length > 0 ? (
-            <fieldset>
-              <legend className="mb-3 text-xs font-medium uppercase text-on-surface-variant">
-                Màu sắc
-              </legend>
-              <div className="flex flex-wrap gap-2">
-                {product.colors.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setSelectedColor(color)}
-                    className={`rounded-lg border px-4 py-2 text-sm transition-colors ${
-                      selectedColor === color
-                        ? 'border-primary bg-primary text-on-primary'
-                        : 'border-outline-variant/30 hover:border-primary'
-                    }`}
-                  >
-                    {color}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-          ) : null}
-
-          {product.sizes.length > 0 ? (
+          {sizeOptions.length > 0 ? (
             <fieldset>
               <legend className="mb-3 text-xs font-medium uppercase text-on-surface-variant">
                 Kích cỡ
               </legend>
               <div className="flex flex-wrap gap-2">
-                {product.sizes.map((size) => (
-                  <button
-                    key={size}
-                    type="button"
-                    onClick={() => setSelectedSize(size)}
-                    className={`flex h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm transition-colors ${
-                      selectedSize === size
-                        ? 'border-primary bg-primary text-on-primary'
-                        : 'border-outline-variant/30 hover:border-primary'
-                    }`}
-                  >
-                    {size}
-                  </button>
-                ))}
+                {sizeOptions.map((size) => {
+                  const isSelected = normalizeLabel(selectedSize) === normalizeLabel(size)
+                  // Other sizes stay clickable while one is selected — they're
+                  // just muted so the selected size reads as the active choice.
+                  const isMuted = Boolean(selectedSize) && !isSelected
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => handleSelectSize(size)}
+                      className={`flex h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm transition-colors ${
+                        isSelected
+                          ? 'border-primary bg-primary text-on-primary'
+                          : isMuted
+                            ? 'border-outline-variant/20 text-on-surface-variant/60 opacity-60 hover:border-primary hover:opacity-100'
+                            : 'border-outline-variant/30 hover:border-primary'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  )
+                })}
               </div>
             </fieldset>
           ) : null}
 
-          {!hasVariant ? (
+          {hasAnyVariant ? (
+            <fieldset>
+              <legend className="mb-3 text-xs font-medium uppercase text-on-surface-variant">
+                Màu sắc
+              </legend>
+              {!selectedSize ? (
+                <p className="text-sm text-on-surface-variant">Vui lòng chọn kích cỡ trước.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {colorOptions.map((color) => {
+                    const outOfStock = isOptionOutOfStock(variants, 'color', color, 'size', selectedSize)
+                    const isSelected = normalizeLabel(selectedColor) === normalizeLabel(color)
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => handleSelectColor(color)}
+                        disabled={outOfStock}
+                        title={outOfStock ? 'Hết hàng' : undefined}
+                        className={`rounded-lg border px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                          isSelected
+                            ? 'border-primary bg-primary text-on-primary'
+                            : 'border-outline-variant/30 hover:border-primary'
+                        }`}
+                      >
+                        {color}
+                        {outOfStock ? ' · Hết hàng' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </fieldset>
+          ) : null}
+
+          {!hasAnyVariant ? (
             <div className="bg-error-container/40 px-4 py-3 text-sm font-medium text-error">
               Sản phẩm chưa có biến thể khả dụng.
+            </div>
+          ) : addToCartMessage ? (
+            <div className="bg-error-container/40 px-4 py-3 text-sm font-medium text-error">
+              {addToCartMessage}
             </div>
           ) : null}
 
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => addItem(product, 1, selectedSize, selectedColor)}
-              disabled={!hasVariant}
+              onClick={handleAddToCart}
+              disabled={!hasAnyVariant}
               className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ShoppingBag size={16} aria-hidden="true" />
-              {hasVariant ? 'Thêm vào giỏ hàng' : 'Chưa có biến thể'}
+              Thêm vào giỏ hàng
             </button>
             <button
               type="button"

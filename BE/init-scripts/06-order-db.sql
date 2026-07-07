@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS orders (
     user_id VARCHAR(50) NOT NULL,
     total_amount DECIMAL(12,2) NOT NULL,
     order_status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
-    shipping_address TEXT,
+    shipping_address TEXT NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

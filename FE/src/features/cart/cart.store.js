@@ -1,17 +1,17 @@
 import { create } from 'zustand'
 import { peekGuestSessionId, resetGuestSessionId } from '../../services/apiClient'
+import { resolveVariant } from '../products/product.variant-selection.js'
 import { addToCart, getCart, mergeCart, removeCartItem, updateCartItem } from './cart.api'
 
+// When no size/color is given (quick-add from a product card, AI
+// recommendations), fall back to the product's default variant. When a
+// selection IS given (Product Detail page), it must resolve to a real,
+// existing combination — never invent/guess one by silently falling back.
 function selectVariant(product, size, color) {
-  if (!product?.variants?.length) {
+  if (!size && !color) {
     return product?.availableVariantId || null
   }
-
-  return product.variants.find((variant) => {
-    const sizeMatches = !size || variant.size === size
-    const colorMatches = !color || variant.color === color
-    return sizeMatches && colorMatches
-  })?.id || product.availableVariantId
+  return resolveVariant(product?.variants || [], size, color)?.id || null
 }
 
 const useCartStore = create((set, get) => ({
@@ -32,7 +32,7 @@ const useCartStore = create((set, get) => ({
     }
   },
 
-  addItem: async (product, quantity = 1, size = 'M', color = 'Default', aiSource = null) => {
+  addItem: async (product, quantity = 1, size = null, color = null, aiSource = null) => {
     const variantId = selectVariant(product, size, color)
     if (!variantId) {
       set({ error: 'No variant available for this product.' })
@@ -93,6 +93,12 @@ const useCartStore = create((set, get) => ({
     await Promise.allSettled(currentItems.map((item) => removeCartItem(item.cartItemId)))
   },
 
+  // Logout-only: drops the in-memory cart view without touching the server
+  // cart, so the previous user's items/badge count don't linger after logout.
+  resetLocalCart: () => {
+    set({ items: [], cartId: null, error: null, loading: false })
+  },
+
   // Called right after login: folds the guest cart (if any) into the
   // authenticated user's cart, then rotates the guest session id so a
   // future logout/browse-as-guest cycle doesn't re-merge stale items.
@@ -105,10 +111,13 @@ const useCartStore = create((set, get) => ({
     try {
       const cart = await mergeCart(guestSessionId)
       set({ items: cart.items, cartId: cart.cartId, error: null })
-    } catch (err) {
-      set({ error: err.message || 'Unable to merge guest cart.' })
-    } finally {
+      // Only clear the guest id once its cart has actually been folded in —
+      // clearing it on failure would silently orphan the guest cart forever.
       resetGuestSessionId()
+    } catch (err) {
+      set({
+        error: 'Chưa thể đồng bộ giỏ hàng. Hệ thống chưa thể chuyển giỏ hàng tạm thời vào tài khoản của bạn. Vui lòng thử lại sau.',
+      })
     }
   },
 }))

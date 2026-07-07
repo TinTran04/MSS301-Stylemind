@@ -26,8 +26,18 @@ export function getAvailableTransitions(order) {
 }
 
 export function formatStatusLabel(status) {
-  return String(status || '')
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
+  const labels = {
+    PENDING: 'Đang chờ',
+    PAYMENT_PENDING: 'Chờ thanh toán',
+    PAID: 'Đã thanh toán',
+    CONFIRMED: 'Đã xác nhận',
+    PROCESSING: 'Đang xử lý',
+    SHIPPED: 'Đang giao',
+    COMPLETED: 'Hoàn tất',
+    CANCELLED: 'Đã hủy',
+    EXPIRED: 'Đã hết hạn',
+    FAILED: 'Thất bại',
+  }
+  const key = String(status || '').toUpperCase()
+  return labels[key] || String(status || '')
 }

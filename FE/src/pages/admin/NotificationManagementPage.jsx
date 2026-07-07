@@ -13,7 +13,27 @@ const STATUS_VARIANT = {
   SKIPPED: 'default',
 }
 
-const STATUS_FILTERS = ['All', 'PENDING', 'SENT', 'FAILED', 'SKIPPED']
+const STATUS_FILTERS = [
+  { value: 'All', label: 'Tất cả' },
+  { value: 'PENDING', label: 'Đang chờ' },
+  { value: 'SENT', label: 'Đã gửi' },
+  { value: 'FAILED', label: 'Thất bại' },
+  { value: 'SKIPPED', label: 'Đã bỏ qua' },
+]
+
+const STATUS_LABELS = {
+  PENDING: 'Đang chờ',
+  SENT: 'Đã gửi',
+  FAILED: 'Thất bại',
+  SKIPPED: 'Đã bỏ qua',
+}
+
+const NOTIFICATION_TITLE_LABELS = {
+  'Order confirmed': 'Đơn hàng đã xác nhận',
+  SYSTEM: 'Hệ thống',
+  'Authentication failed': 'Xác thực thất bại',
+  'Set password StyleMind': 'Thiết lập mật khẩu StyleMind',
+}
 
 function typeIcon(type) {
   return String(type || '').toUpperCase().startsWith('ORDER') ? ShoppingCart : AlertTriangle
@@ -71,7 +91,7 @@ export default function NotificationManagementPage() {
     try {
       const updated = await retryAdminNotification(notification.id)
       setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, ...updated } : n)))
-      showToast(`Đã gửi lại thông báo #${notification.id} — trạng thái: ${updated.status}`)
+      showToast(`Đã gửi lại thông báo #${notification.id} — trạng thái: ${formatNotificationStatus(updated.status)}`)
     } catch (err) {
       const friendly = getAdminErrorMessage(err, {
         fallbackTitle: 'Gửi lại thông báo thất bại',
@@ -89,6 +109,13 @@ export default function NotificationManagementPage() {
     return haystack.includes(search.toLowerCase())
   })
 
+  const formatNotificationTitle = (notification) => {
+    const raw = notification?.title || notification?.type || ''
+    return NOTIFICATION_TITLE_LABELS[raw] || raw
+  }
+
+  const formatNotificationStatus = (status) => STATUS_LABELS[String(status || '').toUpperCase()] || status
+
   return (
     <div className="space-y-6">
       {toast && (
@@ -98,13 +125,13 @@ export default function NotificationManagementPage() {
       )}
 
       <div className="flex items-center justify-between">
-        <h1 className="font-headline-md text-primary">Notifications</h1>
+        <h1 className="font-headline-md text-primary">Thông báo</h1>
         <button
           onClick={fetchNotifications}
           disabled={loading}
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40"
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
         </button>
       </div>
 
@@ -121,7 +148,7 @@ export default function NotificationManagementPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search notifications…"
+            placeholder="Tìm thông báo..."
             className="w-full pl-9 pr-4 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none focus:ring-1 focus:ring-tertiary-container"
           />
         </div>
@@ -130,15 +157,15 @@ export default function NotificationManagementPage() {
           <div className="flex gap-1 flex-wrap">
             {STATUS_FILTERS.map((f) => (
               <button
-                key={f}
-                onClick={() => setStatusFilter(f)}
+                key={f.value}
+                onClick={() => setStatusFilter(f.value)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                  statusFilter === f
+                  statusFilter === f.value
                     ? 'bg-primary text-on-primary'
                     : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
                 }`}
               >
-                {f}
+                {f.label}
               </button>
             ))}
           </div>
@@ -147,11 +174,11 @@ export default function NotificationManagementPage() {
 
       <div className="bg-surface-container-lowest rounded-xl ambient-shadow divide-y divide-outline-variant/10">
         {loading && filtered.length === 0 ? (
-          <div className="py-16 text-center text-sm text-on-surface-variant">Loading notifications...</div>
+          <div className="py-16 text-center text-sm text-on-surface-variant">Đang tải thông báo...</div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant">
             <Bell size={40} className="mb-3 opacity-30" />
-            <p className="text-sm">No notifications found</p>
+            <p className="text-sm">Không tìm thấy thông báo nào.</p>
           </div>
         ) : (
           filtered.map((n) => {
@@ -162,9 +189,9 @@ export default function NotificationManagementPage() {
                   <Icon size={16} className="text-blue-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-on-surface">{n.title || n.type}</p>
-                    <Badge variant={STATUS_VARIANT[n.status] || 'default'}>{n.status}</Badge>
+                <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-on-surface">{formatNotificationTitle(n)}</p>
+                    <Badge variant={STATUS_VARIANT[n.status] || 'default'}>{formatNotificationStatus(n.status)}</Badge>
                   </div>
                   <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-1">
                     {n.recipientEmail} — {n.content}
@@ -186,7 +213,7 @@ export default function NotificationManagementPage() {
                     disabled={retryingId === n.id}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 shrink-0"
                   >
-                    <RotateCcw size={12} className={retryingId === n.id ? 'animate-spin' : ''} /> Retry
+                    <RotateCcw size={12} className={retryingId === n.id ? 'animate-spin' : ''} /> Gửi lại
                   </button>
                 )}
               </div>

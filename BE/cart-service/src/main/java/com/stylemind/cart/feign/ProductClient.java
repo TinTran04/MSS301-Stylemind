@@ -25,6 +25,8 @@ public interface ProductClient {
         private String currency;
         private String status;
         private String primaryImageUrl;
+        private Integer stockQuantity;
+        private Boolean active;
 
         public String getVariantId() { return variantId; }
         public void setVariantId(String variantId) { this.variantId = variantId; }
@@ -48,5 +50,9 @@ public interface ProductClient {
         public void setStatus(String status) { this.status = status; }
         public String getPrimaryImageUrl() { return primaryImageUrl; }
         public void setPrimaryImageUrl(String primaryImageUrl) { this.primaryImageUrl = primaryImageUrl; }
+        public Integer getStockQuantity() { return stockQuantity; }
+        public void setStockQuantity(Integer stockQuantity) { this.stockQuantity = stockQuantity; }
+        public Boolean getActive() { return active; }
+        public void setActive(Boolean active) { this.active = active; }
     }
 }

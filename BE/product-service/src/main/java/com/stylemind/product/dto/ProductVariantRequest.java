@@ -25,6 +25,12 @@ public class ProductVariantRequest {
     @Size(max = 50, message = "Chất liệu tối đa 50 ký tự")
     private String material;
 
-    @DecimalMin(value = "0.0", inclusive = false, message = "Giá thay thế phải lớn hơn 0")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Giá ghi đè phải lớn hơn 0 nếu được nhập")
     private BigDecimal priceOverride;
+
+    @NotNull(message = "Số lượng tồn kho là bắt buộc")
+    @Min(value = 0, message = "Số lượng tồn kho phải lớn hơn hoặc bằng 0")
+    private Integer stockQuantity;
+
+    private Boolean active;
 }

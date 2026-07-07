@@ -19,8 +19,8 @@ test('PRODUCT_REQUIRES_VARIANT guides admin to add variants', () => {
 test('LAST_ACTIVE_VARIANT guides admin to deactivate first', () => {
   const result = getAdminProductErrorMessage({ errorCode: 'LAST_ACTIVE_VARIANT', status: 409 })
   assert.equal(result.title, 'Không thể xóa biến thể cuối cùng')
-  assert.match(result.message, /chuyển sản phẩm sang INACTIVE trước khi xóa biến thể này/)
-  assert.equal(result.actionLabel, 'Chuyển sản phẩm sang INACTIVE trước')
+  assert.match(result.message, /trạng thái Ngừng bán trước khi xóa biến thể này/)
+  assert.equal(result.actionLabel, 'Chuyển sang Ngừng bán trước')
   assert.equal(result.targetStep, CREATE_PRODUCT_STEPS.VARIANTS)
 })
 
@@ -91,7 +91,7 @@ test('specific category conflict codes still take priority over generic create/u
   assert.equal(inUse.title, 'Danh mục đang được sử dụng')
 
   const slugExists = getAdminProductErrorMessage({ errorCode: 'SLUG_EXISTS', status: 409 }, { action: 'createCategory' })
-  assert.equal(slugExists.title, 'Slug danh mục đã tồn tại')
+  assert.equal(slugExists.title, 'Đường dẫn danh mục đã tồn tại')
 })
 
 test('image upload failure is framed as partial success', () => {
@@ -161,10 +161,30 @@ test('variant field validation identifies required and invalid values', () => {
     size: ' ',
     color: '',
     priceOverride: '-1',
+    stockQuantity: '-1',
   }), {
     sku: 'SKU là bắt buộc.',
-    size: 'Kích thước là bắt buộc.',
+    size: 'Kích cỡ là bắt buộc.',
     color: 'Màu sắc là bắt buộc.',
-    priceOverride: 'Giá ghi đè phải lớn hơn 0.',
+    priceOverride: 'Giá ghi đè phải lớn hơn 0 nếu được nhập.',
+    stockQuantity: 'Số lượng tồn kho phải lớn hơn hoặc bằng 0.',
   })
+})
+
+test('variant field validation accepts a valid stock quantity of zero', () => {
+  const errors = validateVariantFields({
+    sku: 'SKU-1',
+    size: 'M',
+    color: 'Đen',
+    priceOverride: '',
+    stockQuantity: '0',
+  })
+  assert.equal(errors.stockQuantity, undefined)
+})
+
+test('DUPLICATE_VARIANT maps to friendly duplicate-combination guidance', () => {
+  const result = getAdminProductErrorMessage({ errorCode: 'DUPLICATE_VARIANT', status: 409 })
+  assert.equal(result.title, 'Biến thể đã tồn tại')
+  assert.equal(result.message, 'Biến thể này đã tồn tại. Vui lòng kiểm tra lại kích cỡ, màu sắc và chất liệu.')
+  assert.equal(result.targetStep, CREATE_PRODUCT_STEPS.VARIANTS)
 })

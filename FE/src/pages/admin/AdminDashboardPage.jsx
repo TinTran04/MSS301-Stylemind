@@ -44,7 +44,7 @@ export default function AdminDashboardPage() {
     const run = (promise, setter) =>
       promise
         .then((data) => setter({ loading: false, error: null, data }))
-        .catch((err) => setter({ loading: false, error: err?.message || 'Failed to load', data: null }))
+        .catch((err) => setter({ loading: false, error: err?.message || 'Không thể tải dữ liệu.', data: null }))
 
     Promise.allSettled([
       run(getOrderSummary(), setOrders),
@@ -65,12 +65,12 @@ export default function AdminDashboardPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-headline-md text-primary">Dashboard</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Live operational metrics</p>
+          <h1 className="font-headline-md text-primary">Tổng quan</h1>
+          <p className="text-sm text-on-surface-variant mt-1">Chỉ số vận hành trực tiếp</p>
         </div>
         <div className="flex items-center gap-4">
           <span className="text-xs text-on-surface-variant">
-            {anyLoading ? 'Loading…' : loadedAt ? `Last updated: ${loadedAt.toLocaleTimeString()}` : ''}
+            {anyLoading ? 'Đang tải…' : loadedAt ? `Cập nhật lần cuối: ${loadedAt.toLocaleTimeString('vi-VN')}` : ''}
           </span>
           <button
             onClick={load}
@@ -78,31 +78,31 @@ export default function AdminDashboardPage() {
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-50"
           >
             <RefreshCw size={14} className={anyLoading ? 'animate-spin' : ''} />
-            Refresh
+            Làm mới
           </button>
         </div>
       </div>
 
       {/* Orders & revenue */}
       <section className="space-y-4">
-        <h2 className="font-title-lg text-primary">Orders &amp; Revenue</h2>
-        {orders.error && <ErrorBanner message={`Couldn't load order metrics: ${orders.error}`} />}
+        <h2 className="font-title-lg text-primary">Đơn hàng &amp; doanh thu</h2>
+        {orders.error && <ErrorBanner message={`Không thể tải chỉ số đơn hàng: ${orders.error}`} />}
         {noOrders && (
-          <p className="text-sm text-on-surface-variant">No orders yet — metrics will populate as orders come in.</p>
+          <p className="text-sm text-on-surface-variant">Chưa có đơn hàng nào — chỉ số sẽ tự cập nhật khi có đơn mới.</p>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard title="Total Orders" value={statValue(orders, (d) => d.totalOrders)} icon={ShoppingCart} />
-          <MetricCard title="Total Revenue" value={statValue(orders, (d) => d.totalRevenue, formatCurrency)} icon={DollarSign} />
-          <MetricCard title="Today's Orders" value={statValue(orders, (d) => d.todayOrders)} icon={ShoppingCart} />
-          <MetricCard title="Today's Revenue" value={statValue(orders, (d) => d.todayRevenue, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Tổng đơn hàng" value={statValue(orders, (d) => d.totalOrders)} icon={ShoppingCart} />
+          <MetricCard title="Tổng doanh thu" value={statValue(orders, (d) => d.totalRevenue, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Đơn hàng hôm nay" value={statValue(orders, (d) => d.todayOrders)} icon={ShoppingCart} />
+          <MetricCard title="Doanh thu hôm nay" value={statValue(orders, (d) => d.todayRevenue, formatCurrency)} icon={DollarSign} />
         </div>
-        <ChartCard title="Order Status Breakdown">
+        <ChartCard title="Phân bổ trạng thái đơn hàng">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: 'Pending', pick: (d) => d.pendingOrders },
-              { label: 'Paid', pick: (d) => d.paidOrders },
-              { label: 'Completed', pick: (d) => d.completedOrders },
-              { label: 'Cancelled', pick: (d) => d.cancelledOrders },
+              { label: 'Đang chờ', pick: (d) => d.pendingOrders },
+              { label: 'Đã thanh toán', pick: (d) => d.paidOrders },
+              { label: 'Hoàn tất', pick: (d) => d.completedOrders },
+              { label: 'Đã hủy', pick: (d) => d.cancelledOrders },
             ].map(({ label, pick }) => (
               <div key={label} className="text-center">
                 <p className="font-headline-md text-primary">{statValue(orders, pick)}</p>
@@ -115,33 +115,33 @@ export default function AdminDashboardPage() {
 
       {/* Catalogue */}
       <section className="space-y-4">
-        <h2 className="font-title-lg text-primary">Catalogue</h2>
-        {products.error && <ErrorBanner message={`Couldn't load product metrics: ${products.error}`} />}
+        <h2 className="font-title-lg text-primary">Danh mục sản phẩm</h2>
+        {products.error && <ErrorBanner message={`Không thể tải chỉ số sản phẩm: ${products.error}`} />}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <MetricCard title="Total Products" value={statValue(products, (d) => d.totalProducts)} icon={Package} />
-          <MetricCard title="Active" value={statValue(products, (d) => d.activeProducts)} icon={Package} />
-          <MetricCard title="Inactive" value={statValue(products, (d) => d.inactiveProducts)} icon={Package} />
+          <MetricCard title="Tổng sản phẩm" value={statValue(products, (d) => d.totalProducts)} icon={Package} />
+          <MetricCard title="Đang bán" value={statValue(products, (d) => d.activeProducts)} icon={Package} />
+          <MetricCard title="Ngừng bán" value={statValue(products, (d) => d.inactiveProducts)} icon={Package} />
         </div>
       </section>
 
       {/* Users */}
       <section className="space-y-4">
-        <h2 className="font-title-lg text-primary">Users</h2>
-        {users.error && <ErrorBanner message={`Couldn't load user metrics: ${users.error}`} />}
+        <h2 className="font-title-lg text-primary">Người dùng</h2>
+        {users.error && <ErrorBanner message={`Không thể tải chỉ số người dùng: ${users.error}`} />}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <MetricCard title="Total Users" value={statValue(users, (d) => d.totalUsers)} icon={Users} />
-          <MetricCard title="Customers" value={statValue(users, (d) => d.totalCustomers)} icon={Users} />
-          <MetricCard title="Admins" value={statValue(users, (d) => d.totalAdmins)} icon={Users} />
+          <MetricCard title="Tổng người dùng" value={statValue(users, (d) => d.totalUsers)} icon={Users} />
+          <MetricCard title="Khách hàng" value={statValue(users, (d) => d.totalCustomers)} icon={Users} />
+          <MetricCard title="Quản trị viên" value={statValue(users, (d) => d.totalAdmins)} icon={Users} />
         </div>
       </section>
 
       {/* Notifications */}
       <section className="space-y-4">
-        <h2 className="font-title-lg text-primary">Notifications</h2>
-        {notifications.error && <ErrorBanner message={`Couldn't load notification metrics: ${notifications.error}`} />}
+        <h2 className="font-title-lg text-primary">Thông báo</h2>
+        {notifications.error && <ErrorBanner message={`Không thể tải chỉ số thông báo: ${notifications.error}`} />}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MetricCard
-            title="Failed Notifications"
+            title="Thông báo thất bại"
             value={statValue(notifications, (d) => d.failedNotifications)}
             icon={Bell}
             status={!notifications.loading && !notifications.error && notifications.data?.failedNotifications > 0 ? 'warning' : undefined}

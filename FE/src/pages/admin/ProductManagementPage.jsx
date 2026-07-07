@@ -27,6 +27,13 @@ import {
   validateProductFields,
   validateVariantFields,
 } from '../../features/products/admin-product-errors'
+import {
+  formatVariantPrice,
+  formatVariantStock,
+  formatVariantStatus,
+  groupVariantsBySize,
+  summarizeVariants,
+} from '../../features/products/admin-product-variants'
 
 const STATUS_STYLES = {
   ACTIVE: 'bg-tertiary-fixed/30 text-tertiary',
@@ -45,15 +52,30 @@ const EMPTY_PRODUCT_FORM = {
   status: 'ACTIVE',
 }
 
-const EMPTY_VARIANT_FORM = { sku: '', size: '', color: '', material: '', priceOverride: '' }
+const EMPTY_VARIANT_FORM = { sku: '', size: '', color: '', material: '', priceOverride: '', stockQuantity: '0', active: true }
 const EMPTY_CATEGORY_FORM = { name: '', slug: '', parentId: '' }
 
 const PAGE_SIZE = 20
 const CREATE_STEP_ITEMS = [
-  { id: CREATE_PRODUCT_STEPS.PRODUCT_INFO, label: 'Product Info' },
-  { id: CREATE_PRODUCT_STEPS.VARIANTS, label: 'Variants' },
-  { id: CREATE_PRODUCT_STEPS.IMAGES, label: 'Images / Finish' },
+  { id: CREATE_PRODUCT_STEPS.PRODUCT_INFO, label: 'Thông tin sản phẩm' },
+  { id: CREATE_PRODUCT_STEPS.VARIANTS, label: 'Biến thể' },
+  { id: CREATE_PRODUCT_STEPS.IMAGES, label: 'Hình ảnh / Hoàn tất' },
 ]
+
+const PRODUCT_STATUS_OPTIONS = [
+  { value: 'ACTIVE', label: 'Đang bán' },
+  { value: 'INACTIVE', label: 'Ngừng bán' },
+  { value: 'DISCONTINUED', label: 'Ngừng kinh doanh' },
+]
+
+const CATEGORY_STATUS_OPTIONS = [
+  { value: '', label: 'Mọi trạng thái' },
+  { value: 'ACTIVE', label: 'Đang bán' },
+  { value: 'INACTIVE', label: 'Ngừng bán' },
+  { value: 'DISCONTINUED', label: 'Ngừng kinh doanh' },
+]
+
+const formatProductStatusLabel = (status) => PRODUCT_STATUS_OPTIONS.find((option) => option.value === status)?.label || status
 
 function FriendlyErrorAlert({ error, onAction }) {
   if (!error) return null
@@ -228,6 +250,9 @@ export default function ProductManagementPage() {
   const categoryName = (categoryId) => categories.find((c) => String(c.id) === String(categoryId))?.name || 'Chưa phân loại'
   const isGuidedCreate = drawerMode === 'create'
   const hasPersistedVariants = canPublishProduct(editingProduct)
+  const productVariants = editingProduct?.variants || []
+  const variantGroups = groupVariantsBySize(productVariants)
+  const variantSummary = summarizeVariants(productVariants)
 
   const closeProductDrawer = () => {
     setDrawerOpen(false)
@@ -246,7 +271,7 @@ export default function ProductManagementPage() {
     if (isGuidedCreate && editingProduct && !hasPersistedVariants) {
       requestConfirm({
         title: 'Đóng khi chưa có biến thể?',
-        message: 'Sản phẩm này chưa có biến thể và sẽ ở trạng thái INACTIVE. Bạn có chắc chắn muốn đóng lại không?',
+        message: 'Sản phẩm này chưa có biến thể và sẽ ở trạng thái Ngừng bán. Bạn có chắc chắn muốn đóng lại không?',
         confirmLabel: 'Đóng',
         onConfirm: closeProductDrawer,
       })
@@ -375,8 +400,8 @@ export default function ProductManagementPage() {
         })
         setForm((current) => ({ ...current, status: 'INACTIVE' }))
         setCreateStep(getNextCreateStep(CREATE_PRODUCT_STEPS.PRODUCT_INFO))
-        setFlowMessage('Product has been created as INACTIVE. Add at least one variant before publishing it.')
-        showToast('Đã tạo sản phẩm ở trạng thái INACTIVE')
+        setFlowMessage('Sản phẩm đã được tạo ở trạng thái Ngừng bán. Hãy thêm ít nhất một biến thể trước khi công khai.')
+        showToast('Đã tạo sản phẩm ở trạng thái Ngừng bán')
       }
       fetchProducts(currentPage)
     } catch (err) {
@@ -393,7 +418,7 @@ export default function ProductManagementPage() {
 
   const handleFinishInactive = async () => {
     await fetchProducts(currentPage)
-    showToast('Đã lưu sản phẩm ở trạng thái INACTIVE')
+    showToast('Đã lưu sản phẩm ở trạng thái Ngừng bán')
     closeProductDrawer()
   }
 
@@ -430,6 +455,8 @@ export default function ProductManagementPage() {
       color: variant.color,
       material: variant.material || '',
       priceOverride: variant.priceOverride != null ? String(variant.priceOverride) : '',
+      stockQuantity: variant.stockQuantity != null ? String(variant.stockQuantity) : '0',
+      active: variant.active !== false,
     })
   }
 
@@ -461,6 +488,8 @@ export default function ProductManagementPage() {
         color: variantForm.color,
         material: variantForm.material || null,
         priceOverride: variantForm.priceOverride ? Number(variantForm.priceOverride) : null,
+        stockQuantity: Number(variantForm.stockQuantity),
+        active: variantForm.active,
       }
       let updated
       if (editingVariantId) {
@@ -475,7 +504,7 @@ export default function ProductManagementPage() {
           : [...(prev.variants || []), updated],
       }))
       if (isGuidedCreate) {
-        setFlowMessage('At least one variant has been added. Continue to Images when ready.')
+        setFlowMessage('Đã thêm ít nhất một biến thể. Bạn có thể tiếp tục sang Hình ảnh khi sẵn sàng.')
       }
       resetVariantForm()
       showToast('Đã lưu biến thể')
@@ -503,7 +532,7 @@ export default function ProductManagementPage() {
           const remainingVariants = (editingProduct.variants || []).filter((v) => v.id !== variantId)
           setEditingProduct((prev) => ({ ...prev, variants: remainingVariants }))
           if (isGuidedCreate && remainingVariants.length === 0) {
-            setFlowMessage('Product has been created as INACTIVE. Add at least one variant before publishing it.')
+            setFlowMessage('Sản phẩm đã được tạo ở trạng thái Ngừng bán. Hãy thêm ít nhất một biến thể trước khi công khai.')
           }
           showToast('Đã xóa biến thể')
           await fetchProducts(currentPage)
@@ -669,7 +698,7 @@ export default function ProductManagementPage() {
         setEditingProduct((current) => ({ ...current, ...updated }))
         setForm((current) => ({ ...current, status: 'INACTIVE' }))
         setVariantActionError(null)
-        showToast('Đã chuyển sản phẩm sang INACTIVE. Giờ bạn có thể xóa biến thể cuối cùng.')
+        showToast('Đã chuyển sản phẩm sang trạng thái Ngừng bán. Giờ bạn có thể xóa biến thể cuối cùng.')
         await fetchProducts(currentPage)
       } catch (err) {
         presentProductError(err, { action: 'updateStatus' })
@@ -689,7 +718,7 @@ export default function ProductManagementPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-headline-md text-primary">Products</h1>
+          <h1 className="font-headline-md text-primary">Sản phẩm</h1>
           <p className="text-sm text-on-surface-variant mt-1">
             {loading ? 'Đang tải…' : `${totalElements} sản phẩm`}
           </p>
@@ -704,7 +733,7 @@ export default function ProductManagementPage() {
           <button
             onClick={openAddDrawer}
             disabled={categories.length === 0}
-            title={categories.length === 0 ? 'Categories must be available before creating a product.' : ''}
+            title={categories.length === 0 ? 'Cần có danh mục trước khi thêm sản phẩm.' : ''}
             className="bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90 disabled:opacity-40"
           >
             <Plus size={14} /> Thêm sản phẩm
@@ -737,9 +766,9 @@ export default function ProductManagementPage() {
           </select>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none">
             <option value="">Mọi trạng thái</option>
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="INACTIVE">INACTIVE</option>
-            <option value="DISCONTINUED">DISCONTINUED</option>
+            {CATEGORY_STATUS_OPTIONS.filter((option) => option.value).map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
         </div>
 
@@ -747,12 +776,12 @@ export default function ProductManagementPage() {
           <table className="w-full">
             <thead>
               <tr className="bg-surface-container-low/50">
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Product</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Category</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Base Price</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Variants</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Status</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Actions</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Sản phẩm</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Danh mục</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Giá gốc</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Biến thể</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Trạng thái</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">
@@ -774,14 +803,30 @@ export default function ProductManagementPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-on-surface-variant">{product.categoryName || categoryName(product.categoryId)}</td>
                   <td className="px-4 py-3 text-sm text-primary">{Number(product.basePrice).toLocaleString('vi-VN')}</td>
-                  <td className="px-4 py-3 text-xs text-on-surface-variant">{product.variants?.length || 0}</td>
+                  <td className="px-4 py-3 text-xs text-on-surface-variant">
+                    {(() => {
+                      const summary = summarizeVariants(product.variants || [])
+                      return (
+                        <div className="max-w-[180px]">
+                          <p className={`text-xs font-medium ${summary.countLabel === 'Chưa có biến thể' ? 'text-on-surface-variant' : 'text-primary'}`}>
+                            {summary.countLabel}
+                          </p>
+                          {summary.hintLabel && (
+                            <p className="mt-0.5 text-[11px] leading-4 text-on-surface-variant truncate">
+                              {summary.hintLabel}
+                            </p>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => handleToggleStatus(product)}
                       className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_STYLES[product.status] || STATUS_STYLES.INACTIVE}`}
-                      title="Bấm để chuyển đổi trạng thái ACTIVE/INACTIVE"
+                      title="Bấm để chuyển đổi trạng thái Đang bán / Ngừng bán"
                     >
-                      {product.status}
+                      {formatProductStatusLabel(product.status)}
                     </button>
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -798,7 +843,7 @@ export default function ProductManagementPage() {
 
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant/20 text-sm text-on-surface-variant">
-            <span>Trang {currentPage + 1} / {totalPages} · {totalElements} products</span>
+            <span>Trang {currentPage + 1} / {totalPages} · {totalElements} sản phẩm</span>
             <div className="flex gap-2">
               <button onClick={() => fetchProducts(currentPage - 1)} disabled={currentPage === 0 || loading} className="p-1.5 rounded-lg hover:bg-surface-container-high disabled:opacity-30 transition-colors">
                 <ChevronLeft size={16} />
@@ -812,7 +857,12 @@ export default function ProductManagementPage() {
       </div>
 
       {/* Product create/edit drawer */}
-      <Drawer isOpen={drawerOpen} onClose={requestCloseProductDrawer} title={drawerMode === 'edit' ? 'Edit Product' : 'Add Product'}>
+      <Drawer
+        isOpen={drawerOpen}
+        onClose={requestCloseProductDrawer}
+        title={drawerMode === 'edit' ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm'}
+        panelClassName="max-w-none md:w-[min(920px,92vw)] md:max-w-[920px]"
+      >
         <form noValidate onSubmit={handleSubmit} className="space-y-6">
           {isGuidedCreate && (
             <div className="grid grid-cols-3 border-b border-outline-variant/20 pb-4">
@@ -839,10 +889,10 @@ export default function ProductManagementPage() {
           )}
 
           {flowMessage && (
-            <div className="bg-tertiary-fixed/20 border border-tertiary/20 rounded-lg px-3 py-2 text-sm text-on-surface">
-              {flowMessage}
-            </div>
-          )}
+              <div className="bg-tertiary-fixed/20 border border-tertiary/20 rounded-lg px-3 py-2 text-sm text-on-surface">
+                {flowMessage}
+              </div>
+            )}
           <FriendlyErrorAlert
             error={productActionError}
             onAction={productActionError?.actionLabel ? handleProductErrorAction : null}
@@ -851,7 +901,7 @@ export default function ProductManagementPage() {
           {(!isGuidedCreate || createStep === CREATE_PRODUCT_STEPS.PRODUCT_INFO) && (
             <div className="space-y-6">
               <div>
-                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Product Name</label>
+                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Tên sản phẩm</label>
                 <input
                   required
                   aria-invalid={Boolean(productFieldErrors.name)}
@@ -865,11 +915,11 @@ export default function ProductManagementPage() {
                 {productFieldErrors.name && <p className="mt-1 text-xs text-error">{productFieldErrors.name}</p>}
               </div>
               <div>
-                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Description</label>
+                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Mô tả</label>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
               </div>
               <div>
-                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Base Price</label>
+                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Giá gốc</label>
                 <input
                   required
                   type="number"
@@ -886,7 +936,7 @@ export default function ProductManagementPage() {
                 {productFieldErrors.basePrice && <p className="mt-1 text-xs text-error">{productFieldErrors.basePrice}</p>}
               </div>
               <div>
-                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Category</label>
+                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Danh mục</label>
                 <select
                   required
                   aria-invalid={Boolean(productFieldErrors.categoryId)}
@@ -897,7 +947,7 @@ export default function ProductManagementPage() {
                   }}
                   className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none"
                 >
-                  <option value="" disabled>Select category</option>
+                  <option value="" disabled>Chọn danh mục</option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -905,24 +955,24 @@ export default function ProductManagementPage() {
                 {productFieldErrors.categoryId && <p className="mt-1 text-xs text-error">{productFieldErrors.categoryId}</p>}
               </div>
               <div>
-                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Aesthetic Style</label>
+                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Phong cách thẩm mỹ</label>
                 <input value={form.aestheticStyle} onChange={(e) => setForm({ ...form, aestheticStyle: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Target Demographic</label>
+                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Đối tượng khách hàng</label>
                   <input value={form.targetDemographic} onChange={(e) => setForm({ ...form, targetDemographic: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
                 </div>
                 <div>
-                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Seasonal Property</label>
+                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Mùa sử dụng</label>
                   <input value={form.seasonalProperty} onChange={(e) => setForm({ ...form, seasonalProperty: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
                 </div>
               </div>
               <div>
-                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Status</label>
+                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Trạng thái</label>
                 {isGuidedCreate ? (
                   <span className="inline-flex text-xs font-medium px-2 py-1 rounded-full bg-surface-container-high text-on-surface-variant">
-                    INACTIVE
+                    Ngừng bán
                   </span>
                 ) : (
                   <select
@@ -934,9 +984,11 @@ export default function ProductManagementPage() {
                     }}
                     className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none"
                   >
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="INACTIVE">INACTIVE</option>
-                    <option value="DISCONTINUED">DISCONTINUED</option>
+                    {PRODUCT_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 )}
                 {productFieldErrors.status && <p className="mt-1 text-xs text-error">{productFieldErrors.status}</p>}
@@ -945,10 +997,10 @@ export default function ProductManagementPage() {
               {isGuidedCreate && (
                 <div className="flex gap-3 pt-2">
                   <button type="submit" disabled={actionLoading} className="flex-1 bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
-                    {actionLoading ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Create & Continue'}
+                    {actionLoading ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Tạo và tiếp tục'}
                   </button>
                   <button type="button" onClick={requestCloseProductDrawer} className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-container text-on-surface hover:bg-surface-container-high">
-                    Close
+                    Đóng
                   </button>
                 </div>
               )}
@@ -956,31 +1008,108 @@ export default function ProductManagementPage() {
           )}
 
           {editingProduct && (!isGuidedCreate || createStep === CREATE_PRODUCT_STEPS.VARIANTS) && (
-            <div className={`${isGuidedCreate ? '' : 'pt-4 border-t border-outline-variant/20'} space-y-3`}>
-              <h3 className="font-title-lg text-primary">Variants</h3>
-              <p className="text-xs text-on-surface-variant">SKU must be unique across all products.</p>
-              {(editingProduct.variants || []).length === 0 && (
-                <p className="text-xs text-error">Add at least one variant before continuing or publishing.</p>
-              )}
-              <div className="space-y-2">
-                {(editingProduct.variants || []).map((v) => (
-                  <div key={v.id} className="flex items-center justify-between bg-surface-container rounded-lg px-3 py-2 text-xs">
-                    <span>{v.sku} · {v.size} · {v.color}{v.priceOverride ? ` · ${Number(v.priceOverride).toLocaleString('vi-VN')}` : ''}</span>
-                    <div className="flex gap-1">
-                      <button type="button" onClick={() => startEditVariant(v)} className="p-1 rounded hover:bg-surface-container-high"><Edit size={12} /></button>
-                      <button type="button" onClick={() => handleDeleteVariant(v.id)} className="p-1 rounded hover:bg-surface-container-high"><Trash2 size={12} className="text-error" /></button>
-                    </div>
-                  </div>
-                ))}
+            <div className={`${isGuidedCreate ? '' : 'pt-4 border-t border-outline-variant/20'} space-y-4`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="font-title-lg text-primary">Biến thể</h3>
+                  <p className="text-xs text-on-surface-variant mt-1">
+                    Mỗi biến thể là một tổ hợp cụ thể của kích cỡ, màu sắc, chất liệu và tồn kho.
+                  </p>
+                </div>
+                <span className="shrink-0 inline-flex items-center rounded-full bg-surface-container-high px-2.5 py-1 text-[11px] font-medium text-on-surface-variant">
+                  {variantSummary.countLabel}
+                </span>
               </div>
+              {(editingProduct.variants || []).length === 0 && (
+                <p className="text-xs text-error">Chưa có biến thể. Hãy thêm ít nhất một biến thể trước khi tiếp tục hoặc xuất bản.</p>
+              )}
               <FriendlyErrorAlert
                 error={variantActionError}
                 onAction={variantActionError?.actionLabel ? handleVariantErrorAction : null}
               />
+              {variantSummary.hintLabel && (
+                <p className="text-xs text-on-surface-variant">
+                  Gợi ý ngắn: {variantSummary.hintLabel}
+                </p>
+              )}
+              <div className="space-y-3">
+                {variantGroups.map((group) => (
+                  <div key={group.key} className="overflow-hidden rounded-xl border border-outline-variant/10 bg-surface-container-low">
+                    <div className="flex items-center justify-between gap-3 border-b border-outline-variant/10 bg-surface-container-low/70 px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">Kích cỡ {group.size}</p>
+                      </div>
+                      <span className="shrink-0 text-[11px] text-on-surface-variant">
+                        {group.variants.length} biến thể
+                      </span>
+                    </div>
+                    <div className="divide-y divide-outline-variant/10">
+                      {group.variants.map((v) => (
+                        <div key={v.id} className="p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">SKU</p>
+                              <p className="break-all text-sm font-medium text-primary">{v.sku}</p>
+                            </div>
+                            <div className="flex shrink-0 gap-1">
+                              <button
+                                type="button"
+                                onClick={() => startEditVariant(v)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-surface-container px-2.5 py-1.5 text-[11px] font-medium text-on-surface hover:bg-surface-container-high"
+                              >
+                                <Edit size={12} />
+                                Cập nhật
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVariant(v.id)}
+                                className="inline-flex items-center gap-1 rounded-lg bg-error/10 px-2.5 py-1.5 text-[11px] font-medium text-error hover:bg-error/15"
+                              >
+                                <Trash2 size={12} />
+                                Xóa
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-3 lg:grid-cols-5">
+                            <div>
+                              <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">Màu sắc</p>
+                              <p className="mt-0.5 text-primary">{v.color || '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">Số lượng tồn kho</p>
+                              <p className={`mt-0.5 font-medium ${Number(v.stockQuantity || 0) > 0 ? 'text-primary' : 'text-error'}`}>
+                                {formatVariantStock(v.stockQuantity)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">Giá</p>
+                              <p className="mt-0.5 text-primary">
+                                {formatVariantPrice(v, editingProduct.basePrice)}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">Chất liệu</p>
+                              <p className="mt-0.5 text-primary">{v.material || '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">Trạng thái</p>
+                              <p className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                v.active === false ? 'bg-surface-container-high text-on-surface-variant' : 'bg-tertiary-fixed/20 text-tertiary'
+                              }`}>
+                                {formatVariantStatus(v)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
+                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">SKU</label>
                   <input
-                    placeholder="SKU"
                     aria-invalid={Boolean(variantFieldErrors.sku)}
                     value={variantForm.sku}
                     onChange={(e) => {
@@ -992,8 +1121,8 @@ export default function ProductManagementPage() {
                   {variantFieldErrors.sku && <p className="mt-1 text-xs text-error">{variantFieldErrors.sku}</p>}
                 </div>
                 <div>
+                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Kích cỡ</label>
                   <input
-                    placeholder="Size"
                     aria-invalid={Boolean(variantFieldErrors.size)}
                     value={variantForm.size}
                     onChange={(e) => {
@@ -1005,8 +1134,8 @@ export default function ProductManagementPage() {
                   {variantFieldErrors.size && <p className="mt-1 text-xs text-error">{variantFieldErrors.size}</p>}
                 </div>
                 <div>
+                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Màu sắc</label>
                   <input
-                    placeholder="Color"
                     aria-invalid={Boolean(variantFieldErrors.color)}
                     value={variantForm.color}
                     onChange={(e) => {
@@ -1017,11 +1146,14 @@ export default function ProductManagementPage() {
                   />
                   {variantFieldErrors.color && <p className="mt-1 text-xs text-error">{variantFieldErrors.color}</p>}
                 </div>
-                <input placeholder="Material (optional)" value={variantForm.material} onChange={(e) => setVariantForm({ ...variantForm, material: e.target.value })} className="bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none" />
-                <div className="col-span-2">
+                <div>
+                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Chất liệu</label>
+                  <input value={variantForm.material} onChange={(e) => setVariantForm({ ...variantForm, material: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Giá ghi đè</label>
                   <input
                     min="0.01"
-                    placeholder="Price override (optional)"
                     type="number"
                     step="0.01"
                     aria-invalid={Boolean(variantFieldErrors.priceOverride)}
@@ -1034,6 +1166,36 @@ export default function ProductManagementPage() {
                   />
                   {variantFieldErrors.priceOverride && <p className="mt-1 text-xs text-error">{variantFieldErrors.priceOverride}</p>}
                 </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Số lượng tồn kho</label>
+                  <input
+                    min="0"
+                    type="number"
+                    step="1"
+                    aria-invalid={Boolean(variantFieldErrors.stockQuantity)}
+                    value={variantForm.stockQuantity}
+                    onChange={(e) => {
+                      setVariantForm({ ...variantForm, stockQuantity: e.target.value })
+                      setVariantFieldErrors((current) => ({ ...current, stockQuantity: undefined }))
+                    }}
+                    className="w-full bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none"
+                  />
+                  {variantFieldErrors.stockQuantity && <p className="mt-1 text-xs text-error">{variantFieldErrors.stockQuantity}</p>}
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Trạng thái</label>
+                  <select
+                    value={variantForm.active ? 'ACTIVE' : 'INACTIVE'}
+                    onChange={(e) => setVariantForm({ ...variantForm, active: e.target.value === 'ACTIVE' })}
+                    className="w-full bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none"
+                  >
+                    {PRODUCT_STATUS_OPTIONS.slice(0, 2).map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="flex gap-2">
                 <button
@@ -1042,10 +1204,10 @@ export default function ProductManagementPage() {
                   disabled={actionLoading}
                   className="flex-1 bg-surface-container-high text-primary px-3 py-2 rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-40"
                 >
-                  {editingVariantId ? 'Save Variant' : 'Add Variant'}
+                  {editingVariantId ? 'Cập nhật biến thể' : 'Thêm biến thể'}
                 </button>
                 {editingVariantId && (
-                  <button type="button" onClick={resetVariantForm} className="px-3 py-2 rounded-lg text-xs font-medium bg-surface-container">Cancel</button>
+                  <button type="button" onClick={resetVariantForm} className="px-3 py-2 rounded-lg text-xs font-medium bg-surface-container">Hủy</button>
                 )}
               </div>
 
@@ -1057,10 +1219,10 @@ export default function ProductManagementPage() {
                     disabled={!hasPersistedVariants}
                     className="flex-1 bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
                   >
-                    Continue to Images
+                    Tiếp tục tới Hình ảnh
                   </button>
                   <button type="button" onClick={requestCloseProductDrawer} className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-container text-on-surface hover:bg-surface-container-high">
-                    Close
+                    Đóng
                   </button>
                 </div>
               )}
@@ -1070,37 +1232,43 @@ export default function ProductManagementPage() {
           {editingProduct && (!isGuidedCreate || createStep === CREATE_PRODUCT_STEPS.IMAGES) && (
             <div className={`${isGuidedCreate ? '' : 'pt-4 border-t border-outline-variant/20'} space-y-3`}>
               <div>
-                <h3 className="font-title-lg text-primary">Images</h3>
+                <h3 className="font-title-lg text-primary">Hình ảnh</h3>
                 <p className="text-xs text-on-surface-variant mt-1">
-                  JPEG, PNG, WebP, GIF or AVIF · maximum 10 MB
+                  JPEG, PNG, WebP, GIF hoặc AVIF · tối đa 10 MB
                 </p>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {imagePreviewUrl && (
                   <div className="relative">
-                    <img src={imagePreviewUrl} alt="Selected product preview" className="w-full aspect-square object-cover rounded-lg" />
-                    <span className="absolute bottom-1 left-1 text-[10px] bg-surface-container-lowest/90 text-primary px-1.5 py-0.5 rounded">Preview</span>
+                    <img src={imagePreviewUrl} alt="Ảnh xem trước của sản phẩm" className="w-full aspect-square object-cover rounded-lg" />
+                    <span className="absolute bottom-1 left-1 text-[10px] bg-surface-container-lowest/90 text-primary px-1.5 py-0.5 rounded">Xem trước</span>
                   </div>
                 )}
                 {(editingProduct.images || []).map((img) => (
                   <div key={img.id} className="relative">
                     <img src={img.imageUrl} alt="" className="w-full aspect-square object-cover rounded-lg" />
-                    {img.isPrimary && <span className="absolute top-1 left-1 text-[10px] bg-primary text-on-primary px-1.5 py-0.5 rounded-full">Primary</span>}
+                    {img.isPrimary && <span className="absolute top-1 left-1 text-[10px] bg-primary text-on-primary px-1.5 py-0.5 rounded-full">Ảnh chính</span>}
                     <button type="button" onClick={() => handleDeleteImage(img.id)} className="absolute top-1 right-1 p-1 rounded-full bg-surface-container-lowest/90 hover:bg-error/20">
                       <X size={12} className="text-error" />
                     </button>
                   </div>
                 ))}
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-                  onChange={(e) => handleImageSelection(e.target.files?.[0] || null)}
-                  className="text-xs flex-1 min-w-0"
-                />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <label className="inline-flex items-center justify-center rounded-lg bg-surface-container px-3 py-2 text-xs font-medium text-primary hover:bg-surface-container-high">
+                  Chọn tệp
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                    onChange={(e) => handleImageSelection(e.target.files?.[0] || null)}
+                    className="sr-only"
+                  />
+                </label>
+                <p className="min-w-0 flex-1 text-xs text-on-surface-variant">
+                  {imageFile?.name || 'Chưa chọn tệp'}
+                </p>
                 <label className="flex items-center gap-1 text-xs text-on-surface-variant">
-                  <input type="checkbox" checked={imageIsPrimary} onChange={(e) => setImageIsPrimary(e.target.checked)} /> Primary
+                  <input type="checkbox" checked={imageIsPrimary} onChange={(e) => setImageIsPrimary(e.target.checked)} /> Ảnh chính
                 </label>
               </div>
               {imageError && <p role="alert" className="text-xs text-error">{imageError}</p>}
@@ -1111,7 +1279,7 @@ export default function ProductManagementPage() {
                 className="w-full flex items-center justify-center gap-2 bg-surface-container-high text-primary px-3 py-2 rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-40"
               >
                 {imageUploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
-                {imageUploading ? 'Uploading…' : 'Upload Image'}
+                {imageUploading ? 'Đang tải ảnh…' : 'Tải ảnh lên'}
               </button>
 
               {isGuidedCreate && (
@@ -1122,7 +1290,7 @@ export default function ProductManagementPage() {
                     disabled={!hasPersistedVariants || imageUploading}
                     className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-surface-container text-on-surface hover:bg-surface-container-high disabled:opacity-40"
                   >
-                    Finish Inactive
+                    Lưu nháp
                   </button>
                   <button
                     type="button"
@@ -1130,7 +1298,7 @@ export default function ProductManagementPage() {
                     disabled={!hasPersistedVariants || imageUploading || isPublishing}
                     className="flex-1 bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-40"
                   >
-                    {isPublishing ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Publish Active'}
+                    {isPublishing ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Công khai'}
                   </button>
                 </div>
               )}
@@ -1140,10 +1308,10 @@ export default function ProductManagementPage() {
           {!isGuidedCreate && (
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={actionLoading || imageUploading} className="flex-1 bg-primary text-on-primary px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
-                {actionLoading || imageUploading ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Update Product'}
+                {actionLoading || imageUploading ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Cập nhật sản phẩm'}
               </button>
               <button type="button" onClick={requestCloseProductDrawer} className="px-4 py-2 rounded-lg text-sm font-medium bg-surface-container text-on-surface hover:bg-surface-container-high">
-                Close
+                Đóng
               </button>
             </div>
           )}
@@ -1151,30 +1319,30 @@ export default function ProductManagementPage() {
       </Drawer>
 
       {/* Category management drawer */}
-      <Drawer isOpen={categoryDrawerOpen} onClose={() => setCategoryDrawerOpen(false)} title="Manage Categories">
+      <Drawer isOpen={categoryDrawerOpen} onClose={() => setCategoryDrawerOpen(false)} title="Quản lý danh mục">
         <FriendlyErrorAlert error={categoryActionError} onAction={categoryActionError?.actionLabel ? fetchCategories : null} />
         <form onSubmit={handleCategorySubmit} className="space-y-3 pb-4 border-b border-outline-variant/20">
-          <input required placeholder="Name" value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
-          <input required placeholder="Slug" value={categoryForm.slug} onChange={(e) => setCategoryForm({ ...categoryForm, slug: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+          <input required placeholder="Tên danh mục" value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
+          <input required placeholder="Đường dẫn" value={categoryForm.slug} onChange={(e) => setCategoryForm({ ...categoryForm, slug: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
           <select value={categoryForm.parentId} onChange={(e) => setCategoryForm({ ...categoryForm, parentId: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none">
-            <option value="">No parent</option>
+            <option value="">Không có danh mục cha</option>
             {categories.filter((c) => c.id !== editingCategoryId).map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
           <div className="flex gap-2">
             <button type="submit" disabled={actionLoading} className="flex-1 bg-primary text-on-primary px-3 py-2 rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50">
-              {editingCategoryId ? 'Save Category' : 'Add Category'}
+              {editingCategoryId ? 'Cập nhật danh mục' : 'Tạo danh mục'}
             </button>
             {editingCategoryId && (
               <button type="button" onClick={() => { setEditingCategoryId(null); setCategoryForm(EMPTY_CATEGORY_FORM) }} className="px-3 py-2 rounded-lg text-sm font-medium bg-surface-container">
-                Cancel
+                Hủy
               </button>
             )}
           </div>
         </form>
         <div className="pt-4 space-y-2">
-          {categories.length === 0 && <p className="text-xs text-on-surface-variant">No categories yet.</p>}
+          {categories.length === 0 && <p className="text-xs text-on-surface-variant">Chưa có danh mục nào.</p>}
           {categories.map((c) => (
             <div key={c.id} className="flex items-center justify-between bg-surface-container rounded-lg px-3 py-2 text-sm">
               <div>

@@ -1,6 +1,4 @@
-function uniqueValues(values) {
-  return [...new Set(values.filter(Boolean))]
-}
+import { getSizeOptions, getColorOptions, isVariantAvailable } from './product.variant-selection.js'
 
 function primaryImage(images) {
   return images.find((image) => image.isPrimary) || images[0] || null
@@ -12,6 +10,10 @@ export function mapProduct(product) {
   const images = Array.isArray(product.images) ? product.images : []
   const variants = Array.isArray(product.variants) ? product.variants : []
   const firstVariant = variants[0] || null
+  // Prefer an in-stock/active variant for quick-add flows (product card, AI
+  // recommendations) that don't offer a size/color picker — falling back to
+  // the first variant only when none is actually available.
+  const defaultVariant = variants.find(isVariantAvailable) || firstVariant
   const primary = primaryImage(images)
 
   return {
@@ -21,11 +23,11 @@ export function mapProduct(product) {
     price: Number(product.basePrice || 0),
     images,
     primaryImageUrl: primary?.imageUrl || null,
-    colors: uniqueValues(variants.map((variant) => variant.color)),
-    sizes: uniqueValues(variants.map((variant) => variant.size)),
+    colors: getColorOptions(variants, null),
+    sizes: getSizeOptions(variants, null),
     material: firstVariant?.material || '',
     sku: firstVariant?.sku || '',
-    availableVariantId: firstVariant?.id || null,
+    availableVariantId: defaultVariant?.id || null,
     variants,
   }
 }

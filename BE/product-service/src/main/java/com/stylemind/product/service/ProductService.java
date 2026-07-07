@@ -162,6 +162,22 @@ public class ProductService {
     }
 
     // Variants
+    private static String normalizeCombo(String value) {
+        return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private void ensureNoDuplicateCombo(String productId, String excludeVariantId, String size, String color, String material) {
+        boolean duplicate = variantRepository.findByProductId(productId).stream()
+                .filter(v -> excludeVariantId == null || !v.getId().equals(excludeVariantId))
+                .anyMatch(v -> normalizeCombo(v.getSize()).equals(normalizeCombo(size))
+                        && normalizeCombo(v.getColor()).equals(normalizeCombo(color))
+                        && normalizeCombo(v.getMaterial()).equals(normalizeCombo(material)));
+        if (duplicate) {
+            throw new BusinessException("DUPLICATE_VARIANT",
+                    "Biến thể này đã tồn tại. Vui lòng kiểm tra lại kích cỡ, màu sắc và chất liệu.", 409);
+        }
+    }
+
     public ProductVariantResponse addVariant(String productId, ProductVariantRequest request) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
@@ -169,6 +185,7 @@ public class ProductService {
         if (variantRepository.findBySku(request.getSku()).isPresent()) {
             throw new BusinessException("SKU_EXISTS", "SKU đã tồn tại: " + request.getSku(), 400);
         }
+        ensureNoDuplicateCombo(productId, null, request.getSize(), request.getColor(), request.getMaterial());
 
         ProductVariant variant = ProductVariant.builder()
                 .id(StringUtil.generateUniqueId())
@@ -178,6 +195,8 @@ public class ProductService {
                 .color(request.getColor())
                 .material(request.getMaterial())
                 .priceOverride(request.getPriceOverride())
+                .stockQuantity(request.getStockQuantity())
+                .active(request.getActive() == null || request.getActive())
                 .build();
 
         variant = variantRepository.save(variant);
@@ -246,12 +265,15 @@ public class ProductService {
         if (!variant.getSku().equals(request.getSku()) && variantRepository.findBySku(request.getSku()).isPresent()) {
             throw new BusinessException("SKU_EXISTS", "SKU đã tồn tại: " + request.getSku(), 400);
         }
+        ensureNoDuplicateCombo(productId, variantId, request.getSize(), request.getColor(), request.getMaterial());
 
         variant.setSku(request.getSku());
         variant.setSize(request.getSize());
         variant.setColor(request.getColor());
         variant.setMaterial(request.getMaterial());
         variant.setPriceOverride(request.getPriceOverride());
+        variant.setStockQuantity(request.getStockQuantity());
+        variant.setActive(request.getActive() == null || request.getActive());
 
         variant = variantRepository.save(variant);
         return mapToVariantResponse(variant);
@@ -321,6 +343,8 @@ public class ProductService {
                 .currency(defaultCurrency)
                 .status(product.getStatus())
                 .primaryImageUrl(primaryImageUrl)
+                .stockQuantity(variant.getStockQuantity())
+                .active(variant.getActive())
                 .build();
     }
 
@@ -400,6 +424,8 @@ public class ProductService {
                 .color(variant.getColor())
                 .material(variant.getMaterial())
                 .priceOverride(variant.getPriceOverride())
+                .stockQuantity(variant.getStockQuantity())
+                .active(variant.getActive())
                 .build();
     }
 

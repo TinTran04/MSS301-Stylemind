@@ -23,4 +23,6 @@ public class VariantSnapshotResponse {
     private String currency;
     private String status;
     private String primaryImageUrl;
+    private Integer stockQuantity;
+    private Boolean active;
 }

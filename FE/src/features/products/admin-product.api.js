@@ -30,7 +30,7 @@ export async function deleteProduct(id) {
   return apiClient.delete(`${ENDPOINTS.ADMIN_PRODUCTS}/${id}`)
 }
 
-// variant: { sku, size, color, material, priceOverride }
+// variant: { sku, size, color, material, priceOverride, stockQuantity, active }
 export async function addVariant(productId, variant) {
   return apiClient.post(`${ENDPOINTS.ADMIN_PRODUCTS}/${productId}/variants`, variant)
 }

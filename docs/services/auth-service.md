@@ -51,4 +51,4 @@ _(không có)_
 - **Được gọi bởi:** gateway (auth & admin account), gián tiếp là mọi service dùng `userId`.
 
 ## Notes
-Cân nhắc bảng `audit_log` cho hành động admin phá hủy. Xem `architecture/03-auth-user-boundary.md`.
+Bảng `audit_log` cho hành động admin phá hủy đã có trong schema/init script và được auth-service dùng cho self-protection. Xem `architecture/03-auth-user-boundary.md`.

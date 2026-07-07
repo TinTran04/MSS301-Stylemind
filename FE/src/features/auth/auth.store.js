@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { clearAuthSession, getAuthToken, getStoredUser, setAuthSession } from '../../services/apiClient'
+import { clearAuthSession, getAuthToken, getStoredUser, resetGuestSessionId, setAuthSession } from '../../services/apiClient'
 import useCartStore from '../cart/cart.store'
 
 const storedUser = getStoredUser()
@@ -23,6 +23,10 @@ const useAuthStore = create((set) => ({
   },
   logout: () => {
     clearAuthSession()
+    // Drop the previous user's cart from memory and the leftover guest id so
+    // neither leaks into the next guest session started after this logout.
+    resetGuestSessionId()
+    useCartStore.getState().resetLocalCart()
     set({ user: null, token: null, isAuthenticated: false, role: null })
   },
   setUser: (user) => {

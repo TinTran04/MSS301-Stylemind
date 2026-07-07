@@ -9,6 +9,23 @@ import { formatRelativeTime, formatDateTime } from '../../utils/formatDate'
 
 const TARGET_TYPES = ['PRODUCT', 'INVENTORY', 'RULE']
 const OPERATION_TYPES = ['CREATE', 'UPDATE', 'DELETE']
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'Mọi trạng thái' },
+  { value: 'PENDING', label: 'Đang chờ' },
+  { value: 'PROCESSING', label: 'Đang xử lý' },
+  { value: 'COMPLETED', label: 'Hoàn tất' },
+  { value: 'FAILED', label: 'Thất bại' },
+]
+const TARGET_TYPE_LABELS = {
+  PRODUCT: 'Sản phẩm',
+  INVENTORY: 'Tồn kho',
+  RULE: 'Quy tắc',
+}
+const OPERATION_TYPE_LABELS = {
+  CREATE: 'Tạo',
+  UPDATE: 'Cập nhật',
+  DELETE: 'Xóa',
+}
 
 function IndexJobsPanel() {
   const [jobs, setJobs] = useState([])
@@ -29,7 +46,7 @@ function IndexJobsPanel() {
       const data = await getIndexJobs(statusFilter ? { status: statusFilter } : {})
       setJobs(data.content || data || [])
     } catch (err) {
-      setError(err.message || 'Unable to load index jobs.')
+      setError(err.message || 'Không thể tải danh sách công việc chỉ mục AI.')
     } finally {
       setLoading(false)
     }
@@ -51,15 +68,15 @@ function IndexJobsPanel() {
     setCreating(true)
     try {
       await createIndexJob(form)
-      setToast('Đã tạo AI index job')
+      setToast('Đã tạo tác vụ chỉ mục AI')
       setTimeout(() => setToast(''), 3000)
       setForm({ targetType: 'PRODUCT', targetId: '', operationType: 'UPDATE' })
       setShowForm(false)
       fetchJobs()
     } catch (err) {
       const friendly = getAdminErrorMessage(err, {
-        fallbackTitle: 'Không thể tạo index job',
-        fallbackMessage: 'Hệ thống chưa thể tạo AI index job. Vui lòng thử lại sau.',
+        fallbackTitle: 'Không thể tạo tác vụ chỉ mục AI',
+        fallbackMessage: 'Hệ thống chưa thể tạo tác vụ chỉ mục AI. Vui lòng thử lại sau.',
       })
       setFormError(friendly)
     } finally {
@@ -72,7 +89,7 @@ function IndexJobsPanel() {
       <div className="p-4 border-b border-outline-variant/20 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Database size={16} className="text-primary" />
-          <h2 className="font-title-lg text-primary">Index Jobs</h2>
+          <h2 className="font-title-lg text-primary">Công việc chỉ mục AI</h2>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -80,17 +97,15 @@ function IndexJobsPanel() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-2 py-1.5 text-xs text-on-surface focus:outline-none"
           >
-            <option value="">All statuses</option>
-            <option value="PENDING">PENDING</option>
-            <option value="PROCESSING">PROCESSING</option>
-            <option value="COMPLETED">COMPLETED</option>
-            <option value="FAILED">FAILED</option>
+            {STATUS_FILTER_OPTIONS.map((option) => (
+              <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+            ))}
           </select>
           <button
             onClick={() => setShowForm((v) => !v)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-on-primary hover:opacity-90"
           >
-            <Plus size={12} /> New Job
+            <Plus size={12} /> Tạo tác vụ mới
           </button>
         </div>
       </div>
@@ -106,32 +121,32 @@ function IndexJobsPanel() {
             </div>
           )}
           <div>
-            <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Target Type</label>
+            <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Loại mục tiêu</label>
             <select
               value={form.targetType}
               onChange={(e) => setForm((f) => ({ ...f, targetType: e.target.value }))}
               className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-2 py-1.5 text-xs"
             >
-              {TARGET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {TARGET_TYPES.map((t) => <option key={t} value={t}>{TARGET_TYPE_LABELS[t] || t}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Target ID</label>
+            <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Mã mục tiêu</label>
             <input
               value={form.targetId}
               onChange={(e) => setForm((f) => ({ ...f, targetId: e.target.value }))}
-              placeholder="e.g. VN-AO-002"
+              placeholder="VD: VDU-AO-002"
               className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-2 py-1.5 text-xs"
             />
           </div>
           <div>
-            <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Operation</label>
+            <label className="block text-[10px] uppercase text-on-surface-variant mb-1">Thao tác</label>
             <select
               value={form.operationType}
               onChange={(e) => setForm((f) => ({ ...f, operationType: e.target.value }))}
               className="bg-surface-container-low border border-outline-variant/20 rounded-lg px-2 py-1.5 text-xs"
             >
-              {OPERATION_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {OPERATION_TYPES.map((t) => <option key={t} value={t}>{OPERATION_TYPE_LABELS[t] || t}</option>)}
             </select>
           </div>
           <button
@@ -139,7 +154,7 @@ function IndexJobsPanel() {
             disabled={creating || !form.targetId.trim()}
             className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-on-primary hover:opacity-90 disabled:opacity-50"
           >
-            {creating ? 'Creating...' : 'Create'}
+            {creating ? 'Đang tạo...' : 'Tạo'}
           </button>
         </form>
       )}
@@ -148,24 +163,24 @@ function IndexJobsPanel() {
         <table className="w-full">
           <thead>
             <tr className="bg-surface-container-low/50">
-              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Target</th>
-              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Operation</th>
-              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Status</th>
-              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Retries</th>
-              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Created</th>
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Mục tiêu</th>
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Thao tác</th>
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Trạng thái</th>
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Số lần thử lại</th>
+              <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Đã tạo</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/5">
             {loading ? (
-              <tr><td colSpan={5} className="text-center py-8 text-sm text-on-surface-variant">Loading index jobs...</td></tr>
+              <tr><td colSpan={5} className="text-center py-8 text-sm text-on-surface-variant">Đang tải công việc chỉ mục AI...</td></tr>
             ) : error ? (
               <tr><td colSpan={5} className="text-center py-8 text-sm text-error">{error}</td></tr>
             ) : jobs.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-8 text-sm text-on-surface-variant">No index jobs found.</td></tr>
+              <tr><td colSpan={5} className="text-center py-8 text-sm text-on-surface-variant">Không tìm thấy công việc chỉ mục AI nào.</td></tr>
             ) : jobs.map((job) => (
               <tr key={job.id} className="hover:bg-surface-container-high/30">
-                <td className="px-4 py-3 text-sm text-primary font-medium">{job.targetType} · {job.targetId}</td>
-                <td className="px-4 py-3 text-xs text-on-surface-variant">{job.operationType}</td>
+                <td className="px-4 py-3 text-sm text-primary font-medium">{TARGET_TYPE_LABELS[job.targetType] || job.targetType} · {job.targetId}</td>
+                <td className="px-4 py-3 text-xs text-on-surface-variant">{OPERATION_TYPE_LABELS[job.operationType] || job.operationType}</td>
                 <td className="px-4 py-3"><StatusBadge status={job.status?.toLowerCase()} /></td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant">{job.retryCount ?? 0}</td>
                 <td className="px-4 py-3 text-xs text-on-surface-variant">{formatDateTime(job.createdAt)}</td>
@@ -177,9 +192,9 @@ function IndexJobsPanel() {
 
       <AdminConfirmDialog
         open={confirmOpen}
-        title="Tạo AI index job?"
-        message="Hệ thống sẽ bắt đầu quá trình index dữ liệu AI. Quá trình này có thể mất một lúc."
-        confirmLabel="Tạo job"
+        title="Tạo công việc chỉ mục AI?"
+        message="Hệ thống sẽ bắt đầu quá trình chỉ mục dữ liệu AI. Quá trình này có thể mất một lúc."
+        confirmLabel="Tạo tác vụ"
         loading={creating}
         onConfirm={handleCreateConfirm}
         onCancel={() => setConfirmOpen(false)}
@@ -212,54 +227,54 @@ export default function AIPipelinePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-headline-md text-primary">AI Pipeline</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Monitor AI service health and event flow</p>
+          <h1 className="font-headline-md text-primary">Quy trình AI</h1>
+          <p className="text-sm text-on-surface-variant mt-1">Theo dõi tình trạng dịch vụ AI và luồng sự kiện</p>
         </div>
         <button className="bg-surface-container text-on-surface px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-surface-container-high">
-          <RefreshCw size={14} /> Refresh
+          <RefreshCw size={14} /> Làm mới
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-surface-container-lowest rounded-xl p-5 ambient-shadow">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2"><Activity size={16} className="text-primary" /><span className="text-sm font-medium text-primary">Vector Index</span></div>
+            <div className="flex items-center gap-2"><Activity size={16} className="text-primary" /><span className="text-sm font-medium text-primary">Chỉ mục vector</span></div>
             <StatusBadge status="synced" />
           </div>
           <p className="text-2xl font-semibold text-primary">99.98%</p>
-          <p className="text-xs text-on-surface-variant mt-1">Health Score</p>
+          <p className="text-xs text-on-surface-variant mt-1">Điểm sức khỏe</p>
         </div>
         <div className="bg-surface-container-lowest rounded-xl p-5 ambient-shadow">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2"><Brain size={16} className="text-primary" /><span className="text-sm font-medium text-primary">Knowledge Graph</span></div>
+            <div className="flex items-center gap-2"><Brain size={16} className="text-primary" /><span className="text-sm font-medium text-primary">Đồ thị tri thức</span></div>
             <StatusBadge status="synced" />
           </div>
           <p className="text-2xl font-semibold text-primary">100%</p>
-          <p className="text-xs text-on-surface-variant mt-1">Integrity Score</p>
+          <p className="text-xs text-on-surface-variant mt-1">Điểm toàn vẹn</p>
         </div>
         <div className="bg-surface-container-lowest rounded-xl p-5 ambient-shadow">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2"><Clock size={16} className="text-primary" /><span className="text-sm font-medium text-primary">Pipeline Latency</span></div>
+            <div className="flex items-center gap-2"><Clock size={16} className="text-primary" /><span className="text-sm font-medium text-primary">Độ trễ quy trình</span></div>
             <StatusBadge status="failed" />
           </div>
           <p className="text-2xl font-semibold text-error">420ms</p>
-          <p className="text-xs text-error mt-1">Above threshold (200ms)</p>
+          <p className="text-xs text-error mt-1">Vượt ngưỡng (200ms)</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-8 bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden">
           <div className="p-4 border-b border-outline-variant/20">
-            <h2 className="font-title-lg text-primary">Event Log</h2>
+            <h2 className="font-title-lg text-primary">Nhật ký sự kiện</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="bg-surface-container-low/50">
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Timestamp</th>
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Event</th>
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Service</th>
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Status</th>
+                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Thời gian</th>
+                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Sự kiện</th>
+                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Dịch vụ</th>
+                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Trạng thái</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/5">
@@ -286,48 +301,48 @@ export default function AIPipelinePage() {
                 </div>
                 <StatusBadge status={selectedEvent.status} />
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-on-surface-variant">Service</span><span className="text-primary">{selectedEvent.service}</span></div>
-                  <div className="flex justify-between"><span className="text-on-surface-variant">Timestamp</span><span className="text-primary">{formatDateTime(selectedEvent.timestamp)}</span></div>
+                  <div className="flex justify-between"><span className="text-on-surface-variant">Dịch vụ</span><span className="text-primary">{selectedEvent.service}</span></div>
+                  <div className="flex justify-between"><span className="text-on-surface-variant">Thời gian</span><span className="text-primary">{formatDateTime(selectedEvent.timestamp)}</span></div>
                 </div>
                 {selectedEvent.status === 'failed' && (
                   <div className="bg-error-container/50 rounded-lg p-4">
-                    <h4 className="text-xs font-medium text-error mb-2">Error Details</h4>
-                    <p className="text-xs text-on-surface-variant">Connection timeout: Service unavailable. Retry scheduled in 30s.</p>
+                    <h4 className="text-xs font-medium text-error mb-2">Chi tiết lỗi</h4>
+                    <p className="text-xs text-on-surface-variant">Hết thời gian kết nối: dịch vụ không khả dụng. Sẽ thử lại sau 30 giây.</p>
                   </div>
                 )}
                 {selectedEvent.status === 'processing' && (
                   <div className="bg-primary/10 rounded-lg p-4">
-                    <h4 className="text-xs font-medium text-primary mb-2">Retry In Progress</h4>
+                    <h4 className="text-xs font-medium text-primary mb-2">Đang thử lại</h4>
                     <div className="flex items-center gap-2">
                       <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      <p className="text-xs text-on-surface-variant">Re-syncing event...</p>
+                      <p className="text-xs text-on-surface-variant">Đang đồng bộ lại sự kiện...</p>
                     </div>
                   </div>
                 )}
                 <div className="bg-surface-container-low rounded-lg p-4">
-                  <h4 className="text-xs font-medium text-on-surface-variant mb-2">Payload Preview</h4>
+                  <h4 className="text-xs font-medium text-on-surface-variant mb-2">Xem trước payload</h4>
                   <pre className="text-[10px] text-on-surface-variant overflow-x-auto">{'{' + `\n  "event": "${selectedEvent.name}",\n  "service": "${selectedEvent.service}",\n  "status": "${selectedEvent.status}"` + '\n}'}</pre>
                 </div>
                 <div className="flex gap-2">
                   {selectedEvent.status === 'failed' && (
                     <button onClick={() => retryEvent(selectedEvent.id)} disabled={retryingId === selectedEvent.id} className="flex-1 bg-primary text-on-primary rounded-lg py-2 text-xs font-medium hover:opacity-90 disabled:opacity-50">
-                      {retryingId === selectedEvent.id ? 'Retrying...' : 'Retry'}
+                      {retryingId === selectedEvent.id ? 'Đang thử lại...' : 'Thử lại'}
                     </button>
                   )}
-                  <button className="flex-1 bg-surface-container text-on-surface rounded-lg py-2 text-xs font-medium hover:bg-surface-container-high">View Logs</button>
+                  <button className="flex-1 bg-surface-container text-on-surface rounded-lg py-2 text-xs font-medium hover:bg-surface-container-high">Xem nhật ký</button>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8 text-on-surface-variant text-sm">Select an event to view details</div>
+              <div className="text-center py-8 text-on-surface-variant text-sm">Chọn một sự kiện để xem chi tiết</div>
             )}
           </div>
         </div>
       </div>
 
       <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow">
-        <h2 className="font-title-lg text-primary mb-4">Pipeline Health</h2>
+        <h2 className="font-title-lg text-primary mb-4">Tình trạng quy trình</h2>
         <div className="flex items-center justify-between">
-          {['Ingest', 'Parse', 'Index', 'Embed', 'Store'].map((step, idx) => (
+          {['Tiếp nhận', 'Phân tích', 'Chỉ mục', 'Nhúng', 'Lưu trữ'].map((step, idx) => (
             <div key={step} className="flex items-center">
               <div className="flex flex-col items-center">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ${

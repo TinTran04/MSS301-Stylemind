@@ -80,7 +80,11 @@ class ProductServiceTest {
                 .id("v1")
                 .productId("p1")
                 .sku("SKU-1")
+                .size("M")
+                .color("Đen")
                 .priceOverride(null)
+                .stockQuantity(5)
+                .active(true)
                 .build();
 
         // Default to "configured" so existing upload tests exercise the actual
@@ -210,6 +214,70 @@ class ProductServiceTest {
     }
 
     @Test
+    void addVariant_withStockQuantity_persistsAndReturnsIt() {
+        ProductVariantRequest request = ProductVariantRequest.builder()
+                .sku("SKU-2").size("S").color("Trắng").stockQuantity(10).build();
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.findBySku("SKU-2")).thenReturn(Optional.empty());
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant));
+        when(variantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ProductVariantResponse response = productService.addVariant("p1", request);
+
+        assertEquals(10, response.getStockQuantity());
+        assertEquals(true, response.getActive());
+    }
+
+    @Test
+    void addVariant_duplicateSizeColorMaterial_throwsConflict() {
+        ProductVariantRequest request = ProductVariantRequest.builder()
+                .sku("SKU-2").size(" m ").color(" đen ").stockQuantity(3).build();
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.findBySku("SKU-2")).thenReturn(Optional.empty());
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> productService.addVariant("p1", request));
+
+        assertEquals("DUPLICATE_VARIANT", ex.getErrorCode());
+        assertEquals(409, ex.getHttpStatus());
+        assertEquals(
+                "Biến thể này đã tồn tại. Vui lòng kiểm tra lại kích cỡ, màu sắc và chất liệu.",
+                ex.getMessage());
+        verify(variantRepository, never()).save(any(ProductVariant.class));
+    }
+
+    @Test
+    void addVariant_sameSizeColorDifferentMaterial_isAllowed() {
+        variant.setMaterial("Cotton");
+        ProductVariantRequest request = ProductVariantRequest.builder()
+                .sku("SKU-2").size("M").color("Đen").material("Polyester").stockQuantity(3).build();
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.findBySku("SKU-2")).thenReturn(Optional.empty());
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant));
+        when(variantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ProductVariantResponse response = productService.addVariant("p1", request);
+
+        assertEquals("Polyester", response.getMaterial());
+    }
+
+    @Test
+    void updateVariant_duplicateComboAgainstAnotherVariant_throwsConflict() {
+        ProductVariant other = ProductVariant.builder()
+                .id("v2").productId("p1").sku("SKU-2").size("S").color("Trắng").stockQuantity(1).active(true).build();
+        ProductVariantRequest request = ProductVariantRequest.builder()
+                .sku("SKU-2").size("M").color("Đen").stockQuantity(1).build();
+        when(variantRepository.findById("v2")).thenReturn(Optional.of(other));
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant, other));
+
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> productService.updateVariant("p1", "v2", request));
+
+        assertEquals("DUPLICATE_VARIANT", ex.getErrorCode());
+    }
+
+    @Test
     void getVariantSnapshot_priceOverrideNull_usesBasePrice() {
         when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
         when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
@@ -230,6 +298,18 @@ class ProductServiceTest {
         VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
 
         assertEquals(new BigDecimal("120.00"), response.getEffectivePrice());
+    }
+
+    @Test
+    void getVariantSnapshot_includesStockAndActive() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductIdAndIsPrimaryTrue("p1")).thenReturn(Optional.empty());
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
+
+        assertEquals(5, response.getStockQuantity());
+        assertEquals(true, response.getActive());
     }
 
     @Test

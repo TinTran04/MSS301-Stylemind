@@ -34,11 +34,15 @@ export function validateProductFields(product) {
 export function validateVariantFields(variant) {
   const errors = {}
   if (!variant?.sku?.trim()) errors.sku = 'SKU là bắt buộc.'
-  if (!variant?.size?.trim()) errors.size = 'Kích thước là bắt buộc.'
+  if (!variant?.size?.trim()) errors.size = 'Kích cỡ là bắt buộc.'
   if (!variant?.color?.trim()) errors.color = 'Màu sắc là bắt buộc.'
   if (variant?.priceOverride !== '' && variant?.priceOverride != null
       && (!Number.isFinite(Number(variant.priceOverride)) || Number(variant.priceOverride) <= 0)) {
-    errors.priceOverride = 'Giá ghi đè phải lớn hơn 0.'
+    errors.priceOverride = 'Giá ghi đè phải lớn hơn 0 nếu được nhập.'
+  }
+  if (variant?.stockQuantity === '' || variant?.stockQuantity == null
+      || !Number.isFinite(Number(variant.stockQuantity)) || Number(variant.stockQuantity) < 0) {
+    errors.stockQuantity = 'Số lượng tồn kho phải lớn hơn hoặc bằng 0.'
   }
   return errors
 }
@@ -65,8 +69,16 @@ export function getAdminProductErrorMessage(error, context = {}) {
   if (code === 'LAST_ACTIVE_VARIANT') {
     return {
       title: 'Không thể xóa biến thể cuối cùng',
-      message: 'Đây là biến thể cuối cùng của một sản phẩm đang hoạt động. Vui lòng chuyển sản phẩm sang INACTIVE trước khi xóa biến thể này.',
-      actionLabel: 'Chuyển sản phẩm sang INACTIVE trước',
+      message: 'Đây là biến thể cuối cùng của một sản phẩm đang hoạt động. Vui lòng chuyển sản phẩm sang trạng thái Ngừng bán trước khi xóa biến thể này.',
+      actionLabel: 'Chuyển sang Ngừng bán trước',
+      targetStep: CREATE_PRODUCT_STEPS.VARIANTS,
+      errorCode: code,
+    }
+  }
+  if (code === 'DUPLICATE_VARIANT') {
+    return {
+      title: 'Biến thể đã tồn tại',
+      message: 'Biến thể này đã tồn tại. Vui lòng kiểm tra lại kích cỡ, màu sắc và chất liệu.',
       targetStep: CREATE_PRODUCT_STEPS.VARIANTS,
       errorCode: code,
     }
@@ -96,16 +108,16 @@ export function getAdminProductErrorMessage(error, context = {}) {
   }
   if (code === 'SLUG_EXISTS') {
     return {
-      title: 'Slug danh mục đã tồn tại',
-      message: 'Vui lòng dùng slug khác cho danh mục này.',
-      fieldErrors: { slug: 'Slug danh mục này đã được sử dụng.' },
+      title: 'Đường dẫn danh mục đã tồn tại',
+      message: 'Vui lòng dùng đường dẫn khác cho danh mục này.',
+      fieldErrors: { slug: 'Đường dẫn danh mục này đã được sử dụng.' },
       errorCode: code,
     }
   }
   if (code === 'VALIDATION_ERROR' && context.action === 'saveVariant') {
     return {
       title: 'Vui lòng kiểm tra thông tin biến thể',
-      message: 'SKU, kích thước và màu sắc là bắt buộc. Giá ghi đè phải lớn hơn 0 nếu được nhập.',
+      message: 'SKU, kích cỡ và màu sắc là bắt buộc. Giá ghi đè phải lớn hơn 0 nếu được nhập.',
       targetStep: CREATE_PRODUCT_STEPS.VARIANTS,
       fieldErrors: context.fieldErrors || {},
       errorCode: code,
