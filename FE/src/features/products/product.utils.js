@@ -1,7 +1,7 @@
 export function getAIMatchLabel(score) {
-  if (score >= 90) return 'Excellent Match'
-  if (score >= 75) return 'Good Match'
-  return 'Average Match'
+  if (score >= 90) return 'Phù hợp tuyệt vời'
+  if (score >= 75) return 'Phù hợp tốt'
+  return 'Phù hợp trung bình'
 }
 
 export function getAIMatchColor(score) {
@@ -17,7 +17,7 @@ export function getStockStatus(stock) {
 }
 
 export function getStockStatusLabel(status) {
-  const labels = { in_stock: 'In Stock', low_stock: 'Low Stock', out_of_stock: 'Out of Stock' }
+  const labels = { in_stock: 'Còn hàng', low_stock: 'Sắp hết hàng', out_of_stock: 'Hết hàng' }
   return labels[status] || status
 }
 

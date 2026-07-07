@@ -52,8 +52,8 @@ export default function ProductDetailPage() {
         setAddToCartAttempted(false)
         setRecommendations(products.filter((item) => item.id !== id).slice(0, 3))
       })
-      .catch((requestError) => {
-        if (!cancelled) setError(requestError.message || 'Không thể tải sản phẩm.')
+      .catch(() => {
+        if (!cancelled) setError('Không thể tải sản phẩm.')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)

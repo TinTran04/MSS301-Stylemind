@@ -38,8 +38,8 @@ export default function ProductCatalogPage() {
       .then((result) => {
         if (!cancelled) setProductPage(result)
       })
-      .catch((requestError) => {
-        if (!cancelled) setError(requestError.message || 'Không thể tải sản phẩm.')
+      .catch(() => {
+        if (!cancelled) setError('Không thể tải sản phẩm.')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -82,7 +82,7 @@ export default function ProductCatalogPage() {
   return (
     <main className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 md:px-10 lg:px-16 lg:py-12">
       <header className="border-b border-outline-variant/20 pb-6">
-        <p className="mb-2 text-xs font-medium uppercase text-tertiary">StyleMind Collection</p>
+        <p className="mb-2 text-xs font-medium uppercase text-tertiary">Bộ sưu tập StyleMind</p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="font-headline-md text-primary">

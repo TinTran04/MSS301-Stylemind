@@ -7,9 +7,9 @@ export default function AIReasoningPanel({ reasoning }) {
     <div className="bg-surface-container-low rounded-xl p-4 border border-outline-variant/10">
       <div className="flex items-center gap-2 mb-3">
         <Brain size={16} className="text-tertiary" />
-        <span className="font-label-sm uppercase text-on-surface-variant">AI Reasoning</span>
+        <span className="font-label-sm uppercase text-on-surface-variant">Giải thích của AI</span>
         <span className="ml-auto text-xs text-on-surface-variant">
-          Confidence: {reasoning.confidence}%
+          Độ tin cậy: {reasoning.confidence}%
         </span>
       </div>
       <div className="space-y-2">

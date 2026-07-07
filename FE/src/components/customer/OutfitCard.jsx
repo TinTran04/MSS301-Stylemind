@@ -10,7 +10,7 @@ export default function OutfitCard({ outfit, products }) {
       <div className="flex items-center gap-2 mb-3">
         <Badge variant="ai">
           <Sparkles size={12} />
-          {outfit.aiScore}% Match
+          {outfit.aiScore}% phù hợp
         </Badge>
         <span className="font-label-sm text-on-surface-variant uppercase">{outfit.name}</span>
       </div>

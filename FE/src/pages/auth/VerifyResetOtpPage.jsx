@@ -18,15 +18,15 @@ export default function VerifyResetOtpPage() {
   if (!resetContext?.email) {
     return (
       <PasswordRecoveryShell
-        eyebrow="Verification"
-        title="Start a new recovery request"
-        description="No active password recovery request was found in this tab."
+        eyebrow="Xác minh"
+        title="Bắt đầu yêu cầu khôi phục mới"
+        description="Không tìm thấy yêu cầu khôi phục mật khẩu nào đang hoạt động trong tab này."
       >
         <Link
           to="/forgot-password"
           className="flex w-full items-center justify-center bg-primary text-on-primary rounded-lg py-3 text-sm font-medium uppercase"
         >
-          Request a reset code
+          Yêu cầu mã đặt lại
         </Link>
       </PasswordRecoveryShell>
     )
@@ -44,8 +44,8 @@ export default function VerifyResetOtpPage() {
         resetToken: response.resetToken,
       })
       navigate('/reset-password')
-    } catch (requestError) {
-      setError(requestError.message || 'The verification code is invalid or expired.')
+    } catch {
+      setError('Mã xác minh không hợp lệ hoặc đã hết hạn.')
     } finally {
       setLoading(false)
     }
@@ -53,14 +53,14 @@ export default function VerifyResetOtpPage() {
 
   return (
     <PasswordRecoveryShell
-      eyebrow="Verification"
-      title="Enter your reset code"
-      description="Use the six-digit code sent to your email. It expires shortly."
+      eyebrow="Xác minh"
+      title="Nhập mã đặt lại"
+      description="Nhập mã 6 số đã được gửi đến email của bạn. Mã sẽ sớm hết hạn."
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label htmlFor="reset-otp" className="block font-label-sm uppercase text-on-surface-variant mb-2">
-            Verification code
+            Mã xác minh
           </label>
           <input
             id="reset-otp"
@@ -83,13 +83,13 @@ export default function VerifyResetOtpPage() {
           disabled={loading || otp.length !== 6}
           className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium uppercase disabled:opacity-50"
         >
-          {loading ? 'Verifying...' : 'Verify code'}
+          {loading ? 'Đang xác minh...' : 'Xác minh mã'}
         </button>
       </form>
 
       <Link to="/forgot-password" className="inline-flex items-center gap-2 text-sm text-on-surface-variant mt-8 hover:text-primary">
         <ArrowLeft size={16} />
-        Request another code
+        Yêu cầu mã khác
       </Link>
     </PasswordRecoveryShell>
   )

@@ -3,6 +3,19 @@ import { ENDPOINTS } from '../../services/endpoints'
 
 const statusOrder = ['pending', 'confirmed', 'processing', 'shipped', 'delivered']
 
+const statusLabels = {
+  pending: 'Đang chờ',
+  payment_pending: 'Chờ thanh toán',
+  paid: 'Đã thanh toán',
+  confirmed: 'Đã xác nhận',
+  processing: 'Đang xử lý',
+  shipped: 'Đang giao',
+  delivered: 'Hoàn tất',
+  cancelled: 'Đã hủy',
+  expired: 'Đã hết hạn',
+  failed: 'Thất bại',
+}
+
 function normalizeStatus(status) {
   const normalized = String(status || 'pending').toLowerCase()
   if (normalized === 'fulfilled') return 'delivered'
@@ -16,7 +29,7 @@ function buildTimeline(order) {
 
   return statusOrder.map((step, index) => ({
     status: step,
-    label: step.charAt(0).toUpperCase() + step.slice(1),
+    label: statusLabels[step] || step,
     date: index <= currentIndex ? order.updatedAt || order.createdAt : null,
     completed: index <= currentIndex,
   }))
@@ -30,15 +43,16 @@ export function mapOrder(order) {
     id: order.id,
     date: order.createdAt || order.updatedAt,
     status: normalizeStatus(order.orderStatus),
+    statusLabel: statusLabels[normalizeStatus(order.orderStatus)] || normalizeStatus(order.orderStatus),
     total: Number(order.totalAmount || 0),
     shippingAddress: order.shippingAddress,
     items: (order.items || []).map((item) => ({
       id: item.id,
       variantId: item.variantId,
-      name: item.variantId || 'Order item',
+      name: item.variantId || 'Mặt hàng trong đơn',
       image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=200&h=260&fit=crop',
-      size: 'One Size',
-      color: 'Default',
+      size: 'Một cỡ',
+      color: 'Mặc định',
       price: Number(item.priceAtPurchase || 0),
       quantity: item.quantity || 1,
     })),

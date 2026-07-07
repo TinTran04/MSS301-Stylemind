@@ -5,7 +5,7 @@ import { forgotPassword } from '../../features/auth/auth.api'
 import { setPasswordResetContext } from '../../features/auth/passwordResetSession'
 import PasswordRecoveryShell from './PasswordRecoveryShell'
 
-const GENERIC_MESSAGE = 'If an account exists for that email, a reset code has been sent.'
+const GENERIC_MESSAGE = 'Nếu email này tồn tại, một mã đặt lại mật khẩu đã được gửi.'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -23,8 +23,8 @@ export default function ForgotPasswordPage() {
       await forgotPassword(normalizedEmail)
       setPasswordResetContext({ email: normalizedEmail })
       setSubmitted(true)
-    } catch (requestError) {
-      setError(requestError.message || 'Unable to start password recovery.')
+    } catch {
+      setError('Không thể bắt đầu khôi phục mật khẩu.')
     } finally {
       setLoading(false)
     }
@@ -32,21 +32,21 @@ export default function ForgotPasswordPage() {
 
   return (
     <PasswordRecoveryShell
-      eyebrow="Account recovery"
-      title="Forgot your password?"
-      description="Enter the email associated with your StyleMind account."
+      eyebrow="Khôi phục tài khoản"
+      title="Quên mật khẩu?"
+      description="Nhập email gắn với tài khoản StyleMind của bạn."
     >
       {submitted ? (
         <div role="status" className="space-y-6">
           <div className="border-l-2 border-tertiary-container pl-4">
-            <p className="font-medium text-primary">Check your inbox</p>
+            <p className="font-medium text-primary">Hãy kiểm tra hộp thư của bạn</p>
             <p className="text-sm text-on-surface-variant mt-1">{GENERIC_MESSAGE}</p>
           </div>
           <Link
             to="/verify-reset-otp"
             className="flex w-full items-center justify-center bg-primary text-on-primary rounded-lg py-3 text-sm font-medium uppercase"
           >
-            Enter verification code
+            Nhập mã xác minh
           </Link>
         </div>
       ) : (
@@ -65,7 +65,7 @@ export default function ForgotPasswordPage() {
                 required
                 autoComplete="email"
                 className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 text-sm text-on-surface focus:border-tertiary-container focus:outline-none"
-                placeholder="your@email.com"
+                placeholder="tenban@email.com"
               />
             </div>
           </div>
@@ -77,14 +77,14 @@ export default function ForgotPasswordPage() {
             disabled={loading}
             className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium uppercase disabled:opacity-50"
           >
-            {loading ? 'Sending code...' : 'Send reset code'}
+            {loading ? 'Đang gửi mã...' : 'Gửi mã đặt lại'}
           </button>
         </form>
       )}
 
       <Link to="/login" className="inline-flex items-center gap-2 text-sm text-on-surface-variant mt-8 hover:text-primary">
         <ArrowLeft size={16} />
-        Back to sign in
+        Quay lại đăng nhập
       </Link>
     </PasswordRecoveryShell>
   )

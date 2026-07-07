@@ -40,7 +40,7 @@ export default function AIStylistChatPage() {
           setConversationId(mapped[mapped.length - 1].conversationId)
         }
       })
-      .catch((err) => setHistoryError(err.message || 'Unable to load chat history.'))
+      .catch(() => setHistoryError('Không thể tải lịch sử trò chuyện.'))
       .finally(() => setLoadingHistory(false))
   }, [])
 
@@ -69,7 +69,7 @@ export default function AIStylistChatPage() {
       setConversationId(response.conversationId)
       setMessages((prev) => [...prev, toDisplayMessage(response)])
     } catch (err) {
-      setSendError(err.message || 'The AI stylist is unavailable right now.')
+      setSendError('Stylist AI hiện chưa sẵn sàng. Vui lòng thử lại sau.')
     } finally {
       setIsTyping(false)
     }
@@ -98,10 +98,10 @@ export default function AIStylistChatPage() {
               <Sparkles size={14} className="text-on-primary" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-primary">AI Stylist</h3>
+              <h3 className="text-sm font-medium text-primary">Stylist AI</h3>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-green-status animate-pulse" />
-                <span className="text-xs text-on-surface-variant">Connected</span>
+                <span className="text-xs text-on-surface-variant">Đã kết nối</span>
               </div>
             </div>
           </div>
@@ -109,7 +109,7 @@ export default function AIStylistChatPage() {
 
         <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-6">
           {loadingHistory && (
-            <div className="py-12 text-center text-sm text-on-surface-variant">Loading your conversation history...</div>
+            <div className="py-12 text-center text-sm text-on-surface-variant">Đang tải lịch sử trò chuyện...</div>
           )}
 
           {historyError && (
@@ -135,7 +135,7 @@ export default function AIStylistChatPage() {
                         disabled={addingBundleId === msg.bundleId}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary rounded-lg text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                       >
-                        <ShoppingBag size={12} /> {addingBundleId === msg.bundleId ? 'Adding...' : 'Add Full Outfit'}
+                        <ShoppingBag size={12} /> {addingBundleId === msg.bundleId ? 'Đang thêm...' : 'Thêm trọn set'}
                       </button>
                     </div>
                   )}
@@ -167,7 +167,7 @@ export default function AIStylistChatPage() {
             <div className="flex flex-col items-center justify-center py-12">
               <Sparkles size={32} className="text-tertiary mb-4" />
               <p className="text-on-surface-variant text-center mb-6 max-w-sm">
-                Ask me anything about style, outfit recommendations, or wardrobe advice.
+                Hãy hỏi về phong cách, gợi ý trang phục hoặc lời khuyên phối đồ.
               </p>
               <PromptSuggestion onSelect={handleSend} />
             </div>
@@ -182,7 +182,7 @@ export default function AIStylistChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Describe your style needs..."
+              placeholder="Mô tả phong cách bạn đang cần..."
               className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none"
             />
             <button

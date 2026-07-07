@@ -9,9 +9,9 @@ export default function PasswordRecoveryShell({ eyebrow, title, description, chi
         </Link>
         <div>
           <p className="font-label-sm uppercase text-on-primary/60 mb-4">{eyebrow}</p>
-          <p className="font-headline-lg max-w-md">Return to your wardrobe, securely.</p>
+          <p className="font-headline-lg max-w-md">Quay lại tủ đồ của bạn một cách an toàn.</p>
         </div>
-        <p className="text-sm text-on-primary/50">Identity protected by StyleMind</p>
+        <p className="text-sm text-on-primary/50">Danh tính của bạn được StyleMind bảo vệ</p>
       </aside>
 
       <main className="w-full lg:w-3/5 flex items-center justify-center px-6 py-12 md:px-16">

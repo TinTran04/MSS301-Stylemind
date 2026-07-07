@@ -11,6 +11,19 @@ const STATUS_VARIANT = {
   SKIPPED: 'default',
 }
 
+const STATUS_LABEL = {
+  SENT: 'Đã gửi',
+  PENDING: 'Đang chờ',
+  FAILED: 'Thất bại',
+  SKIPPED: 'Đã bỏ qua',
+}
+
+const TYPE_LABEL = {
+  ORDER: 'Đơn hàng',
+  ORDER_CONFIRMATION: 'Xác nhận đơn hàng',
+  SYSTEM: 'Hệ thống',
+}
+
 const TYPE_ICON = {
   ORDER: ShoppingCart,
   ORDER_CONFIRMATION: ShoppingCart,
@@ -24,7 +37,7 @@ export default function NotificationsPage() {
   useEffect(() => {
     getMyNotifications()
       .then(setNotifications)
-      .catch((err) => setError(err.message || 'Unable to load notifications.'))
+      .catch(() => setError('Không thể tải thông báo.'))
       .finally(() => setLoading(false))
   }, [])
 
@@ -32,9 +45,9 @@ export default function NotificationsPage() {
 
   return (
     <div className="max-w-[900px] mx-auto px-6 md:px-16 py-8">
-      <h1 className="font-headline-md text-primary mb-8">Notifications</h1>
+      <h1 className="font-headline-md text-primary mb-8">Thông báo</h1>
 
-      {loading && <div className="py-20 text-center text-on-surface-variant">Loading notifications...</div>}
+      {loading && <div className="py-20 text-center text-on-surface-variant">Đang tải thông báo...</div>}
       {error && (
         <div role="alert" className="rounded-xl border border-error/20 bg-error-container/30 p-6 text-sm text-error">
           {error}
@@ -43,7 +56,7 @@ export default function NotificationsPage() {
       {!loading && !error && sorted.length === 0 && (
         <div className="py-20 text-center">
           <Bell size={48} className="text-on-surface-variant/30 mx-auto mb-4" />
-          <p className="text-on-surface-variant">You do not have any notifications yet.</p>
+          <p className="text-on-surface-variant">Bạn chưa có thông báo nào.</p>
         </div>
       )}
 
@@ -58,8 +71,8 @@ export default function NotificationsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-on-surface">{n.title || n.type}</p>
-                    <Badge variant={STATUS_VARIANT[n.status] || 'default'}>{n.status}</Badge>
+                    <p className="text-sm font-medium text-on-surface">{n.title || TYPE_LABEL[n.type] || n.type}</p>
+                    <Badge variant={STATUS_VARIANT[n.status] || 'default'}>{STATUS_LABEL[n.status] || n.status}</Badge>
                   </div>
                   {n.content && <p className="text-xs text-on-surface-variant mt-0.5">{n.content}</p>}
                   <p className="text-xs text-on-surface-variant/60 mt-1">{formatDateTime(n.createdAt)}</p>

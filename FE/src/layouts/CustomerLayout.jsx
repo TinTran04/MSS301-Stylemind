@@ -7,11 +7,11 @@ import { useAuth } from '../hooks/useAuth'
 import { getInitials } from '../features/auth/auth.utils'
 
 const navLinks = [
-  { to: '/', label: 'Home' },
-  { to: '/shop', label: 'Shop' },
-  { to: '/ai-stylist', label: 'AI Stylist' },
-  { to: '/shop?collection=new', label: 'Collections' },
-  { to: '/orders', label: 'Orders' },
+  { to: '/', label: 'Trang chủ' },
+  { to: '/shop', label: 'Cửa hàng' },
+  { to: '/ai-stylist', label: 'Stylist AI' },
+  { to: '/shop?collection=new', label: 'Bộ sưu tập' },
+  { to: '/orders', label: 'Đơn hàng' },
 ]
 
 export default function CustomerLayout() {
@@ -87,10 +87,10 @@ export default function CustomerLayout() {
           </div>
 
           <div className="flex items-center gap-4">
-            <Link to="/shop" className="p-2 rounded-full hover:bg-surface-container transition-colors">
+            <Link to="/shop" className="p-2 rounded-full hover:bg-surface-container transition-colors" aria-label="Tìm kiếm" title="Tìm kiếm">
               <Search size={20} className="text-on-surface-variant" />
             </Link>
-            <Link to="/cart" className="p-2 rounded-full hover:bg-surface-container transition-colors relative">
+            <Link to="/cart" className="p-2 rounded-full hover:bg-surface-container transition-colors relative" aria-label="Giỏ hàng" title="Giỏ hàng">
               <ShoppingBag size={20} className="text-on-surface-variant" />
               {itemCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-primary text-on-primary text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
@@ -103,7 +103,7 @@ export default function CustomerLayout() {
                 <button
                   onClick={() => setProfileOpen((o) => !o)}
                   className="flex items-center gap-2 p-1 rounded-full hover:bg-surface-container transition-colors"
-                  aria-label="Account menu"
+                  aria-label="Menu tài khoản"
                 >
                   <div className="w-8 h-8 rounded-full bg-primary text-on-primary text-xs font-semibold flex items-center justify-center">
                     {getInitials(user?.name || user?.email)}
@@ -120,26 +120,26 @@ export default function CustomerLayout() {
                       onClick={() => setProfileOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"
                     >
-                      <Settings size={14} /> My Orders
+                      <Settings size={14} /> Đơn hàng của tôi
                     </Link>
                     <Link
                       to="/notifications"
                       onClick={() => setProfileOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"
                     >
-                      <Bell size={14} /> Notifications
+                      <Bell size={14} /> Thông báo
                     </Link>
                     <button
                       onClick={handleLogout}
                       className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-error hover:bg-error-container/20 transition-colors"
                     >
-                      <LogOut size={14} /> Sign Out
+                      <LogOut size={14} /> Đăng xuất
                     </button>
                   </div>
                 )}
               </div>
             ) : (
-              <Link to="/login" className="p-2 rounded-full hover:bg-surface-container transition-colors">
+              <Link to="/login" className="p-2 rounded-full hover:bg-surface-container transition-colors" aria-label="Tài khoản" title="Tài khoản">
                 <User size={20} className="text-on-surface-variant" />
               </Link>
             )}

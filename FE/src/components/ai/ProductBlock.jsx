@@ -43,7 +43,7 @@ export default function ProductBlock({ product, bundleId }) {
         {matchPercent != null && (
           <div className="absolute top-3 left-3 bg-ai-lavender/90 backdrop-blur-sm text-ai-indigo text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 animate-pulse-glow">
             <Sparkles size={10} />
-            {matchPercent}% Match
+            {matchPercent}% phù hợp
           </div>
         )}
       </div>
@@ -55,6 +55,8 @@ export default function ProductBlock({ product, bundleId }) {
           <button
             onClick={handleAddToCart}
             disabled={adding || added}
+            aria-label="Thêm vào giỏ hàng"
+            title="Thêm vào giỏ hàng"
             className="p-2 rounded-full bg-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {adding ? <Loader2 size={14} className="animate-spin" /> : <ShoppingBag size={14} />}

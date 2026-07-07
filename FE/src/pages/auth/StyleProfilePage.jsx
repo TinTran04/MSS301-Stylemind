@@ -6,11 +6,17 @@ import { mockStyleOptions } from '../../features/profile/profile.mock'
 import { getProfile, updateProfile } from '../../features/profile/profile.api'
 
 const steps = [
-  { num: '01', title: 'Style Preferences', description: 'Choose your style DNA' },
-  { num: '02', title: 'Body Profile', description: 'Help us find your perfect fit' },
-  { num: '03', title: 'Fit Preferences', description: 'How do you like your clothes to fit?' },
-  { num: '04', title: 'Color & Size', description: 'Final touches for your profile' },
+  { num: '01', title: 'Sở thích phong cách', description: 'Chọn dấu ấn thời trang của bạn' },
+  { num: '02', title: 'Hồ sơ vóc dáng', description: 'Giúp chúng tôi tìm phom dáng phù hợp' },
+  { num: '03', title: 'Sở thích phom dáng', description: 'Bạn thích trang phục ôm vừa hay thoải mái?' },
+  { num: '04', title: 'Màu sắc & kích cỡ', description: 'Hoàn thiện hồ sơ phong cách của bạn' },
 ]
+
+const styleOptions = mockStyleOptions.stylePreferences
+
+function getOptionLabel(options, value) {
+  return options.find((option) => option.value === value || option.id === value)?.label || value
+}
 
 export default function StyleProfilePage() {
   const [currentStep, setCurrentStep] = useState(1)
@@ -49,8 +55,8 @@ export default function StyleProfilePage() {
           }
         }
       })
-      .catch((requestError) => {
-        if (active) setError(requestError.message || 'Unable to load your style profile.')
+      .catch(() => {
+        if (active) setError('Không thể tải hồ sơ phong cách của bạn.')
       })
       .finally(() => {
         if (active) setLoading(false)
@@ -76,13 +82,16 @@ export default function StyleProfilePage() {
   }
 
   const getInsightText = () => {
+    const bodyTypeLabel = getOptionLabel(bodyTypes, selectedBodyType)
+    const fitLabel = getOptionLabel(fits, selectedFit)
+
     if (selectedBodyType && selectedFit) {
-      return `Based on your ${selectedBodyType} build and preference for ${selectedFit} clothing, I recommend structured pieces with clean lines. Your wardrobe should focus on tailored silhouettes that complement your natural proportions.`
+      return `Dựa trên vóc dáng ${bodyTypeLabel} và sở thích phom dáng ${fitLabel}, chúng tôi gợi ý các thiết kế có đường cắt rõ ràng, gọn gàng. Tủ đồ của bạn nên ưu tiên những phom dáng tinh chỉnh để tôn lên tỷ lệ tự nhiên.`
     }
     if (selectedBodyType) {
-      return `Tell me your fit preference and I'll generate a personalized wardrobe blueprint based on your ${selectedBodyType} frame.`
+      return `Hãy cho chúng tôi biết bạn thích phom dáng nào, Stylist AI sẽ tạo bản gợi ý tủ đồ cá nhân dựa trên vóc dáng ${bodyTypeLabel} của bạn.`
     }
-    return "Select your body type and fit preference to receive AI-powered style insights tailored to you."
+    return 'Chọn vóc dáng và phom dáng yêu thích để nhận những gợi ý thời trang được AI cá nhân hóa.'
   }
 
   const completeProfile = async () => {
@@ -100,8 +109,8 @@ export default function StyleProfilePage() {
         }),
       })
       navigate('/')
-    } catch (requestError) {
-      setError(requestError.message || 'Unable to save your style profile.')
+    } catch {
+      setError('Không thể lưu hồ sơ phong cách của bạn.')
     } finally {
       setSaving(false)
     }
@@ -110,7 +119,7 @@ export default function StyleProfilePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center text-on-surface-variant">
-        Loading your profile...
+        Đang tải hồ sơ của bạn...
       </div>
     )
   }
@@ -121,7 +130,7 @@ export default function StyleProfilePage() {
       <header className="flex items-center justify-between px-8 py-5">
         <a href="/" className="font-display-lg tracking-tighter text-primary no-underline">StyleMind</a>
         <span className="font-label-sm uppercase text-on-surface-variant">
-          STEP {String(currentStep).padStart(2, '0')}/04
+          BƯỚC {String(currentStep).padStart(2, '0')}/04
         </span>
       </header>
 
@@ -147,29 +156,29 @@ export default function StyleProfilePage() {
           <div className="space-y-6">
             <div>
               <label className="block font-label-sm uppercase text-on-surface-variant mb-2">
-                Display name
+                Tên hiển thị
               </label>
               <input
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
                 maxLength={150}
                 className="w-full bg-transparent border-0 border-b border-outline-variant py-2 text-sm text-primary focus:border-tertiary-container focus:outline-none"
-                placeholder="How should StyleMind address you?"
+                placeholder="StyleMind nên gọi bạn như thế nào?"
               />
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {['Minimalist', 'Bohemian', 'Classic', 'Streetwear', 'Avant-Garde', 'Romantic'].map((style) => (
+              {styleOptions.map((style) => (
                 <button
-                  key={style}
-                  onClick={() => toggleStyle(style)}
+                  key={style.value}
+                  onClick={() => toggleStyle(style.value)}
                   className={clsx(
                     'p-6 rounded-2xl border-2 text-center transition-all',
-                    selectedStyles.includes(style)
+                    selectedStyles.includes(style.value)
                       ? 'border-tertiary-container bg-surface-container-low'
                       : 'border-outline-variant/20 hover:border-primary'
                   )}
                 >
-                  <span className="font-title-lg text-primary">{style}</span>
+                  <span className="font-title-lg text-primary">{style.label}</span>
                 </button>
               ))}
             </div>
@@ -222,20 +231,20 @@ export default function StyleProfilePage() {
         {currentStep === 4 && (
           <div className="space-y-8">
             <div>
-              <h3 className="font-label-md uppercase text-on-surface-variant mb-3">Favorite Colors</h3>
+              <h3 className="font-label-md uppercase text-on-surface-variant mb-3">Màu sắc yêu thích</h3>
               <div className="flex flex-wrap gap-3">
                 {colors.map((color) => (
                   <button
-                    key={color}
-                    onClick={() => toggleColor(color)}
+                    key={color.value}
+                    onClick={() => toggleColor(color.value)}
                     className={clsx(
                       'px-4 py-2 rounded-full border text-sm transition-all',
-                      selectedColors.includes(color)
+                      selectedColors.includes(color.value)
                         ? 'border-tertiary-container bg-surface-container-low text-primary'
                         : 'border-outline-variant/20 text-on-surface-variant hover:border-outline-variant'
                     )}
                   >
-                    {color}
+                    {color.label}
                   </button>
                 ))}
               </div>
@@ -247,7 +256,7 @@ export default function StyleProfilePage() {
         <div className="mt-10 bg-ai-lavender/20 rounded-2xl p-6 border border-ai-lavender/30">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles size={16} className="text-tertiary" />
-            <span className="font-label-sm uppercase text-on-surface-variant">AI Match Insight</span>
+            <span className="font-label-sm uppercase text-on-surface-variant">Gợi ý từ AI</span>
           </div>
           <p className="text-sm text-on-surface-variant leading-relaxed">{getInsightText()}</p>
         </div>
@@ -266,7 +275,7 @@ export default function StyleProfilePage() {
             className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors text-sm"
           >
             <ArrowLeft size={16} />
-            Back
+            Quay lại
           </button>
           <button
             onClick={() => {
@@ -276,7 +285,7 @@ export default function StyleProfilePage() {
             disabled={saving}
             className="flex items-center gap-2 bg-primary text-on-primary px-6 py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            {currentStep === 4 ? (saving ? 'Saving...' : 'Complete') : 'Continue'}
+            {currentStep === 4 ? (saving ? 'Đang lưu...' : 'Hoàn tất') : 'Tiếp tục'}
             <ArrowRight size={16} />
           </button>
         </div>

@@ -21,9 +21,9 @@ const usePaymentStore = create((set, get) => ({
     set({ status: 'processing', steps: [], currentStep: -1, error: null })
 
     const steps = [
-      { label: 'Creating order', status: 'pending' },
-      { label: method === 'cod' ? 'Setting payment on delivery' : 'Generating VietQR code', status: 'pending' },
-      { label: method === 'cod' ? 'Confirming order' : 'Waiting for bank transfer', status: 'pending' },
+      { label: 'Đang tạo đơn hàng', status: 'pending' },
+      { label: method === 'cod' ? 'Thiết lập thanh toán khi nhận hàng' : 'Tạo mã VietQR', status: 'pending' },
+      { label: method === 'cod' ? 'Xác nhận đơn hàng' : 'Chờ chuyển khoản từ ngân hàng', status: 'pending' },
     ]
     set({ steps: [...steps] })
 
@@ -75,7 +75,7 @@ const usePaymentStore = create((set, get) => ({
       set({ status: 'success', lastOrder: order })
       return { success: true, order }
     } catch (err) {
-      markFailed(Math.max(get().currentStep, 0), err.message || 'Unable to place order.')
+      markFailed(Math.max(get().currentStep, 0), 'Không thể đặt hàng.')
       return { success: false }
     }
   },
@@ -97,7 +97,9 @@ const usePaymentStore = create((set, get) => ({
           get().stopPolling()
           set({
             status: 'failed',
-            error: status === 'EXPIRED' ? 'Payment window expired. Please place a new order.' : 'Payment failed.',
+            error: status === 'EXPIRED'
+              ? 'Phiên thanh toán đã hết hạn. Vui lòng đặt hàng mới.'
+              : 'Thanh toán thất bại.',
             lastOrder: order,
           })
         } else {

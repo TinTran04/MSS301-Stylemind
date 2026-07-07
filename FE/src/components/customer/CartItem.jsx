@@ -21,8 +21,8 @@ export default function CartItem({ item }) {
         ) : (
           <>
             <p className="text-xs text-on-surface-variant mt-0.5">
-              Size: {item.size} &middot; {item.color}
-              {item.material ? <> &middot; {item.material}</> : null}
+              Kích cỡ: {item.size} &middot; Màu sắc: {item.color}
+              {item.material ? <> &middot; Chất liệu: {item.material}</> : null}
             </p>
             <p className="text-sm font-semibold text-primary mt-2">{formatCurrency(item.price)}</p>
           </>

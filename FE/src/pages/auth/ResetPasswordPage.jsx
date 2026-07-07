@@ -20,15 +20,15 @@ export default function ResetPasswordPage() {
   if (!resetContext?.email || !resetContext?.resetToken) {
     return (
       <PasswordRecoveryShell
-        eyebrow="New password"
-        title="Verification required"
-        description="Verify a current reset code before choosing a new password."
+        eyebrow="Mật khẩu mới"
+        title="Cần xác minh"
+        description="Hãy xác minh mã đặt lại hiện tại trước khi chọn mật khẩu mới."
       >
         <Link
           to="/forgot-password"
           className="flex w-full items-center justify-center bg-primary text-on-primary rounded-lg py-3 text-sm font-medium uppercase"
         >
-          Start account recovery
+          Bắt đầu khôi phục tài khoản
         </Link>
       </PasswordRecoveryShell>
     )
@@ -39,7 +39,7 @@ export default function ResetPasswordPage() {
     setError('')
 
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match.')
+      setError('Mật khẩu không khớp.')
       return
     }
 
@@ -48,8 +48,8 @@ export default function ResetPasswordPage() {
       await resetPassword(resetContext.email, resetContext.resetToken, newPassword)
       clearPasswordResetContext()
       setComplete(true)
-    } catch (requestError) {
-      setError(requestError.message || 'Unable to reset your password.')
+    } catch {
+      setError('Không thể đặt lại mật khẩu.')
     } finally {
       setLoading(false)
     }
@@ -57,29 +57,29 @@ export default function ResetPasswordPage() {
 
   return (
     <PasswordRecoveryShell
-      eyebrow="New password"
-      title={complete ? 'Password updated' : 'Choose a new password'}
+      eyebrow="Mật khẩu mới"
+      title={complete ? 'Mật khẩu đã được cập nhật' : 'Chọn mật khẩu mới'}
       description={complete
-        ? 'Your new password is ready to use.'
-        : 'Use at least six characters and keep it unique to StyleMind.'}
+        ? 'Mật khẩu mới của bạn đã sẵn sàng để sử dụng.'
+        : 'Hãy dùng ít nhất 6 ký tự và chọn một mật khẩu riêng cho StyleMind.'}
     >
       {complete ? (
         <div role="status" className="space-y-6">
           <p className="text-sm text-on-surface-variant">
-            You can now sign in with your new password.
+            Bây giờ bạn có thể đăng nhập bằng mật khẩu mới.
           </p>
           <Link
             to="/login"
             className="flex w-full items-center justify-center bg-primary text-on-primary rounded-lg py-3 text-sm font-medium uppercase"
           >
-            Return to sign in
+            Quay lại đăng nhập
           </Link>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
           <PasswordField
             id="new-password"
-            label="New password"
+            label="Mật khẩu mới"
             value={newPassword}
             onChange={setNewPassword}
             visible={showPassword}
@@ -87,7 +87,7 @@ export default function ResetPasswordPage() {
           />
           <PasswordField
             id="confirm-password"
-            label="Confirm password"
+            label="Xác nhận mật khẩu"
             value={confirmPassword}
             onChange={setConfirmPassword}
             visible={showPassword}
@@ -100,7 +100,7 @@ export default function ResetPasswordPage() {
             disabled={loading}
             className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium uppercase disabled:opacity-50"
           >
-            {loading ? 'Updating password...' : 'Update password'}
+            {loading ? 'Đang cập nhật mật khẩu...' : 'Cập nhật mật khẩu'}
           </button>
         </form>
       )}
@@ -131,7 +131,7 @@ function PasswordField({ id, label, value, onChange, visible, onToggle }) {
           <button
             type="button"
             onClick={onToggle}
-            aria-label={visible ? 'Hide password' : 'Show password'}
+            aria-label={visible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
             className="absolute right-0 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-primary"
           >
             {visible ? <EyeOff size={16} /> : <Eye size={16} />}

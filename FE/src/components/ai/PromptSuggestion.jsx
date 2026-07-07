@@ -1,11 +1,11 @@
 import { Sparkles } from 'lucide-react'
 
 const suggestions = [
-  "Find me an outfit for a business dinner",
-  "What's trending for summer?",
-  "I need a casual weekend look",
-  "Help me build a capsule wardrobe",
-  "Recommend sustainable fashion options",
+  'Gợi ý cho tôi một outfit đi ăn tối công việc',
+  'Mùa hè này đang thịnh hành gì?',
+  'Tôi cần một look cuối tuần thoải mái',
+  'Giúp tôi xây dựng tủ đồ capsule',
+  'Gợi ý các lựa chọn thời trang bền vững',
 ]
 
 export default function PromptSuggestion({ onSelect }) {

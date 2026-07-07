@@ -27,7 +27,7 @@ const useCartStore = create((set, get) => ({
       set({ items: cart.items, cartId: cart.cartId, loading: false })
       return cart
     } catch (err) {
-      set({ error: err.message || 'Unable to load cart.', loading: false })
+      set({ error: 'Không thể tải giỏ hàng.', loading: false })
       return null
     }
   },
@@ -52,7 +52,7 @@ const useCartStore = create((set, get) => ({
       set({ items: cart.items, cartId: cart.cartId, loading: false })
       return cart
     } catch (err) {
-      set({ error: err.message || 'Unable to add item to cart.', loading: false })
+      set({ error: 'Không thể thêm sản phẩm vào giỏ hàng.', loading: false })
       return null
     }
   },
@@ -63,7 +63,7 @@ const useCartStore = create((set, get) => ({
     try {
       await removeCartItem(cartItemId)
     } catch (err) {
-      set({ items: previousItems, error: err.message || 'Unable to remove item.' })
+      set({ items: previousItems, error: 'Không thể xóa sản phẩm.' })
     }
   },
 
@@ -83,7 +83,7 @@ const useCartStore = create((set, get) => ({
       const cart = await updateCartItem(cartItemId, quantity)
       set({ items: cart.items, cartId: cart.cartId })
     } catch (err) {
-      set({ items: previousItems, error: err.message || 'Unable to update quantity.' })
+      set({ items: previousItems, error: 'Không thể cập nhật số lượng.' })
     }
   },
 

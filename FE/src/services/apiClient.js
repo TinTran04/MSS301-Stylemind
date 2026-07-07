@@ -50,7 +50,7 @@ apiClient.interceptors.response.use(
 )
 
 function createApiError(body, status) {
-  const apiError = new Error(body?.message || 'Request failed')
+  const apiError = new Error(body?.message || 'Yêu cầu không thành công.')
   apiError.status = status
   apiError.errorCode = body?.errorCode
   apiError.details = body
@@ -63,7 +63,7 @@ function normalizeApiError(error) {
     return createApiError(body, error.response?.status)
   }
 
-  const apiError = new Error(error.message || 'Network request failed')
+  const apiError = new Error(error.message || 'Không thể kết nối mạng.')
   apiError.status = error.response?.status
   apiError.errorCode = error.code
   apiError.details = error

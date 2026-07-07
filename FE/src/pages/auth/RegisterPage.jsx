@@ -10,25 +10,23 @@ import {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const RESEND_COOLDOWN_SECONDS = 60
 
-// Turn a backend error into a friendly English message, keyed by the stable
-// errorCode so wording stays consistent regardless of the server locale.
 function messageForError(err, fallback) {
   switch (err?.errorCode) {
     case 'EMAIL_ALREADY_EXISTS':
-      return 'An account with this email already exists.'
+      return 'Email này đã được sử dụng.'
     case 'REGISTER_OTP_INVALID':
-      return 'That code is incorrect or has expired.'
+      return 'Mã xác minh không đúng hoặc đã hết hạn.'
     case 'REGISTER_OTP_BLOCKED':
-      return 'Too many attempts. Please request a new code.'
+      return 'Bạn đã thử quá nhiều lần. Vui lòng yêu cầu mã mới.'
     case 'REGISTER_OTP_COOLDOWN':
-      return 'Please wait a moment before requesting another code.'
+      return 'Vui lòng chờ một chút rồi hãy yêu cầu mã mới.'
     case 'NOTIFICATION_FAILED':
-      return "We couldn't send the verification email. Please try again."
+      return 'Không thể gửi email xác minh. Vui lòng thử lại.'
     default:
       if (err && err.status === undefined) {
-        return 'Network error. Check your connection and try again.'
+        return 'Lỗi kết nối mạng. Vui lòng kiểm tra lại và thử sau.'
       }
-      return err?.message || fallback
+      return fallback
   }
 }
 
@@ -43,7 +41,6 @@ export default function RegisterPage() {
   const [cooldown, setCooldown] = useState(0)
   const navigate = useNavigate()
 
-  // Countdown that gates the "Resend code" button.
   useEffect(() => {
     if (cooldown <= 0) return undefined
     const timer = setInterval(() => setCooldown((s) => (s <= 1 ? 0 : s - 1)), 1000)
@@ -51,12 +48,12 @@ export default function RegisterPage() {
   }, [cooldown])
 
   const validateForm = () => {
-    if (!formData.email.trim()) return 'Email is required.'
-    if (!EMAIL_PATTERN.test(formData.email.trim())) return 'Enter a valid email address.'
-    if (!formData.password) return 'Password is required.'
-    if (formData.password.length < 6) return 'Password must be at least 6 characters.'
-    if (!formData.confirmPassword) return 'Please confirm your password.'
-    if (formData.password !== formData.confirmPassword) return 'Passwords do not match.'
+    if (!formData.email.trim()) return 'Email là bắt buộc.'
+    if (!EMAIL_PATTERN.test(formData.email.trim())) return 'Vui lòng nhập email hợp lệ.'
+    if (!formData.password) return 'Mật khẩu là bắt buộc.'
+    if (formData.password.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự.'
+    if (!formData.confirmPassword) return 'Vui lòng xác nhận mật khẩu.'
+    if (formData.password !== formData.confirmPassword) return 'Mật khẩu không khớp.'
     return ''
   }
 
@@ -76,7 +73,7 @@ export default function RegisterPage() {
       setOtp('')
       setCooldown(RESEND_COOLDOWN_SECONDS)
     } catch (err) {
-      setError(messageForError(err, 'Unable to start registration.'))
+      setError(messageForError(err, 'Không thể bắt đầu đăng ký.'))
     } finally {
       setLoading(false)
     }
@@ -88,10 +85,10 @@ export default function RegisterPage() {
     setLoading(true)
     try {
       await verifyRegisterOtp(formData.email.trim(), otp)
-      setSuccess('Your account is ready. Redirecting you to sign in…')
+      setSuccess('Tài khoản của bạn đã sẵn sàng. Đang chuyển bạn đến trang đăng nhập…')
       setTimeout(() => navigate('/login'), 1500)
     } catch (err) {
-      setError(messageForError(err, 'The verification code is invalid or expired.'))
+      setError(messageForError(err, 'Mã xác minh không hợp lệ hoặc đã hết hạn.'))
     } finally {
       setLoading(false)
     }
@@ -105,7 +102,7 @@ export default function RegisterPage() {
       await resendRegisterOtp(formData.email.trim())
       setCooldown(RESEND_COOLDOWN_SECONDS)
     } catch (err) {
-      setError(messageForError(err, 'Unable to resend the code.'))
+      setError(messageForError(err, 'Không thể gửi lại mã.'))
       if (err?.errorCode === 'REGISTER_OTP_COOLDOWN') setCooldown(RESEND_COOLDOWN_SECONDS)
     } finally {
       setLoading(false)
@@ -129,8 +126,8 @@ export default function RegisterPage() {
 
           {step === 'form' ? (
             <>
-              <h2 className="font-headline-md text-primary mt-8 lg:mt-0">Join the Atelier</h2>
-              <p className="text-on-surface-variant mt-2">Begin your AI-powered style journey</p>
+              <h2 className="font-headline-md text-primary mt-8 lg:mt-0">Tham gia StyleMind</h2>
+              <p className="text-on-surface-variant mt-2">Bắt đầu hành trình phong cách được AI cá nhân hóa</p>
 
               <form onSubmit={handleStartRegistration} className="space-y-6 mt-8" noValidate>
                 <div>
@@ -143,13 +140,13 @@ export default function RegisterPage() {
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       required
                       className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
-                      placeholder="your@email.com"
+                      placeholder="tenban@email.com"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Password</label>
+                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Mật khẩu</label>
                   <div className="relative">
                     <Lock size={16} className="absolute left-0 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                     <input
@@ -159,7 +156,7 @@ export default function RegisterPage() {
                       required
                       minLength={6}
                       className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 pr-10 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
-                      placeholder="Create a password"
+                      placeholder="Tạo mật khẩu"
                     />
                     <button
                       type="button"
@@ -172,7 +169,7 @@ export default function RegisterPage() {
                 </div>
 
                 <div>
-                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Confirm Password</label>
+                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Xác nhận mật khẩu</label>
                   <div className="relative">
                     <Lock size={16} className="absolute left-0 top-1/2 -translate-y-1/2 text-on-surface-variant" />
                     <input
@@ -182,7 +179,7 @@ export default function RegisterPage() {
                       required
                       minLength={6}
                       className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 pr-10 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
-                      placeholder="Re-enter your password"
+                      placeholder="Nhập lại mật khẩu"
                     />
                   </div>
                 </div>
@@ -198,7 +195,7 @@ export default function RegisterPage() {
                   disabled={loading}
                   className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase mt-8 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {loading ? 'Sending Code...' : 'Create Account'}
+                  {loading ? 'Đang gửi mã...' : 'Tạo tài khoản'}
                 </button>
 
                 <div className="relative my-6">
@@ -206,7 +203,7 @@ export default function RegisterPage() {
                     <div className="w-full border-t border-outline-variant/20" />
                   </div>
                   <div className="relative flex justify-center text-xs">
-                    <span className="bg-surface-container-lowest px-4 text-on-surface-variant uppercase tracking-wider">OR</span>
+                    <span className="bg-surface-container-lowest px-4 text-on-surface-variant uppercase tracking-wider">HOẶC</span>
                   </div>
                 </div>
 
@@ -220,23 +217,23 @@ export default function RegisterPage() {
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                   </svg>
-                  Sign up with Google
+                  Đăng ký với Google
                 </button>
               </form>
 
               <p className="text-center text-sm text-on-surface-variant mt-8">
-                Already have an account?{' '}
+                Đã có tài khoản?{' '}
                 <Link to="/login" className="text-primary font-medium hover:underline">
-                  Sign in
+                  Đăng nhập
                 </Link>
               </p>
             </>
           ) : (
             <>
-              <h2 className="font-headline-md text-primary mt-8 lg:mt-0">Verify your email</h2>
+              <h2 className="font-headline-md text-primary mt-8 lg:mt-0">Xác minh email</h2>
               <p className="text-on-surface-variant mt-2">
-                Enter the six-digit code we sent to{' '}
-                <span className="text-primary font-medium">{formData.email.trim()}</span>. It expires shortly.
+                Nhập mã 6 số chúng tôi đã gửi tới{' '}
+                <span className="text-primary font-medium">{formData.email.trim()}</span>. Mã sẽ hết hạn sau ít phút.
               </p>
 
               {success ? (
@@ -251,7 +248,7 @@ export default function RegisterPage() {
                 <form onSubmit={handleVerifyOtp} className="space-y-6 mt-8">
                   <div>
                     <label htmlFor="register-otp" className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">
-                      Verification code
+                      Mã xác minh
                     </label>
                     <input
                       id="register-otp"
@@ -278,7 +275,7 @@ export default function RegisterPage() {
                     disabled={loading || otp.length !== 6}
                     className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loading ? 'Verifying...' : 'Verify & Create Account'}
+                    {loading ? 'Đang xác minh...' : 'Xác minh và tạo tài khoản'}
                   </button>
 
                   <div className="flex items-center justify-between text-sm">
@@ -288,7 +285,7 @@ export default function RegisterPage() {
                       className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors"
                     >
                       <ArrowLeft size={16} />
-                      Edit details
+                      Sửa thông tin
                     </button>
                     <button
                       type="button"
@@ -296,7 +293,7 @@ export default function RegisterPage() {
                       disabled={cooldown > 0 || loading}
                       className="text-primary font-medium hover:underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
                     >
-                      {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
+                      {cooldown > 0 ? `Gửi lại mã sau ${cooldown}s` : 'Gửi lại mã'}
                     </button>
                   </div>
                 </form>
@@ -308,15 +305,15 @@ export default function RegisterPage() {
 
       {/* Right: Editorial Image */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        <img
+            <img
           src="https://images.unsplash.com/photo-1509631179647-0177331693ae?w=1200&h=1600&fit=crop"
-          alt="Fashion editorial"
+          alt="Ảnh biên tập thời trang"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent" />
         <div className="absolute bottom-16 left-16 right-16">
           <blockquote className="font-headline-lg text-on-primary/90 italic leading-relaxed">
-            "Fashion is the armour to survive the reality of everyday life."
+            "Phong cách là lớp áo giúp ta bước qua nhịp sống thường ngày."
           </blockquote>
           <p className="text-on-primary/60 mt-4 font-label-sm uppercase tracking-wider">- Bill Cunningham</p>
         </div>
