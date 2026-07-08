@@ -17,9 +17,14 @@ import lombok.*;
 @Builder
 public class PaymentWebhookEvent extends BaseEntity {
 
+    public static final String PROVIDER_SEPAY = "SEPAY";
+
     @Id
     @Column(name = "id", length = 50)
     private String id;
+
+    @Column(name = "provider", length = 30, nullable = false)
+    private String provider;
 
     @Column(name = "gateway_transaction_id", length = 100)
     private String gatewayTransactionId;
@@ -36,8 +41,17 @@ public class PaymentWebhookEvent extends BaseEntity {
     @Column(name = "result", length = 30, nullable = false)
     private String result;
 
+    @Column(name = "processed", nullable = false)
+    @Builder.Default
+    private Boolean processed = Boolean.FALSE;
+
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
+
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+    public String getProvider() { return provider; }
+    public void setProvider(String provider) { this.provider = provider; }
     public String getGatewayTransactionId() { return gatewayTransactionId; }
     public void setGatewayTransactionId(String gatewayTransactionId) { this.gatewayTransactionId = gatewayTransactionId; }
     public String getTransactionId() { return transactionId; }
@@ -48,4 +62,8 @@ public class PaymentWebhookEvent extends BaseEntity {
     public void setAmount(java.math.BigDecimal amount) { this.amount = amount; }
     public String getResult() { return result; }
     public void setResult(String result) { this.result = result; }
+    public Boolean getProcessed() { return processed; }
+    public void setProcessed(Boolean processed) { this.processed = processed; }
+    public String getErrorMessage() { return errorMessage; }
+    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
 }

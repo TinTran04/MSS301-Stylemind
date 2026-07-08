@@ -24,9 +24,10 @@ public class OrderController {
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
             @AuthenticationPrincipal UserPrincipal principal,
             HttpServletRequest request,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CreateOrderRequest orderRequest) {
         String authHeader = request.getHeader("Authorization");
-        OrderResponse order = orderService.createOrder(principal.getUserId(), authHeader, orderRequest);
+        OrderResponse order = orderService.createOrder(principal.getUserId(), authHeader, idempotencyKey, orderRequest);
         return ResponseEntity.ok(ApiResponse.success("Order created successfully", order));
     }
 
