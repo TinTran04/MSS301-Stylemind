@@ -8,15 +8,15 @@ import {
   normalizeTargetDemographic,
 } from './product.demographic.js'
 
-test('normalizeTargetDemographic maps common aliases to canonical backend values', () => {
-  assert.equal(normalizeTargetDemographic('Nam'), 'MEN')
-  assert.equal(normalizeTargetDemographic('nữ'), 'WOMEN')
+test('normalizeTargetDemographic maps common aliases to the English backend enum', () => {
+  assert.equal(normalizeTargetDemographic('Nam'), 'MALE')
+  assert.equal(normalizeTargetDemographic('nữ'), 'FEMALE')
   assert.equal(normalizeTargetDemographic('Unisex'), 'UNISEX')
 })
 
 test('getTargetDemographicLabel returns Vietnamese display labels', () => {
-  assert.equal(getTargetDemographicLabel('MEN'), 'Nam')
-  assert.equal(getTargetDemographicLabel('women'), 'Nữ')
+  assert.equal(getTargetDemographicLabel('MALE'), 'Nam')
+  assert.equal(getTargetDemographicLabel('female'), 'Nữ')
   assert.equal(getTargetDemographicLabel('UNISEX'), 'Unisex')
 })
 
@@ -28,9 +28,9 @@ test('getTargetDemographicOptions exposes the storefront chip labels', () => {
 })
 
 test('matchesTargetDemographic treats aliases as equivalent', () => {
-  assert.equal(matchesTargetDemographic('MEN', 'Nam'), true)
-  assert.equal(matchesTargetDemographic('WOMEN', 'Nữ'), true)
+  assert.equal(matchesTargetDemographic('MALE', 'Nam'), true)
+  assert.equal(matchesTargetDemographic('FEMALE', 'Nữ'), true)
   assert.equal(matchesTargetDemographic('UNISEX', 'Unisex'), true)
-  assert.equal(matchesTargetDemographic('MEN', 'Nữ'), false)
+  assert.equal(matchesTargetDemographic('MALE', 'Nữ'), false)
 })
 

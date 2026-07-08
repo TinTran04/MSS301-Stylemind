@@ -12,14 +12,11 @@ import java.util.List;
 @Builder
 public class ProductResponse {
     private String id;
-    private Long categoryId;
-    private String categoryName;
+    private List<CategorySummaryResponse> categories;
     private String name;
     private String description;
     private BigDecimal basePrice;
-    private String aestheticStyle;
     private String targetDemographic;
-    private String seasonalProperty;
     private String status;
     private List<ProductImageResponse> images;
     private List<ProductVariantResponse> variants;

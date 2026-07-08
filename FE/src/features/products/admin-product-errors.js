@@ -24,7 +24,9 @@ export function validateProductFields(product) {
   if (!Number.isFinite(Number(product?.basePrice)) || Number(product.basePrice) <= 0) {
     errors.basePrice = 'Giá gốc phải lớn hơn 0.'
   }
-  if (!product?.categoryId) errors.categoryId = 'Danh mục là bắt buộc.'
+  if (!Array.isArray(product?.categoryIds) || product.categoryIds.length === 0) {
+    errors.categoryIds = 'Vui lòng chọn ít nhất một danh mục.'
+  }
   if (!['ACTIVE', 'INACTIVE', 'DISCONTINUED'].includes(product?.status)) {
     errors.status = 'Vui lòng chọn trạng thái sản phẩm hợp lệ.'
   }
@@ -45,6 +47,17 @@ export function validateVariantFields(variant) {
     errors.stockQuantity = 'Số lượng tồn kho phải lớn hơn hoặc bằng 0.'
   }
   return errors
+}
+
+export function getAdminProductSuccessMessage(action) {
+  if (action === 'updateProduct') {
+    return {
+      title: 'Cập nhật sản phẩm thành công',
+      message: 'Thông tin sản phẩm đã được lưu.',
+    }
+  }
+
+  return null
 }
 
 /**

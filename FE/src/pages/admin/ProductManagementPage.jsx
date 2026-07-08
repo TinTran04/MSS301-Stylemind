@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, Plus, Edit, Trash2, Loader2, RefreshCw, ChevronLeft, ChevronRight, Tag, ImagePlus, X, CircleAlert } from 'lucide-react'
 import Drawer from '../../components/common/Drawer'
 import Modal from '../../components/common/Modal'
@@ -24,6 +24,7 @@ import {
 } from '../../features/products/admin-product-flow'
 import {
   getAdminProductErrorMessage,
+  getAdminProductSuccessMessage,
   validateProductFields,
   validateVariantFields,
 } from '../../features/products/admin-product-errors'
@@ -49,10 +50,8 @@ const EMPTY_PRODUCT_FORM = {
   name: '',
   description: '',
   basePrice: '',
-  categoryId: '',
-  aestheticStyle: '',
+  categoryIds: [],
   targetDemographic: '',
-  seasonalProperty: '',
   status: 'ACTIVE',
 }
 
@@ -119,6 +118,7 @@ export default function ProductManagementPage() {
   const [productFieldErrors, setProductFieldErrors] = useState({})
   const [variantFieldErrors, setVariantFieldErrors] = useState({})
   const [confirmDialog, setConfirmDialog] = useState(null)
+  const [productSuccessNotice, setProductSuccessNotice] = useState(null)
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerMode, setDrawerMode] = useState('create')
@@ -140,11 +140,19 @@ export default function ProductManagementPage() {
   const [categoryDrawerOpen, setCategoryDrawerOpen] = useState(false)
   const [categoryForm, setCategoryForm] = useState(EMPTY_CATEGORY_FORM)
   const [editingCategoryId, setEditingCategoryId] = useState(null)
+  const toastTimerRef = useRef(null)
 
   const showToast = (message) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current)
+    }
     setToast(message)
-    setTimeout(() => setToast(null), 3000)
+    toastTimerRef.current = setTimeout(() => setToast(null), 5000)
   }
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+  }, [])
 
   // Variant operations (add/update/delete) render their friendly error inline
   // next to the Variants section instead of the shared drawer-top alert, so
@@ -251,7 +259,10 @@ export default function ProductManagementPage() {
     fetchProducts(0)
   }, [fetchProducts])
 
-  const categoryName = (categoryId) => categories.find((c) => String(c.id) === String(categoryId))?.name || 'Chưa phân loại'
+  const productCategoryNames = (product) => {
+    const names = (product.categories || []).map((c) => c.name)
+    return names.length > 0 ? names : ['Chưa phân loại']
+  }
   const isGuidedCreate = drawerMode === 'create'
   const hasPersistedVariants = canPublishProduct(editingProduct)
   const productVariants = editingProduct?.variants || []
@@ -262,6 +273,7 @@ export default function ProductManagementPage() {
     setDrawerOpen(false)
     setEditingProduct(null)
     setFlowMessage('')
+    setProductSuccessNotice(null)
     setCreateStep(CREATE_PRODUCT_STEPS.PRODUCT_INFO)
     setVariantForm(EMPTY_VARIANT_FORM)
     setEditingVariantId(null)
@@ -290,9 +302,10 @@ export default function ProductManagementPage() {
     setCreateStep(CREATE_PRODUCT_STEPS.PRODUCT_INFO)
     setEditingProduct(null)
     setFlowMessage('')
+    setProductSuccessNotice(null)
     setForm({
       ...EMPTY_PRODUCT_FORM,
-      categoryId: categories[0]?.id ? String(categories[0].id) : '',
+      categoryIds: categories[0]?.id != null ? [categories[0].id] : [],
       status: 'INACTIVE',
     })
     setVariantForm(EMPTY_VARIANT_FORM)
@@ -310,14 +323,13 @@ export default function ProductManagementPage() {
     setCreateStep(CREATE_PRODUCT_STEPS.PRODUCT_INFO)
     setFlowMessage('')
     setEditingProduct(product)
+    setProductSuccessNotice(null)
     setForm({
       name: product.name,
       description: product.description || '',
       basePrice: String(product.basePrice ?? ''),
-      categoryId: product.categoryId ? String(product.categoryId) : '',
-      aestheticStyle: product.aestheticStyle || '',
+      categoryIds: (product.categories || []).map((c) => c.id),
       targetDemographic: normalizeTargetDemographic(product.targetDemographic),
-      seasonalProperty: product.seasonalProperty || '',
       status: product.status || 'ACTIVE',
     })
     setVariantForm(EMPTY_VARIANT_FORM)
@@ -381,10 +393,8 @@ export default function ProductManagementPage() {
         name: form.name,
         description: form.description,
         basePrice: Number(form.basePrice),
-        categoryId: form.categoryId ? Number(form.categoryId) : null,
-        aestheticStyle: form.aestheticStyle || null,
+        categoryIds: form.categoryIds,
         targetDemographic: form.targetDemographic || null,
-        seasonalProperty: form.seasonalProperty || null,
         status: form.status,
       }
       if (drawerMode === 'edit' && editingProduct) {
@@ -394,7 +404,9 @@ export default function ProductManagementPage() {
           images: updated.images || current.images || [],
           variants: updated.variants || current.variants || [],
         }))
-        showToast('Đã cập nhật sản phẩm')
+        const success = getAdminProductSuccessMessage('updateProduct')
+        setProductSuccessNotice(success || { title: 'Cập nhật sản phẩm thành công', message: 'Thông tin sản phẩm đã được lưu.' })
+        showToast(success ? `${success.title}. ${success.message}` : 'Cập nhật sản phẩm thành công.')
       } else {
         const created = await createProduct(buildInitialProductPayload(payload))
         setEditingProduct({
@@ -715,7 +727,11 @@ export default function ProductManagementPage() {
   return (
     <div className="space-y-6">
       {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-surface-container-highest text-on-surface px-4 py-2 rounded-lg shadow-lg text-sm font-medium border border-outline/20">
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed top-4 left-1/2 z-[70] w-[min(92vw,420px)] -translate-x-1/2 rounded-xl border border-outline/20 bg-surface-container-highest px-4 py-3 text-center text-sm font-medium text-on-surface shadow-xl"
+        >
           {toast}
         </div>
       )}
@@ -805,7 +821,15 @@ export default function ProductManagementPage() {
                       <p className="text-sm font-medium text-primary">{product.name}</p>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-xs text-on-surface-variant">{product.categoryName || categoryName(product.categoryId)}</td>
+                  <td className="px-4 py-3 text-xs text-on-surface-variant">
+                    <div className="flex flex-wrap gap-1">
+                      {productCategoryNames(product).map((name) => (
+                        <span key={name} className="rounded-full bg-surface-container-high px-2 py-0.5 text-[11px]">
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-sm text-primary">{Number(product.basePrice).toLocaleString('vi-VN')}</td>
                   <td className="px-4 py-3 text-xs text-on-surface-variant">
                     {(() => {
@@ -901,6 +925,16 @@ export default function ProductManagementPage() {
             error={productActionError}
             onAction={productActionError?.actionLabel ? handleProductErrorAction : null}
           />
+          {productSuccessNotice && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="rounded-lg border border-tertiary/20 bg-tertiary-fixed/15 px-3 py-3 text-sm text-on-surface"
+            >
+              <p className="font-medium text-tertiary">{productSuccessNotice.title}</p>
+              <p className="mt-1 text-xs leading-5 text-on-surface-variant">{productSuccessNotice.message}</p>
+            </div>
+          )}
 
           {(!isGuidedCreate || createStep === CREATE_PRODUCT_STEPS.PRODUCT_INFO) && (
             <div className="space-y-6">
@@ -941,47 +975,51 @@ export default function ProductManagementPage() {
               </div>
               <div>
                 <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Danh mục</label>
-                <select
-                  required
-                  aria-invalid={Boolean(productFieldErrors.categoryId)}
-                  value={form.categoryId}
-                  onChange={(e) => {
-                    setForm({ ...form, categoryId: e.target.value })
-                    setProductFieldErrors((current) => ({ ...current, categoryId: undefined }))
-                  }}
-                  className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none"
-                >
-                  <option value="" disabled>Chọn danh mục</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-                {productFieldErrors.categoryId && <p className="mt-1 text-xs text-error">{productFieldErrors.categoryId}</p>}
+                <p className="mb-2 text-xs text-on-surface-variant">Có thể chọn nhiều danh mục cho một sản phẩm.</p>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((c) => {
+                    const selected = form.categoryIds.includes(c.id)
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => {
+                          setForm((current) => ({
+                            ...current,
+                            categoryIds: selected
+                              ? current.categoryIds.filter((id) => id !== c.id)
+                              : [...current.categoryIds, c.id],
+                          }))
+                          setProductFieldErrors((current) => ({ ...current, categoryIds: undefined }))
+                        }}
+                        className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                          selected
+                            ? 'bg-primary text-on-primary'
+                            : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    )
+                  })}
+                </div>
+                {productFieldErrors.categoryIds && <p className="mt-1 text-xs text-error">{productFieldErrors.categoryIds}</p>}
               </div>
               <div>
-                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Phong cách thẩm mỹ</label>
-                <input value={form.aestheticStyle} onChange={(e) => setForm({ ...form, aestheticStyle: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Đối tượng khách hàng</label>
-                  <select
-                    value={form.targetDemographic}
-                    onChange={(e) => setForm({ ...form, targetDemographic: e.target.value })}
-                    className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none"
-                  >
-                    <option value="">Tất cả</option>
-                    {getTargetDemographicAdminOptions().map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Mùa sử dụng</label>
-                  <input value={form.seasonalProperty} onChange={(e) => setForm({ ...form, seasonalProperty: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
-                </div>
+                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Đối tượng khách hàng</label>
+                <select
+                  value={form.targetDemographic}
+                  onChange={(e) => setForm({ ...form, targetDemographic: e.target.value })}
+                  className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none"
+                >
+                  <option value="">Tất cả</option>
+                  {getTargetDemographicAdminOptions().map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Trạng thái</label>

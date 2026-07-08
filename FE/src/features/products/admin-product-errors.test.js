@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   getAdminProductErrorMessage,
+  getAdminProductSuccessMessage,
   validateProductFields,
   validateVariantFields,
 } from './admin-product-errors.js'
@@ -135,6 +136,19 @@ test('unknown error uses generic primary copy and retains technical detail separ
   assert.equal(result.errorCode, 'ODD')
 })
 
+test('update product success message is friendly and specific', () => {
+  const result = getAdminProductSuccessMessage('updateProduct')
+  assert.deepEqual(result, {
+    title: 'Cập nhật sản phẩm thành công',
+    message: 'Thông tin sản phẩm đã được lưu.',
+  })
+})
+
+test('non-update product actions do not create a success toast payload', () => {
+  assert.equal(getAdminProductSuccessMessage('deleteProduct'), null)
+  assert.equal(getAdminProductSuccessMessage(), null)
+})
+
 test('category conflicts map to actionable category guidance', () => {
   const result = getAdminProductErrorMessage({ errorCode: 'CATEGORY_IN_USE', status: 409 })
   assert.equal(result.title, 'Danh mục đang được sử dụng')
@@ -145,14 +159,24 @@ test('product field validation identifies required and invalid values', () => {
   assert.deepEqual(validateProductFields({
     name: ' ',
     basePrice: '0',
-    categoryId: '',
+    categoryIds: [],
     status: 'UNKNOWN',
   }), {
     name: 'Tên sản phẩm là bắt buộc.',
     basePrice: 'Giá gốc phải lớn hơn 0.',
-    categoryId: 'Danh mục là bắt buộc.',
+    categoryIds: 'Vui lòng chọn ít nhất một danh mục.',
     status: 'Vui lòng chọn trạng thái sản phẩm hợp lệ.',
   })
+})
+
+test('product field validation accepts a non-empty categoryIds list', () => {
+  const errors = validateProductFields({
+    name: 'Áo thun',
+    basePrice: '100000',
+    categoryIds: [1],
+    status: 'ACTIVE',
+  })
+  assert.equal(errors.categoryIds, undefined)
 })
 
 test('variant field validation identifies required and invalid values', () => {

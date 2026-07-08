@@ -3,7 +3,7 @@ package com.stylemind.product.service;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.product.entity.Category;
 import com.stylemind.product.repository.CategoryRepository;
-import com.stylemind.product.repository.ProductRepository;
+import com.stylemind.product.repository.ProductCategoryRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -24,7 +24,7 @@ class CategoryServiceTest {
     private CategoryRepository categoryRepository;
 
     @Mock
-    private ProductRepository productRepository;
+    private ProductCategoryRepository productCategoryRepository;
 
     @InjectMocks
     private CategoryService categoryService;
@@ -87,7 +87,7 @@ class CategoryServiceTest {
         Category category = Category.builder().id(1L).name("Áo").slug("ao").build();
         when(categoryRepository.findById(1L)).thenReturn(Optional.of(category));
         when(categoryRepository.findByParentId(1L)).thenReturn(List.of());
-        when(productRepository.existsByCategoryId(1L)).thenReturn(true);
+        when(productCategoryRepository.existsByCategoryId(1L)).thenReturn(true);
 
         BusinessException exception = assertThrows(
                 BusinessException.class,

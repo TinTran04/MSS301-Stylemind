@@ -3,7 +3,7 @@
 
 -- Notification Logs
 CREATE TABLE IF NOT EXISTS notification_logs (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     user_id VARCHAR(50),
     recipient_email VARCHAR(150),
     type VARCHAR(30) NOT NULL,

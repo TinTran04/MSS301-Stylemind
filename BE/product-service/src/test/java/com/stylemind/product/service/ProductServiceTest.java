@@ -24,7 +24,6 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
@@ -40,6 +39,8 @@ class ProductServiceTest {
     private ProductImageRepository imageRepository;
     @Mock
     private CategoryRepository categoryRepository;
+    @Mock
+    private ProductCategoryRepository productCategoryRepository;
     @Mock
     private ProductAuditLogRepository auditLogRepository;
     @Mock
@@ -63,15 +64,17 @@ class ProductServiceTest {
                 .id("p1")
                 .name("Active Product")
                 .basePrice(new BigDecimal("100.00"))
+                .targetDemographic(TargetDemographic.UNISEX)
                 .status("ACTIVE")
                 .build();
         activeProduct.setCreatedAt(java.time.LocalDateTime.now());
         activeProduct.setUpdatedAt(java.time.LocalDateTime.now());
-                
+
         inactiveProduct = Product.builder()
                 .id("p2")
                 .name("Inactive Product")
                 .basePrice(new BigDecimal("100.00"))
+                .targetDemographic(TargetDemographic.UNISEX)
                 .status("INACTIVE")
                 .build();
         inactiveProduct.setCreatedAt(java.time.LocalDateTime.now());
@@ -109,6 +112,104 @@ class ProductServiceTest {
         verify(productRepository).save(captor.capture());
         assertEquals("INACTIVE", captor.getValue().getStatus());
         assertEquals("INACTIVE", response.getStatus());
+    }
+
+    @Test
+    void createProduct_invalidTargetDemographic_throws400() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic("NAM")
+                .status("INACTIVE")
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> productService.createProduct(request));
+
+        assertEquals("INVALID_TARGET_DEMOGRAPHIC", ex.getErrorCode());
+        assertEquals(400, ex.getHttpStatus());
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void createProduct_blankTargetDemographic_defaultsToUnisex() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .status("INACTIVE")
+                .build();
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            saved.setCreatedAt(java.time.LocalDateTime.now());
+            saved.setUpdatedAt(java.time.LocalDateTime.now());
+            return saved;
+        });
+
+        ProductResponse response = productService.createProduct(request);
+
+        assertEquals("UNISEX", response.getTargetDemographic());
+    }
+
+    @Test
+    void createProduct_withMultipleCategoryIds_persistsAllInJoinTable() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic("UNISEX")
+                .status("INACTIVE")
+                .categoryIds(List.of(1L, 2L))
+                .build();
+        when(categoryRepository.existsById(1L)).thenReturn(true);
+        when(categoryRepository.existsById(2L)).thenReturn(true);
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            saved.setCreatedAt(java.time.LocalDateTime.now());
+            saved.setUpdatedAt(java.time.LocalDateTime.now());
+            return saved;
+        });
+
+        productService.createProduct(request);
+
+        org.mockito.ArgumentCaptor<List<ProductCategory>> captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(productCategoryRepository).saveAll(captor.capture());
+        assertEquals(2, captor.getValue().size());
+    }
+
+    @Test
+    void createProduct_unknownCategoryId_throwsCategoryNotFound() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic("UNISEX")
+                .status("INACTIVE")
+                .categoryIds(List.of(99L))
+                .build();
+        when(categoryRepository.existsById(99L)).thenReturn(false);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> productService.createProduct(request));
+
+        assertEquals("CATEGORY_NOT_FOUND", ex.getErrorCode());
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void updateProduct_replacesCategoriesWithNewSet() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic("UNISEX")
+                .status("INACTIVE")
+                .categoryIds(List.of(5L))
+                .build();
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+        when(categoryRepository.existsById(5L)).thenReturn(true);
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        productService.updateProduct("p2", request);
+
+        verify(productCategoryRepository).deleteByProductId("p2");
+        org.mockito.ArgumentCaptor<List<ProductCategory>> captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(productCategoryRepository).saveAll(captor.capture());
+        assertEquals(5L, captor.getValue().get(0).getCategoryId());
     }
 
     @Test
@@ -167,9 +268,10 @@ class ProductServiceTest {
 
     @Test
     void getProduct_active_returnsProduct() {
-        activeProduct.setCategoryId(10L);
         when(productRepository.findSellableById("p1")).thenReturn(Optional.of(activeProduct));
-        when(categoryRepository.findById(10L)).thenReturn(Optional.of(
+        when(productCategoryRepository.findByProductId("p1")).thenReturn(List.of(
+                ProductCategory.builder().productId("p1").categoryId(10L).build()));
+        when(categoryRepository.findAllById(List.of(10L))).thenReturn(List.of(
                 Category.builder().id(10L).name("Áo sơ mi").slug("ao-so-mi").build()));
         when(imageRepository.findByProductId("p1")).thenReturn(List.of());
         when(variantRepository.findByProductId("p1")).thenReturn(List.of());
@@ -178,15 +280,17 @@ class ProductServiceTest {
 
         assertNotNull(response);
         assertEquals("p1", response.getId());
-        assertEquals("Áo sơ mi", response.getCategoryName());
+        assertEquals(1, response.getCategories().size());
+        assertEquals("Áo sơ mi", response.getCategories().get(0).getName());
     }
 
     @Test
     void getProducts_batchLoadsCategoryImagesAndVariants() {
-        activeProduct.setCategoryId(10L);
         PageRequest pageable = PageRequest.of(0, 20);
-        when(productRepository.searchAndFilter(isNull(), isNull(), isNull(), anyList(), isNull(), isNull(), eq(pageable)))
+        when(productRepository.searchAndFilter(isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(activeProduct), pageable, 1));
+        when(productCategoryRepository.findByProductIdIn(List.of("p1"))).thenReturn(List.of(
+                ProductCategory.builder().productId("p1").categoryId(10L).build()));
         when(categoryRepository.findAllById(List.of(10L))).thenReturn(List.of(
                 Category.builder().id(10L).name("Áo sơ mi").slug("ao-so-mi").build()));
         when(imageRepository.findByProductIdIn(List.of("p1"))).thenReturn(List.of());
@@ -196,21 +300,32 @@ class ProductServiceTest {
                 null, null, null, null, null, "createdAt,desc", pageable);
 
         assertEquals(1, response.getContent().size());
-        assertEquals("Áo sơ mi", response.getContent().get(0).getCategoryName());
+        assertEquals("Áo sơ mi", response.getContent().get(0).getCategories().get(0).getName());
         assertEquals(1, response.getContent().get(0).getVariants().size());
         verify(imageRepository, never()).findByProductId("p1");
         verify(variantRepository, never()).findByProductId("p1");
     }
 
     @Test
-    void getProducts_normalizesTargetDemographicAliases() {
+    void getProducts_validDemographicFilter_passesParsedEnumToRepository() {
         PageRequest pageable = PageRequest.of(0, 20);
-        when(productRepository.searchAndFilter(isNull(), isNull(), eq("Nam"), eq(List.of("nam", "male", "men")), isNull(), isNull(), eq(pageable)))
+        when(productRepository.searchAndFilter(isNull(), isNull(), eq(TargetDemographic.FEMALE), isNull(), isNull(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        productService.getProducts(null, null, "FEMALE", null, null, "createdAt,desc", pageable);
+
+        verify(productRepository).searchAndFilter(isNull(), isNull(), eq(TargetDemographic.FEMALE), isNull(), isNull(), eq(pageable));
+    }
+
+    @Test
+    void getProducts_unrecognizedDemographicValue_isTreatedAsNoFilter() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(productRepository.searchAndFilter(isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
         productService.getProducts(null, null, "Nam", null, null, "createdAt,desc", pageable);
 
-        verify(productRepository).searchAndFilter(isNull(), isNull(), eq("Nam"), eq(List.of("nam", "male", "men")), isNull(), isNull(), eq(pageable));
+        verify(productRepository).searchAndFilter(isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable));
     }
 
     @Test
@@ -520,9 +635,7 @@ class ProductServiceTest {
                 .name("Cotton Shirt")
                 .description("Everyday shirt")
                 .basePrice(new BigDecimal("379000"))
-                .aestheticStyle("Korean")
-                .targetDemographic("NU")
-                .seasonalProperty("ALL_SEASON")
+                .targetDemographic("FEMALE")
                 .status(status)
                 .build();
     }

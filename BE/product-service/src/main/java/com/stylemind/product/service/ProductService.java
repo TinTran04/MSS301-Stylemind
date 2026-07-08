@@ -33,6 +33,7 @@ public class ProductService {
     private final ProductVariantRepository variantRepository;
     private final ProductImageRepository imageRepository;
     private final CategoryRepository categoryRepository;
+    private final ProductCategoryRepository productCategoryRepository;
     private final ProductAuditLogRepository auditLogRepository;
     private final ProductImageStorage imageStorage;
 
@@ -59,47 +60,55 @@ public class ProductService {
         }
     }
 
-    private static String normalizeComparable(String value) {
-        return value == null ? "" : value.trim().toLowerCase();
+    private TargetDemographic resolveTargetDemographic(String value) {
+        if (value == null || value.isBlank()) {
+            return TargetDemographic.UNISEX;
+        }
+        try {
+            return TargetDemographic.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException("INVALID_TARGET_DEMOGRAPHIC",
+                    "Đối tượng mục tiêu phải là MALE, FEMALE hoặc UNISEX", 400);
+        }
     }
 
-    private List<String> demographicAliases(String targetDemographic) {
-        String normalized = normalizeComparable(targetDemographic);
-        if (normalized.isBlank()) {
-            return List.of("__all__");
-        }
+    private List<Long> distinctCategoryIds(List<Long> categoryIds) {
+        return categoryIds == null ? List.of() : categoryIds.stream().distinct().toList();
+    }
 
-        if (normalized.equals("nam") || normalized.equals("male") || normalized.equals("men")) {
-            return List.of("nam", "male", "men");
+    private void validateCategoryIds(List<Long> categoryIds) {
+        for (Long categoryId : categoryIds) {
+            if (!categoryRepository.existsById(categoryId)) {
+                throw new BusinessException("CATEGORY_NOT_FOUND", "Danh mục không tồn tại", 400);
+            }
         }
-        if (normalized.equals("nu") || normalized.equals("nữ") || normalized.equals("female") || normalized.equals("women")) {
-            return List.of("nu", "nữ", "female", "women");
+    }
+
+    private void replaceProductCategories(String productId, List<Long> categoryIds) {
+        productCategoryRepository.deleteByProductId(productId);
+        if (!categoryIds.isEmpty()) {
+            productCategoryRepository.saveAll(categoryIds.stream()
+                    .map(categoryId -> ProductCategory.builder().productId(productId).categoryId(categoryId).build())
+                    .toList());
         }
-        if (normalized.equals("unisex")) {
-            return List.of("unisex");
-        }
-        return List.of(normalized);
     }
 
     // Product CRUD
     public ProductResponse createProduct(ProductRequest request) {
-        if (request.getCategoryId() != null && !categoryRepository.existsById(request.getCategoryId())) {
-            throw new BusinessException("CATEGORY_NOT_FOUND", "Danh mục không tồn tại", 400);
-        }
-        
+        List<Long> categoryIds = distinctCategoryIds(request.getCategoryIds());
+        validateCategoryIds(categoryIds);
+
         Product product = Product.builder()
                 .id(StringUtil.generateUniqueId())
-                .categoryId(request.getCategoryId())
                 .name(request.getName())
                 .description(request.getDescription())
                 .basePrice(request.getBasePrice())
-                .aestheticStyle(request.getAestheticStyle())
-                .targetDemographic(request.getTargetDemographic())
-                .seasonalProperty(request.getSeasonalProperty())
+                .targetDemographic(resolveTargetDemographic(request.getTargetDemographic()))
                 .status("INACTIVE")
                 .build();
 
         product = productRepository.save(product);
+        replaceProductCategories(product.getId(), categoryIds);
         return mapToResponse(product);
     }
 
@@ -107,22 +116,19 @@ public class ProductService {
         Product product = productRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));
 
-        if (request.getCategoryId() != null && !categoryRepository.existsById(request.getCategoryId())) {
-            throw new BusinessException("CATEGORY_NOT_FOUND", "Danh mục không tồn tại", 400);
-        }
+        List<Long> categoryIds = distinctCategoryIds(request.getCategoryIds());
+        validateCategoryIds(categoryIds);
 
         ensureProductCanBeActive(id, request.getStatus());
 
-        product.setCategoryId(request.getCategoryId());
         product.setName(request.getName());
         product.setDescription(request.getDescription());
         product.setBasePrice(request.getBasePrice());
-        product.setAestheticStyle(request.getAestheticStyle());
-        product.setTargetDemographic(request.getTargetDemographic());
-        product.setSeasonalProperty(request.getSeasonalProperty());
+        product.setTargetDemographic(resolveTargetDemographic(request.getTargetDemographic()));
         product.setStatus(request.getStatus());
 
         product = productRepository.save(product);
+        replaceProductCategories(id, categoryIds);
         return mapToResponse(product);
     }
 
@@ -144,16 +150,28 @@ public class ProductService {
     public PageResponse<ProductResponse> getProducts(Long categoryId, String search, String targetDemographic,
                                              BigDecimal minPrice, BigDecimal maxPrice, String sort, Pageable pageable) {
         String keyword = (search != null && !search.isBlank()) ? search : null;
-        String demographicFilter = (targetDemographic != null && !targetDemographic.isBlank()) ? targetDemographic.trim() : null;
         Page<Product> page = productRepository.searchAndFilter(
                 keyword,
                 categoryId,
-                demographicFilter,
-                demographicAliases(targetDemographic),
+                parseDemographicFilter(targetDemographic),
                 minPrice,
                 maxPrice,
                 pageable);
         return mapPage(page);
+    }
+
+    // A GET filter param, unlike a create/update payload: an unrecognized value
+    // is treated as "no filter" rather than a 400, so a stale/typo'd query
+    // string just returns the unfiltered list instead of erroring the page.
+    private TargetDemographic parseDemographicFilter(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return TargetDemographic.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -389,31 +407,38 @@ public class ProductService {
         List<ProductImageResponse> images = imageRepository.findByProductId(product.getId()).stream()
                 .map(this::mapToImageResponse)
                 .collect(Collectors.toList());
-        
+
         List<ProductVariantResponse> variants = variantRepository.findByProductId(product.getId()).stream()
                 .map(this::mapToVariantResponse)
                 .collect(Collectors.toList());
-        String categoryName = product.getCategoryId() == null
-                ? null
-                : categoryRepository.findById(product.getCategoryId()).map(Category::getName).orElse(null);
+        List<Long> categoryIds = productCategoryRepository.findByProductId(product.getId()).stream()
+                .map(ProductCategory::getCategoryId)
+                .toList();
+        List<CategorySummaryResponse> categories = categoryRepository.findAllById(categoryIds).stream()
+                .map(this::mapToCategorySummary)
+                .toList();
 
-        return mapToResponse(product, categoryName, images, variants);
+        return mapToResponse(product, categories, images, variants);
     }
 
     private PageResponse<ProductResponse> mapPage(Page<Product> page) {
         List<Product> products = page.getContent();
         if (products.isEmpty()) {
-            return PageResponse.of(page.map(product -> mapToResponse(product, null, List.of(), List.of())));
+            return PageResponse.of(page.map(product -> mapToResponse(product, List.of(), List.of(), List.of())));
         }
 
         List<String> productIds = products.stream().map(Product::getId).toList();
-        List<Long> categoryIds = products.stream()
-                .map(Product::getCategoryId)
-                .filter(java.util.Objects::nonNull)
+        List<ProductCategory> productCategories = productCategoryRepository.findByProductIdIn(productIds);
+        List<Long> categoryIds = productCategories.stream()
+                .map(ProductCategory::getCategoryId)
                 .distinct()
                 .toList();
-        Map<Long, String> categoryNames = categoryRepository.findAllById(categoryIds).stream()
-                .collect(Collectors.toMap(Category::getId, Category::getName));
+        Map<Long, CategorySummaryResponse> categorySummaries = categoryRepository.findAllById(categoryIds).stream()
+                .collect(Collectors.toMap(Category::getId, this::mapToCategorySummary));
+        Map<String, List<CategorySummaryResponse>> categoriesByProduct = productCategories.stream()
+                .collect(Collectors.groupingBy(
+                        ProductCategory::getProductId,
+                        Collectors.mapping(pc -> categorySummaries.get(pc.getCategoryId()), Collectors.toList())));
         Map<String, List<ProductImageResponse>> imagesByProduct = imageRepository.findByProductIdIn(productIds).stream()
                 .collect(Collectors.groupingBy(
                         ProductImage::getProductId,
@@ -424,26 +449,27 @@ public class ProductService {
 
         return PageResponse.of(page.map(product -> mapToResponse(
                 product,
-                categoryNames.get(product.getCategoryId()),
+                categoriesByProduct.getOrDefault(product.getId(), List.of()),
                 imagesByProduct.getOrDefault(product.getId(), List.of()),
                 variantsByProduct.getOrDefault(product.getId(), List.of()))));
     }
 
+    private CategorySummaryResponse mapToCategorySummary(Category category) {
+        return CategorySummaryResponse.builder().id(category.getId()).name(category.getName()).build();
+    }
+
     private ProductResponse mapToResponse(
             Product product,
-            String categoryName,
+            List<CategorySummaryResponse> categories,
             List<ProductImageResponse> images,
             List<ProductVariantResponse> variants) {
         return ProductResponse.builder()
                 .id(product.getId())
-                .categoryId(product.getCategoryId())
-                .categoryName(categoryName)
+                .categories(categories)
                 .name(product.getName())
                 .description(product.getDescription())
                 .basePrice(product.getBasePrice())
-                .aestheticStyle(product.getAestheticStyle())
-                .targetDemographic(product.getTargetDemographic())
-                .seasonalProperty(product.getSeasonalProperty())
+                .targetDemographic(product.getTargetDemographic().name())
                 .status(product.getStatus())
                 .images(images)
                 .variants(variants)

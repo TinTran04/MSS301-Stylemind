@@ -6,8 +6,7 @@ import { mapProduct, mapProductPage } from './product.mapper.js'
 test('mapProduct exposes only real image and variant values', () => {
   const product = mapProduct({
     id: 'p1',
-    categoryId: 3,
-    categoryName: 'Áo sơ mi',
+    categories: [{ id: 3, name: 'Áo sơ mi' }],
     name: 'Oxford Shirt',
     basePrice: 1290000,
     images: [

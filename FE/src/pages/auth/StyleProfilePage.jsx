@@ -365,7 +365,7 @@ export default function StyleProfilePage() {
         setAddressSuccess('Cập nhật địa chỉ thành công.')
       } else {
         await createAddress(payload)
-        setAddressSuccess('Thêm địa chỉ thành công.')
+        setAddressSuccess('Đã thêm địa chỉ giao hàng.')
       }
 
       await reloadAddresses()
@@ -814,26 +814,27 @@ export default function StyleProfilePage() {
 
               <AnimatePresence mode="wait">
                 {pendingDeleteAddress && (
-                  <motion.div
-                    key={`delete-${pendingDeleteAddress.id}`}
-                    initial={reduceMotion ? { opacity: 1 } : { opacity: 0, y: 10 }}
-                    animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                    exit={reduceMotion ? { opacity: 1 } : { opacity: 0, y: -8 }}
-                    transition={tabTransition}
-                    className="rounded-[1.5rem] border border-error/20 bg-error-container/15 p-5"
+                  <Modal
+                    isOpen
+                    onClose={closeDeleteDialog}
+                    title="Xóa địa chỉ giao hàng?"
+                    className="max-w-xl"
                   >
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-error">Xóa địa chỉ?</p>
-                        <p className="text-sm text-on-surface-variant">
-                          Bạn có chắc chắn muốn xóa địa chỉ của {pendingDeleteAddress.recipientName} không? Thao tác này không thể hoàn tác.
+                    <div className="space-y-4">
+                      <p className="text-sm leading-relaxed text-on-surface-variant">
+                        Địa chỉ này sẽ bị xóa khỏi hồ sơ của bạn. Bạn vẫn có thể thêm lại địa chỉ mới sau.
+                      </p>
+                      {addressDeleteError && (
+                        <p role="alert" className="text-sm text-error">
+                          {addressDeleteError}
                         </p>
-                      </div>
-                      <div className="flex gap-3">
+                      )}
+                      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                         <button
                           type="button"
-                          onClick={() => setPendingDeleteAddress(null)}
-                          className="rounded-full border border-outline-variant/20 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-surface-container-high"
+                          onClick={closeDeleteDialog}
+                          disabled={addressSaving}
+                          className="rounded-full border border-outline-variant/20 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           Hủy
                         </button>
@@ -841,14 +842,14 @@ export default function StyleProfilePage() {
                           type="button"
                           onClick={confirmDeleteAddress}
                           disabled={addressSaving}
-                          className="inline-flex items-center gap-2 rounded-full bg-error px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                          className="inline-flex items-center justify-center gap-2 rounded-full bg-error px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                         >
                           {addressSaving && <Loader2 size={14} className="animate-spin" />}
-                          Xóa địa chỉ
+                          {addressSaving ? 'Đang xóa...' : 'Xóa địa chỉ'}
                         </button>
                       </div>
                     </div>
-                  </motion.div>
+                  </Modal>
                 )}
               </AnimatePresence>
 
@@ -876,7 +877,7 @@ export default function StyleProfilePage() {
                       </div>
                       <button
                         type="button"
-                        onClick={closeAddressForm}
+                        onClick={requestCloseAddressForm}
                         className="rounded-full border border-outline-variant/20 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-surface-container-high"
                       >
                         Hủy
@@ -959,6 +960,39 @@ export default function StyleProfilePage() {
                       </div>
                     </div>
                   </motion.form>
+                )}
+              </AnimatePresence>
+
+              <AnimatePresence>
+                {unsavedChangeConfirmOpen && (
+                  <Modal
+                    isOpen
+                    onClose={keepEditingAddressForm}
+                    title="Hủy thay đổi?"
+                    className="max-w-xl"
+                  >
+                    <div className="space-y-4">
+                      <p className="text-sm leading-relaxed text-on-surface-variant">
+                        Những thông tin bạn vừa nhập sẽ không được lưu.
+                      </p>
+                      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={keepEditingAddressForm}
+                          className="rounded-full border border-outline-variant/20 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-surface-container-high"
+                        >
+                          Tiếp tục chỉnh sửa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={discardAddressFormChanges}
+                          className="rounded-full bg-error px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                        >
+                          Hủy thay đổi
+                        </button>
+                      </div>
+                    </div>
+                  </Modal>
                 )}
               </AnimatePresence>
 

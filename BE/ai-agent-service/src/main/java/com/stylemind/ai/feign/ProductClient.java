@@ -27,13 +27,10 @@ public interface ProductClient {
     @Data
     class ProductSummary {
         private String id;
-        private Long categoryId;
         private String name;
         private String description;
         private BigDecimal basePrice;
-        private String aestheticStyle;
         private String targetDemographic;
-        private String seasonalProperty;
         private String status;
         private List<ImageSummary> images;
         private Instant createdAt;

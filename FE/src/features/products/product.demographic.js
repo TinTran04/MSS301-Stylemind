@@ -1,19 +1,22 @@
+// Canonical values match the backend's English enum exactly (MALE/FEMALE/UNISEX) —
+// this is what the API payload/query param must use. Vietnamese labels below
+// are frontend display only.
 const CANONICAL_TARGETS = {
-  MEN: 'MEN',
-  WOMEN: 'WOMEN',
+  MALE: 'MALE',
+  FEMALE: 'FEMALE',
   UNISEX: 'UNISEX',
 }
 
 const TARGET_DEMOGRAPHIC_ALIASES = {
-  MEN: new Set(['MEN', 'MALE', 'NAM']),
-  WOMEN: new Set(['WOMEN', 'FEMALE', 'NU']),
+  MALE: new Set(['MALE', 'MEN', 'MAN', 'NAM']),
+  FEMALE: new Set(['FEMALE', 'WOMEN', 'WOMAN', 'NU', 'NỮ']),
   UNISEX: new Set(['UNISEX']),
 }
 
 const TARGET_DEMOGRAPHIC_OPTIONS = [
   { value: '', label: 'Tất cả' },
-  { value: CANONICAL_TARGETS.MEN, label: 'Nam' },
-  { value: CANONICAL_TARGETS.WOMEN, label: 'Nữ' },
+  { value: CANONICAL_TARGETS.MALE, label: 'Nam' },
+  { value: CANONICAL_TARGETS.FEMALE, label: 'Nữ' },
   { value: CANONICAL_TARGETS.UNISEX, label: 'Unisex' },
 ]
 

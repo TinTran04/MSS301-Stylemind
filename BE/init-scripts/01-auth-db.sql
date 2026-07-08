@@ -26,16 +26,40 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insert default admin user (password: admin123 - BCrypt encoded)
--- BCrypt hash for "admin123" with cost 12
-INSERT INTO users (id, email, password_hash, provider, role)
-VALUES ('usr_admin', 'admin@stylemind.ai', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.PZvO.S', 'LOCAL', 'ADMIN')
-ON CONFLICT (email) DO NOTHING;
+-- Enable pgcrypto for BCrypt password hashing
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Insert test customer user (password: customer123)
+-- Default admin user
+-- email: admin@stylemind.ai
+-- password: Admin@123
 INSERT INTO users (id, email, password_hash, provider, role)
-VALUES ('usr_customer', 'customer@stylemind.ai', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBPj/RK.PZvO.S', 'LOCAL', 'CUSTOMER')
-ON CONFLICT (email) DO NOTHING;
+VALUES (
+           'usr_admin',
+           'admin@stylemind.ai',
+           crypt('Admin@123', gen_salt('bf', 12)),
+           'LOCAL',
+           'ADMIN'
+       )
+    ON CONFLICT (email) DO UPDATE
+                               SET password_hash = EXCLUDED.password_hash,
+                               provider = EXCLUDED.provider,
+                               role = EXCLUDED.role;
+
+-- Test customer user
+-- email: customer@stylemind.ai
+-- password: Customer@123
+INSERT INTO users (id, email, password_hash, provider, role)
+VALUES (
+           'usr_customer',
+           'customer@stylemind.ai',
+           crypt('Customer@123', gen_salt('bf', 12)),
+           'LOCAL',
+           'CUSTOMER'
+       )
+    ON CONFLICT (email) DO UPDATE
+                               SET password_hash = EXCLUDED.password_hash,
+                               provider = EXCLUDED.provider,
+                               role = EXCLUDED.role;
 
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);

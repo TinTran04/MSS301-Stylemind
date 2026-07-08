@@ -16,10 +16,15 @@ export function mapProduct(product) {
   const defaultVariant = variants.find(isVariantAvailable) || firstVariant
   const primary = primaryImage(images)
 
+  const categories = Array.isArray(product.categories) ? product.categories : []
+
   return {
     ...product,
     id: String(product.id),
-    category: product.categoryName || '',
+    categories,
+    // A product can belong to multiple categories; the card/detail views only
+    // have room for one, so show the first as a compact hint.
+    category: categories[0]?.name || '',
     price: Number(product.basePrice || 0),
     images,
     primaryImageUrl: primary?.imageUrl || null,

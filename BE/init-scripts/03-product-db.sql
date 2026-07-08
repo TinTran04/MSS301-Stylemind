@@ -1,5 +1,5 @@
 -- Init script for product_db
--- Categories, Products, Product Variants, Product Images
+-- Categories, Products, Product-Category links, Product Variants, Product Images
 
 -- Categories (hierarchical tree structure)
 CREATE TABLE IF NOT EXISTS categories (
@@ -11,19 +11,27 @@ CREATE TABLE IF NOT EXISTS categories (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Products (base product information)
+-- Products (base product information). target_demographic is the English
+-- enum MALE/FEMALE/UNISEX; Vietnamese labels are frontend display only.
 CREATE TABLE IF NOT EXISTS products (
     id VARCHAR(50) PRIMARY KEY,
-    category_id BIGINT REFERENCES categories(id),
     name VARCHAR(200) NOT NULL,
     description TEXT,
     base_price DECIMAL(12, 2) NOT NULL,
-    aesthetic_style VARCHAR(50),
-    target_demographic VARCHAR(20),
-    seasonal_property VARCHAR(20),
+    target_demographic VARCHAR(20) NOT NULL DEFAULT 'UNISEX'
+        CHECK (target_demographic IN ('MALE', 'FEMALE', 'UNISEX')),
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Product - Category is many-to-many: one product can belong to multiple
+-- categories, one category can contain multiple products.
+CREATE TABLE IF NOT EXISTS product_categories (
+    product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    category_id BIGINT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (product_id, category_id)
 );
 
 -- Destructive admin action audit trail (SEC-10): product delete, variant
@@ -40,7 +48,7 @@ CREATE TABLE IF NOT EXISTS product_audit_log (
 
 CREATE INDEX IF NOT EXISTS idx_product_audit_log_product_id ON product_audit_log(product_id);
 
--- Product Variants (SKU-level variants with size, color, material)
+-- Product Variants (SKU-level variants with size, color, material, stock)
 CREATE TABLE IF NOT EXISTS product_variants (
     id VARCHAR(50) PRIMARY KEY,
     product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -49,6 +57,8 @@ CREATE TABLE IF NOT EXISTS product_variants (
     color VARCHAR(50) NOT NULL,
     material VARCHAR(50),
     price_override DECIMAL(12, 2),
+    stock_quantity INT NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -60,12 +70,14 @@ CREATE TABLE IF NOT EXISTS product_images (
     image_url VARCHAR(500) NOT NULL,
     image_public_id VARCHAR(255),
     is_primary BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
+CREATE INDEX IF NOT EXISTS idx_product_categories_product_id ON product_categories(product_id);
+CREATE INDEX IF NOT EXISTS idx_product_categories_category_id ON product_categories(category_id);
 CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants(product_id);
 CREATE INDEX IF NOT EXISTS idx_product_variants_sku ON product_variants(sku);
 CREATE INDEX IF NOT EXISTS idx_product_images_product_id ON product_images(product_id);

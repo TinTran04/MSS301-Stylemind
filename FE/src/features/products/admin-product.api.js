@@ -13,7 +13,7 @@ export async function getAdminProductById(id) {
   return apiClient.get(`${ENDPOINTS.ADMIN_PRODUCTS}/${id}`)
 }
 
-// payload: { categoryId, name, description, basePrice, aestheticStyle, targetDemographic, seasonalProperty, status }
+// payload: { categoryIds, name, description, basePrice, targetDemographic, status }
 export async function createProduct(payload) {
   return apiClient.post(ENDPOINTS.ADMIN_PRODUCTS, payload)
 }

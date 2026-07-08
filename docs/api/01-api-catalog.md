@@ -59,13 +59,18 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 | DELETE | `/api/v1/admin/products/{productId}/images/{imageId}` | Xóa product image |
 | GET | `/internal/v1/products/variants/{variantId}` | Variant snapshot (giá authoritative) |
 
-Product create không nhận variants và tiếp tục trả `ProductResponse` hiện có
-(`categoryId`/`categoryName`, không dùng nested category và không thêm
+Product create/update nhận `categoryIds` (list, many-to-many qua bảng
+`product_categories`) và trả `ProductResponse` với `categories` (list
+`{id, name}`) thay cho `categoryId`/`categoryName` cũ (không thêm
 `effectivePrice`). Admin tạo variants và images qua các subresource sau khi nhận
-`productId`.
+`productId`. Product không còn field `aestheticStyle`/`seasonalProperty`.
 
-Public product list hỗ trợ filter `targetDemographic` để FE hiển thị bộ lọc
-`Tất cả / Nam / Nữ / Unisex` mà không cần schema hay path mới.
+`targetDemographic` là enum tiếng Anh `MALE`/`FEMALE`/`UNISEX` (API
+request/response và DB đều dùng giá trị này); Vietnamese `Nam`/`Nữ`/`Unisex`
+chỉ là label hiển thị ở frontend. Public product list hỗ trợ filter
+`targetDemographic` cùng giá trị enum này để FE hiển thị bộ lọc
+`Tất cả / Nam / Nữ / Unisex` mà không cần schema hay path mới; giá trị filter
+không hợp lệ được bỏ qua (không lọc) thay vì lỗi.
 
 Product conflict responses dùng error envelope chuẩn:
 - Activate product chưa có variant: HTTP `409`, `PRODUCT_REQUIRES_VARIANT`,

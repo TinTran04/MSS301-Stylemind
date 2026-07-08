@@ -3,7 +3,7 @@ package com.stylemind.product.service;
 import com.stylemind.product.dto.CategoryRequest;
 import com.stylemind.product.entity.Category;
 import com.stylemind.product.repository.CategoryRepository;
-import com.stylemind.product.repository.ProductRepository;
+import com.stylemind.product.repository.ProductCategoryRepository;
 import com.stylemind.common.exception.BusinessException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +18,7 @@ import java.util.List;
 public class CategoryService {
 
     private final CategoryRepository categoryRepository;
-    private final ProductRepository productRepository;
+    private final ProductCategoryRepository productCategoryRepository;
 
     @Transactional(readOnly = true)
     public List<Category> getAllCategories() {
@@ -85,7 +85,7 @@ public class CategoryService {
             throw new BusinessException("CATEGORY_HAS_CHILDREN", "Không thể xóa danh mục đang có danh mục con", 409);
         }
 
-        if (productRepository.existsByCategoryId(id)) {
+        if (productCategoryRepository.existsByCategoryId(id)) {
             throw new BusinessException("CATEGORY_IN_USE", "Không thể xóa danh mục đang được sản phẩm sử dụng", 409);
         }
 

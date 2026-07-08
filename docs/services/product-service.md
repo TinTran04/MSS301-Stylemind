@@ -6,7 +6,7 @@
 Catalog: danh mục, sản phẩm, biến thể (variant), hình ảnh. Cung cấp **giá authoritative** cho cart/order qua internal API.
 
 ## Owns (dữ liệu service này sở hữu)
-- Category, Product (status ACTIVE/INACTIVE/DISCONTINUED), Variant (unique SKU, size, color, material, priceOverride, `stockQuantity`, `active`), Image metadata, Price.
+- Category, Product (status ACTIVE/INACTIVE/DISCONTINUED, `targetDemographic` enum tiếng Anh `MALE`/`FEMALE`/`UNISEX`), `product_categories` (bảng nối many-to-many giữa Product và Category), Variant (unique SKU, size, color, material, priceOverride, `stockQuantity`, `active`), Image metadata, Price.
 
 ## Does NOT own
 - Không sở hữu cart/order.
@@ -51,12 +51,12 @@ Image upload dùng `multipart/form-data`, field `file`, query `isPrimary` (defau
 ## Key business rules
 - Public chỉ thấy sản phẩm `ACTIVE` có ít nhất một variant.
 - **Customer Shop category filter** dùng `GET /api/v1/categories` (không param) → danh sách phẳng thật gồm cả category con (products gắn với category lá), không hardcode; `parentId` vẫn để drill-down. Admin quản lý category qua `/api/v1/admin/categories` (không đổi).
-- **Customer Shop demographic filter** dùng field `targetDemographic` của product với UI tiếng Việt `Tất cả / Nam / Nữ / Unisex`; public list hỗ trợ query param `targetDemographic` để FE kết hợp an toàn với category/search/sort, không cần schema mới.
+- **Customer Shop demographic filter** dùng field `targetDemographic` (enum tiếng Anh `MALE`/`FEMALE`/`UNISEX`, validate strict — giá trị không hợp lệ ở query filter bị bỏ qua thay vì lỗi, ở create/update trả `400 INVALID_TARGET_DEMOGRAPHIC`) với UI tiếng Việt `Tất cả / Nam / Nữ / Unisex` (chỉ là label hiển thị, không phải giá trị API); public list hỗ trợ query param `targetDemographic` để FE kết hợp an toàn với category/search/sort.
 - Variant SKU không trùng (`SKU_EXISTS`, `400`).
 - **Variant là tổ hợp cụ thể của size + color + material** (SKU/priceOverride/stockQuantity/active riêng cho từng tổ hợp). Tạo/cập nhật variant với cùng size+color+material (so sánh không phân biệt hoa/thường và khoảng trắng) như một variant khác của cùng product bị chặn: `409`, `errorCode=DUPLICATE_VARIANT`, message `Biến thể này đã tồn tại. Vui lòng kiểm tra lại kích cỡ, màu sắc và chất liệu.` — material khác nhau thì không tính là trùng.
 - **Stock**: `ProductVariant.stockQuantity` (mặc định `0`, không âm — validate ở request) và `ProductVariant.active` (mặc định `true`) là các trường thật trên bảng `product_variants` (migration `V3__product_variant_stock.sql`), không phải trường suy diễn. Admin variant DTO và public variant/snapshot response đều expose hai trường này; `getVariants`/product detail trả toàn bộ variant kể cả hết hàng — hết hàng chỉ ảnh hưởng UI (disabled/"Hết hàng"), không ẩn khỏi response.
-- Product create/update nhận category có thật hoặc `null`; response trả cả `categoryId` và `categoryName`.
-- Không xóa category đang có category con hoặc product tham chiếu; trả `409` với `CATEGORY_HAS_CHILDREN` hoặc `CATEGORY_IN_USE`.
+- **Product - Category là many-to-many** (migration `V4__product_categories_and_english_demographic.sql`, bảng `product_categories`): create/update product nhận `categoryIds` (list, có thể rỗng), response trả `categories` (list `{id, name}`) thay cho `categoryId`/`categoryName` cũ. Category không tồn tại trả `400 CATEGORY_NOT_FOUND`. Không có `product.style`/`product.season` (đã xóa khỏi schema — khác với style profile của user-service).
+- Không xóa category đang có category con hoặc còn product tham chiếu qua `product_categories`; trả `409` với `CATEGORY_HAS_CHILDREN` hoặc `CATEGORY_IN_USE`.
 - Product được tạo trước; image và variant được quản lý sau bằng product subresource. Không có aggregate create API.
 - `POST /api/v1/admin/products` giữ nguyên request/`ProductResponse`; service luôn tạo product ở trạng thái `INACTIVE`, kể cả khi client gửi `ACTIVE`.
 - Admin Add Product là flow Product Info → Variants → Images / Finish. Step 2 và Step 3 dùng các variant/image subresource hiện có; không thay đổi schema.

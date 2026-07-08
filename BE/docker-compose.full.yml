@@ -106,6 +106,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       REDIS_HOST: redis
       AUTH_SERVICE_URL: http://auth-service:8081
+      NOTIFICATION_SERVICE_URL: http://notification-service:8089
       PRODUCT_SERVICE_URL: http://product-service:8083
       USER_SERVICE_URL: http://user-service:8082
       CART_SERVICE_URL: http://cart-service:8086
