@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -27,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +38,7 @@ class PaymentServiceTest {
     @Mock TransactionRepository transactionRepository;
     @Mock PaymentWebhookEventRepository webhookEventRepository;
     @Mock OrderClient orderClient;
+    @Spy PaymentReferenceMatcher paymentReferenceMatcher = new PaymentReferenceMatcher();
 
     @InjectMocks
     PaymentService paymentService;
@@ -48,6 +51,8 @@ class PaymentServiceTest {
         ReflectionTestUtils.setField(paymentService, "vietQrAccountNo", "0123456789");
         ReflectionTestUtils.setField(paymentService, "vietQrAccountName", "STYLEMIND SANDBOX");
         ReflectionTestUtils.setField(paymentService, "vietQrExpiryMinutes", 15L);
+        ReflectionTestUtils.setField(paymentService, "vietQrBaseUrl", "https://img.vietqr.io/image");
+        ReflectionTestUtils.setField(paymentService, "paymentCodePrefix", "STYLEMIND");
         ReflectionTestUtils.setField(paymentService, "sepayWebhookApiKey", "test-webhook-key");
     }
 
@@ -125,7 +130,7 @@ class PaymentServiceTest {
 
         assertThat(pending.getStatus()).isEqualTo("PAID");
         assertThat(pending.getGatewayTransactionId()).isEqualTo("42");
-        verify(webhookEventRepository).save(argThatResult("MATCHED"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("MATCHED"));
         verify(orderClient).updatePaymentStatus(eq("order-1"),
                 argThat(r -> "PAID".equals(r.getStatus())));
     }
@@ -143,7 +148,7 @@ class PaymentServiceTest {
                 webhookPayload(42L, "STYLEMIND ORD1234", "in", "100000"));
 
         assertThat(pending.getStatus()).isEqualTo("PENDING");
-        verify(webhookEventRepository).save(argThatResult("NO_MATCHING_ORDER"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("NO_MATCHING_ORDER"));
         verify(orderClient, never()).updatePaymentStatus(any(), any());
     }
 
@@ -159,7 +164,7 @@ class PaymentServiceTest {
                 webhookPayload(42L, "STYLEMIND SMABC1234", "in", "50000"));
 
         assertThat(pending.getStatus()).isEqualTo("FAILED");
-        verify(webhookEventRepository).save(argThatResult("AMOUNT_MISMATCH"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("AMOUNT_MISMATCH"));
         verify(orderClient).updatePaymentStatus(eq("order-1"),
                 argThat(r -> "FAILED".equals(r.getStatus())));
     }
@@ -175,7 +180,7 @@ class PaymentServiceTest {
         paymentService.processSepayWebhook("Apikey test-webhook-key",
                 webhookPayload(42L, "some unrelated transfer note", "in", "100000"));
 
-        verify(webhookEventRepository).save(argThatResult("NO_MATCHING_ORDER"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("NO_MATCHING_ORDER"));
         verify(orderClient, never()).updatePaymentStatus(any(), any());
     }
 
@@ -187,7 +192,7 @@ class PaymentServiceTest {
         paymentService.processSepayWebhook("Apikey test-webhook-key",
                 webhookPayload(42L, "STYLEMIND SMABC1234", "out", "100000"));
 
-        verify(webhookEventRepository).save(argThatResult("IGNORED_OUTBOUND"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("IGNORED_OUTBOUND"));
         verify(transactionRepository, never()).findByMethodAndStatus(any(), any());
     }
 
@@ -204,7 +209,7 @@ class PaymentServiceTest {
         paymentService.processSepayWebhook("Apikey test-webhook-key",
                 webhookPayload(42L, "STYLEMIND SMABC1234", "in", "100000"));
 
-        verify(webhookEventRepository).save(argThatResult("LATE_AFTER_EXPIRY"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("LATE_AFTER_EXPIRY"));
         verify(orderClient, never()).updatePaymentStatus(any(), any());
     }
 

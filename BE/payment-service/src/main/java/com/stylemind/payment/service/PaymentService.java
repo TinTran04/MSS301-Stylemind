@@ -22,9 +22,7 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 
@@ -59,6 +57,12 @@ public class PaymentService {
 
     @Value("${app.vietqr.expiry-minutes:15}")
     private long vietQrExpiryMinutes;
+
+    @Value("${app.vietqr.qr-base-url:https://img.vietqr.io/image}")
+    private String vietQrBaseUrl;
+
+    @Value("${app.sepay.payment-code-prefix:STYLEMIND}")
+    private String paymentCodePrefix;
 
     // SePay's static per-integration webhook API key - never hardcode a real value;
     // this default is a dev/sandbox placeholder only (see BE/.env.example).
@@ -228,7 +232,7 @@ public class PaymentService {
     }
 
     private String buildTransferContent(String paymentToken) {
-        return "STYLEMIND " + paymentToken;
+        return paymentCodePrefix + " " + paymentToken;
     }
 
     private Transaction findPendingSepayTransactionByContent(String rawContent) {
@@ -349,7 +353,8 @@ public class PaymentService {
 
     private String buildQrImageUrl(BigDecimal amount, String addInfo) {
         return String.format(
-                "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%s&addInfo=%s&accountName=%s",
+                "%s/%s-%s-compact2.png?amount=%s&addInfo=%s&accountName=%s",
+                vietQrBaseUrl,
                 vietQrBankId,
                 vietQrAccountNo,
                 amount.toBigInteger(),
@@ -362,11 +367,21 @@ public class PaymentService {
     }
 
     private PaymentResponse toResponse(Transaction transaction) {
+        String transferContent = transaction.getTransferContent();
+        String qrContent = null;
+        String qrImageUrl = null;
+        if (METHOD_SEPAY.equalsIgnoreCase(transaction.getMethod()) && transferContent != null) {
+            qrContent = buildQrContent(transaction.getAmount(), transferContent);
+            qrImageUrl = buildQrImageUrl(transaction.getAmount(), transferContent);
+        }
+
         return PaymentResponse.builder()
                 .transactionId(transaction.getId())
                 .status(transaction.getStatus())
                 .amount(transaction.getAmount())
-                .transferContent(transaction.getTransferContent())
+                .transferContent(transferContent)
+                .qrContent(qrContent)
+                .qrImageUrl(qrImageUrl)
                 .expiresAt(transaction.getExpiresAt() == null
                         ? null
                         : transaction.getExpiresAt().atZone(java.time.ZoneId.systemDefault()).toInstant())

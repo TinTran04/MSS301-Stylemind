@@ -50,10 +50,13 @@ const usePaymentStore = create((set, get) => ({
       markProcessing(0)
       const shippingAddress = orderData.shippingAddress
         || [orderData.address?.line1, orderData.address?.line2].filter(Boolean).join(', ')
+      const idempotencyKey = crypto.randomUUID?.() || `checkout_${Date.now()}`
 
       const order = await createOrder({
         shippingAddress,
         paymentMethod: method,
+      }, {
+        idempotencyKey,
       })
       markDone(0)
 
@@ -75,7 +78,7 @@ const usePaymentStore = create((set, get) => ({
       set({ status: 'success', lastOrder: order })
       return { success: true, order }
     } catch (err) {
-      markFailed(Math.max(get().currentStep, 0), 'Không thể đặt hàng.')
+      markFailed(Math.max(get().currentStep, 0), err?.message || 'Không thể đặt hàng.')
       return { success: false }
     }
   },

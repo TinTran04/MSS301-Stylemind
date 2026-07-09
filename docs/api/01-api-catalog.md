@@ -93,13 +93,14 @@ Product conflict responses dùng error envelope chuẩn:
 ## Order (order-service)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| POST | `/api/v1/orders` | Tạo order từ cart |
+| POST | `/api/v1/orders` | Tạo order từ cart; nhận `paymentMethod=cod|sepay`, hỗ trợ header `Idempotency-Key` |
 | GET | `/api/v1/orders` | Danh sách order của customer |
 | GET | `/api/v1/orders/{id}` | Chi tiết order |
 | GET | `/api/v1/admin/orders` | Admin danh sách |
 | GET | `/api/v1/admin/orders/summary` | Dashboard: order + revenue counts |
 | GET | `/api/v1/admin/orders/{id}` | Admin chi tiết |
 | PATCH | `/api/v1/admin/orders/{id}/status` | Admin đổi trạng thái (validate transition) |
+| POST | `/internal/v1/orders/{orderId}/payment-status` | Internal callback từ payment-service về trạng thái webhook |
 
 ## Payment (payment-service)
 | Method | Endpoint | Mô tả |
@@ -107,9 +108,8 @@ Product conflict responses dùng error envelope chuẩn:
 | POST | `/internal/v1/payments/cod` | Tạo COD transaction |
 | POST | `/internal/v1/payments/sepay` | Tạo SePay transaction + VietQR |
 | GET | `/internal/v1/payments/orders/{orderId}` | Payment theo order |
+| POST | `/internal/v1/payments/orders/{orderId}/expire` | Expire pending SePay payment khi order timeout |
 | POST | `/api/v1/payments/webhook/sepay` | Webhook SePay (verify + idempotent) |
-| GET | `/api/v1/payments/{transactionId}` | Payment detail |
-| GET | `/api/v1/admin/payments` | Admin payment logs |
 
 ## Notification (notification-service)
 | Method | Endpoint | Mô tả |
@@ -129,3 +129,9 @@ Product conflict responses dùng error envelope chuẩn:
 | GET | `/api/v1/ai-stylist/bundles` | AI bundles |
 | GET | `/api/v1/admin/ai/index-jobs` | Admin xem index jobs |
 | POST | `/api/v1/admin/ai/index-jobs` | Admin tạo index job |
+
+## Payment / checkout notes
+- Frontend chỉ được checkout qua `POST /api/v1/orders`; **không** gọi `payment-service` trực tiếp và **không** gọi `/internal/v1/**`.
+- `/api/v1/payments/webhook/sepay` là public từ góc nhìn JWT/gateway, nhưng payment-service vẫn bắt buộc xác thực webhook bằng SePay API key.
+- Internal payment/order endpoints yêu cầu `X-Internal-Token`.
+- SePay chỉ mark order paid khi **đúng số tiền** và **đúng transferContent đã normalize/exact-match**; `contains(...)` không được phép dùng để đối soát.

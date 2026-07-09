@@ -15,8 +15,27 @@ Mỗi service có DB riêng → **không** dùng được 1 transaction ACID xuy
 | 4 | Tạo payment + sinh VietQR → PAYMENT_PENDING | Hủy payment; Order → CANCELLED |
 | 5 | Chờ webhook SePay (bất đồng bộ) | Timeout (vd 15') → Order = EXPIRED/CANCELLED |
 | 6 | Webhook PAID → Order = PAID | Webhook FAILED/sai tiền → Order = FAILED |
-| 7 | Clear cart + notification | Notification fail **KHÔNG** rollback order (log/retry) |
+| 7 | Clear cart + notification sau khi đã PAID/CONFIRMED | Notification fail **KHÔNG** rollback order (log/retry) |
 
 Luồng **COD** đơn giản: tạo Order (PENDING) → payment COD → Order = CONFIRMED → clear cart → notification. Không có bước chờ webhook.
 
-> **Sprint:** saga cơ bản (orchestration + timeout/expire + clear cart) làm NGAY ở Sprint 3, nếu không đơn SePay treo PAYMENT_PENDING mãi. Sprint 5 chỉ hardening: outbox pattern, retry, compensation nâng cao.
+## Hardening đang áp dụng
+- Frontend checkout chỉ gọi `POST /api/v1/orders`; frontend **không** tự tạo payment SePay và **không** tự xác nhận thanh toán.
+- `order-service` là orchestrator: lấy cart, lấy giá authoritative, tạo order rồi mới gọi `payment-service` qua `/internal/v1/payments/cod|sepay`.
+- COD: order chuyển thẳng `CONFIRMED`, clear cart ngay.
+- SePay: order chỉ chuyển `PAYMENT_PENDING -> PAID` khi webhook/IPN đã xác thực và đối soát thành công.
+- Webhook **không** tự đẩy `PAID -> PROCESSING`.
+- `payment-service` đối soát bằng **exact normalized transferContent** hoặc token `STYLEMIND <payment-token>` có boundary rõ ràng; cấm `contains(...)`.
+- Duplicate webhook cùng `gateway_transaction_id` là **no-op**: trả success nhưng không mark paid lần hai, không callback order-service lần hai.
+- Timeout job của `order-service` đổi `PAYMENT_PENDING -> EXPIRED`, sau đó gọi `payment-service` expire transaction tương ứng.
+- Late webhook sau khi order/payment đã EXPIRED chỉ được log thành event review (`LATE_AFTER_EXPIRY`), **không** revive order về `PAID`.
+
+## Idempotency checkout
+- FE gửi `Idempotency-Key` trên `POST /api/v1/orders`.
+- `order-service` giữ khóa theo `userId + idempotencyKey` trong bảng `checkout_idempotency`.
+- Cùng key đang xử lý → trả `409 CHECKOUT_IN_PROGRESS`.
+- Cùng key đã thành công → trả lại order/payment hiện có, không tạo order/payment SePay thứ hai.
+
+## Ghi chú schema local
+- Hiện tại `order-service` và `payment-service` vẫn dùng **init-scripts** (`BE/init-scripts/06-order-db.sql`, `07-payment-db.sql`) cho local Docker schema.
+- Flyway cho hai service này là việc riêng của một task hạ tầng khác, chưa bật trong pass SePay này.

@@ -34,7 +34,7 @@
 | product-service      | 8083 | product_db    | Catalog, categories, images       |
 | cart-service         | 8086 | cart_db       | Cart (guest + authenticated)      |
 | order-service        | 8087 | order_db      | Orders, checkout flow             |
-| payment-service      | 8088 | payment_db    | Transactions (COD + simulated)    |
+| payment-service      | 8088 | payment_db    | Transactions (COD + SePay VietQR) |
 | notification-service | 8089 | notification_db | Notification logs (stub)        |
 | ai-agent-service     | 8085 | ai_db         | AI stylist chat, bundles, index   |
 
@@ -84,7 +84,7 @@ user-service :8082 — customer profile/address ok
 product-service :8083 — catalog ok; admin CRUD ok
 cart-service :8086 — guest + auth cart ok; merge on login ok
 order-service :8087 — order creation ok (saga partial — xem Known Issues)
-payment-service :8088 — COD + sepay (simulated VietQR sandbox) ok
+payment-service :8088 — COD + SePay VietQR ok
 notification-service :8089 — stub, log only
 ai-agent-service :8085 — mock responses; vector search TBD
 ```

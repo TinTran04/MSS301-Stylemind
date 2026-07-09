@@ -219,11 +219,7 @@ public class OrderService {
     public List<OrderResponse> getOrders(String userId) {
         List<Order> orders = orderRepository.findByUserId(userId);
         return orders.stream()
-                .map(order -> {
-                    OrderResponse response = buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId()));
-                    applyPaymentStatusIfAvailable(order.getId(), response);
-                    return response;
-                })
+                .map(order -> buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId())))
                 .collect(Collectors.toList());
     }
 

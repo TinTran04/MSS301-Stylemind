@@ -37,8 +37,21 @@ CREATE TABLE IF NOT EXISTS order_status_audit_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS checkout_idempotency (
+    id VARCHAR(50) PRIMARY KEY,
+    user_id VARCHAR(50) NOT NULL,
+    idempotency_key VARCHAR(100) NOT NULL,
+    order_id VARCHAR(50) REFERENCES orders(id) ON DELETE SET NULL,
+    status VARCHAR(30) NOT NULL,
+    error_message TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, idempotency_key)
+);
+
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_variant_id ON order_items(variant_id);
 CREATE INDEX IF NOT EXISTS idx_order_status_audit_log_order_id ON order_status_audit_log(order_id);
+CREATE INDEX IF NOT EXISTS idx_checkout_idempotency_order_id ON checkout_idempotency(order_id);
