@@ -19,6 +19,9 @@ public class CreateOrderRequest {
     @Pattern(regexp = "^(cod|sepay)$", message = "Payment method is invalid")
     private String paymentMethod;
 
+    // Deprecated/ignored: checkout is orchestrated by order-service and payment
+    // transactions are created server-side. Kept only for backward compatibility.
+    @Deprecated
     private String transactionId;
 
     public String getShippingAddress() { return shippingAddress; }

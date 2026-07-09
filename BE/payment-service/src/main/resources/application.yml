@@ -36,20 +36,24 @@ order:
   service:
     url: ${ORDER_SERVICE_URL:http://localhost:8087}
 
-# VietQR bank/account the QR points at - a SePay sandbox/test account in dev,
-# a real one only for the demo (see GUARDRAILS). Never hardcode a real account.
 app:
   vietqr:
-    bank-id: ${VIETQR_BANK_ID:970436}
-    account-no: ${VIETQR_ACCOUNT_NO:0123456789}
-    account-name: ${VIETQR_ACCOUNT_NAME:STYLEMIND SANDBOX}
-    expiry-minutes: ${VIETQR_EXPIRY_MINUTES:15}
+    # Local dev still uses init-scripts for schema and env-backed config for SePay/VietQR.
+    bank-id: ${SEPAY_BANK_SHORT_NAME:970415}
+    account-no: ${SEPAY_ACCOUNT_NUMBER:101876751836}
+    account-name: ${SEPAY_ACCOUNT_NAME:NGUYEN MINH KHOI}
+    expiry-minutes: ${SEPAY_PAYMENT_EXPIRE_MINUTES:15}
+    qr-base-url: ${SEPAY_QR_BASE_URL:https://img.vietqr.io/image}
   sepay:
+    enabled: ${SEPAY_ENABLED:false}
+    mode: ${SEPAY_MODE:sandbox}
+    payment-code-prefix: ${SEPAY_PAYMENT_CODE_PREFIX:STYLEMIND}
+    webhook-auth-mode: ${SEPAY_WEBHOOK_AUTH_MODE:API_KEY}
     # SePay sends "Authorization: Apikey <this value>" on every webhook call -
     # this is how we verify the webhook is genuinely from SePay (§SEC-06). The
     # default below is a dev-only placeholder; production MUST set a real secret
     # via env var, never commit one.
-    webhook-api-key: ${SEPAY_WEBHOOK_API_KEY:sepay-sandbox-webhook-key-2026}
+    webhook-api-key: ${SEPAY_WEBHOOK_API_KEY:GZRG6C8WW7ALNAHQM1DYRIGOW0HZRQKM2VFUZBTEMUX9VSPJUTCSLVQYLKNRZOGQ}
 
 jwt:
   secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}

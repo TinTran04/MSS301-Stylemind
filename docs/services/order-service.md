@@ -27,16 +27,21 @@
 | PATCH | `/api/v1/admin/orders/{id}/status` | Admin đổi trạng thái (validate transition → 409) |
 
 ## API — Internal (`X-Internal-Token`, frontend cấm gọi)
-_(không có)_
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| POST | `/internal/v1/orders/{orderId}/payment-status` | payment-service callback trạng thái SePay webhook |
 
 ## Key business rules
 - Lấy giá **authoritative** từ product-service; không lấy từ cart DTO.
 - Lưu `price_at_purchase`; total tính từ product-service.
 - COD → CONFIRMED ngay; SePay → PAYMENT_PENDING đến khi webhook PAID.
+- Webhook SePay chỉ đổi `PAYMENT_PENDING -> PAID`; không tự đẩy sang `PROCESSING`.
 - Checkout thành công → clear cart; notification fail KHÔNG rollback order.
 - SePay quá hạn → EXPIRED/CANCELLED (timeout job).
+- Timeout job đổi order sang `EXPIRED` rồi gọi `payment-service` expire transaction SePay tương ứng.
 - Customer chỉ xem order của mình; admin xem tất cả.
 - MỌI đổi trạng thái đi qua `OrderStatusService.changeStatus()`.
+- `POST /api/v1/orders` hỗ trợ `Idempotency-Key`; cùng key đang xử lý trả `409`, cùng key đã thành công trả lại order cũ thay vì tạo order/payment mới.
 - **Dashboard revenue rule:** doanh thu chỉ tính order đã thanh toán & đang xử lý/hoàn tất — `PAID, CONFIRMED, PROCESSING, SHIPPED, COMPLETED`; KHÔNG tính `PENDING`/`PAYMENT_PENDING` (chưa trả) hay `CANCELLED`/`EXPIRED`/`FAILED`. Summary chỉ trả count/sum, không lộ dữ liệu order.
 
 ## Dependencies
@@ -44,4 +49,5 @@ _(không có)_
 - **Được gọi bởi:** gateway (order pages/admin), payment-service (báo status change).
 
 ## Notes
-Xem `architecture/04-order-state-machine.md` và `architecture/05-checkout-saga.md`.
+- Hiện tại `order-service` vẫn dùng **init-script** `BE/init-scripts/06-order-db.sql` cho local Docker schema; chưa bật Flyway trong service này.
+- Xem `architecture/04-order-state-machine.md` và `architecture/05-checkout-saga.md`.

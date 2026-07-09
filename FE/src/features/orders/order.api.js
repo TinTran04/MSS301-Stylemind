@@ -60,8 +60,12 @@ export function mapOrder(order) {
   }
 }
 
-export async function createOrder(payload) {
-  const response = await apiClient.post(ENDPOINTS.ORDERS, payload)
+export async function createOrder(payload, options = {}) {
+  const response = await apiClient.post(ENDPOINTS.ORDERS, payload, {
+    headers: options.idempotencyKey
+      ? { 'Idempotency-Key': options.idempotencyKey }
+      : undefined,
+  })
   return mapOrder(response)
 }
 

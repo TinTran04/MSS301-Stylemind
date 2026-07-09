@@ -2,6 +2,7 @@ package com.stylemind.order.job;
 
 import com.stylemind.order.entity.Order;
 import com.stylemind.order.entity.OrderStatus;
+import com.stylemind.order.feign.PaymentClient;
 import com.stylemind.order.repository.OrderRepository;
 import com.stylemind.order.service.OrderStatusService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class OrderTimeoutJob {
 
     private final OrderRepository orderRepository;
     private final OrderStatusService orderStatusService;
+    private final PaymentClient paymentClient;
 
     @Value("${app.order.payment-timeout-minutes:30}")
     private long paymentTimeoutMinutes;
@@ -34,6 +36,7 @@ public class OrderTimeoutJob {
         for (Order order : staleOrders) {
             try {
                 orderStatusService.changeStatus(order, OrderStatus.EXPIRED, SYSTEM_ACTOR);
+                expirePaymentBestEffort(order.getId());
             } catch (Exception ex) {
                 log.warn("Failed to expire stale order {}: {}", order.getId(), ex.getMessage());
             }
@@ -41,6 +44,14 @@ public class OrderTimeoutJob {
 
         if (!staleOrders.isEmpty()) {
             log.info("Expired {} stale PAYMENT_PENDING order(s) older than {} minutes", staleOrders.size(), paymentTimeoutMinutes);
+        }
+    }
+
+    private void expirePaymentBestEffort(String orderId) {
+        try {
+            paymentClient.expirePaymentByOrderId(orderId);
+        } catch (Exception ex) {
+            log.warn("Failed to expire payment for order {}: {}", orderId, ex.getMessage());
         }
     }
 }

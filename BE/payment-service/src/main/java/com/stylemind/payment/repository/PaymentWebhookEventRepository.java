@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface PaymentWebhookEventRepository extends JpaRepository<PaymentWebhookEvent, String> {
-    Optional<PaymentWebhookEvent> findByGatewayTransactionId(String gatewayTransactionId);
+    Optional<PaymentWebhookEvent> findByProviderAndGatewayTransactionId(String provider, String gatewayTransactionId);
 }

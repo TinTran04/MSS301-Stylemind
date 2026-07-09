@@ -38,6 +38,12 @@ public class InternalPaymentController {
         return ResponseEntity.ok(ApiResponse.success("OK", response));
     }
 
+    @PostMapping("/orders/{orderId}/expire")
+    public ResponseEntity<ApiResponse<Void>> expirePayment(@PathVariable String orderId) {
+        paymentService.expirePendingSepayPayment(orderId);
+        return ResponseEntity.ok(ApiResponse.success("Payment expired", null));
+    }
+
     @PostMapping("/{transactionId}/refund")
     public ResponseEntity<ApiResponse<Void>> refund(@PathVariable String transactionId) {
         paymentService.refund(transactionId);

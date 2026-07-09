@@ -10,8 +10,10 @@ import com.stylemind.order.feign.*;
 import com.stylemind.order.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -25,6 +27,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final CheckoutIdempotencyRepository checkoutIdempotencyRepository;
     private final CartClient cartClient;
     private final PaymentClient paymentClient;
     private final ProductClient productClient;
@@ -32,87 +35,104 @@ public class OrderService {
     private final NotificationClient notificationClient;
     private final OrderStatusService orderStatusService;
 
-    public OrderResponse createOrder(String userId, String authHeader, CreateOrderRequest request) {
-        CartResponse cart = getCart(authHeader).getData();
-        if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
-            throw new BusinessException("CART_EMPTY", "Cart is empty", 400);
+    private static final String CHECKOUT_STATUS_PROCESSING = "PROCESSING";
+    private static final String CHECKOUT_STATUS_SUCCEEDED = "SUCCEEDED";
+    private static final String CHECKOUT_STATUS_FAILED = "FAILED";
+
+    public OrderResponse createOrder(String userId, String authHeader, String idempotencyKey, CreateOrderRequest request) {
+        CheckoutIdempotency checkoutIdempotency = acquireCheckoutIdempotency(userId, idempotencyKey);
+        if (checkoutIdempotency != null && CHECKOUT_STATUS_SUCCEEDED.equals(checkoutIdempotency.getStatus())
+                && StringUtils.hasText(checkoutIdempotency.getOrderId())) {
+            return buildExistingOrderResponse(userId, checkoutIdempotency.getOrderId());
         }
-
-        List<OrderItemDraft> itemDrafts = cart.getItems().stream()
-                .map(this::buildOrderItemDraft)
-                .collect(Collectors.toList());
-
-        BigDecimal totalAmount = itemDrafts.stream()
-                .map(OrderItemDraft::lineTotal)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        String paymentMethod = request.getPaymentMethod();
-        OrderStatus initialStatus = "sepay".equals(paymentMethod) ? OrderStatus.PAYMENT_PENDING : OrderStatus.PENDING;
-        String orderId = StringUtil.generateUniqueId();
-
-        Order order = Order.builder()
-                .id(orderId)
-                .userId(userId)
-                .totalAmount(totalAmount)
-                .orderStatus(initialStatus)
-                .shippingAddress(request.getShippingAddress())
-                .build();
-
-        order = orderRepository.save(order);
-
-        List<OrderItem> orderItems = itemDrafts.stream().map(draft -> {
-            OrderItem item = OrderItem.builder()
-                    .id(StringUtil.generateUniqueId())
-                    .orderId(orderId)
-                    .variantId(draft.variantId())
-                    .quantity(draft.quantity())
-                    .priceAtPurchase(draft.unitPrice())
-                    .isAiConversion(draft.isAiConversion())
-                    .sourceBundleId(draft.sourceBundleId())
-                    .build();
-            return orderItemRepository.save(item);
-        }).collect(Collectors.toList());
-
-        PaymentClient.PaymentResponse paymentResponse;
         try {
-            paymentResponse = "sepay".equals(paymentMethod)
-                    ? createSepayPaymentTransaction(orderId, order.getTotalAmount())
-                    : createCodPaymentTransaction(orderId, order.getTotalAmount());
-        } catch (Exception ex) {
-            log.error("Payment initialization failed for order: {}", orderId, ex);
-            orderStatusService.changeStatus(order, OrderStatus.CANCELLED, userId);
-            throw new BusinessException("PAYMENT_INIT_FAILED", "Unable to initialize payment: " + ex.getMessage(), 400);
-        }
+            CartResponse cart = getCart(authHeader).getData();
+            if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
+                throw new BusinessException("CART_EMPTY", "Cart is empty", 400);
+            }
 
-        if ("cod".equals(paymentMethod)) {
-            // COD has no payment gateway step - the order is confirmed immediately.
-            // The transaction row created above just tracks the collect-on-delivery
-            // amount; its own status stays PENDING until the courier collects it.
-            order = orderStatusService.changeStatus(order, OrderStatus.CONFIRMED, userId);
-            clearCartBestEffort(authHeader, orderId);
-            notifyOrderBestEffort(order, "ORDER_CONFIRMED", "Order confirmed",
-                    "Your order " + orderId + " has been confirmed and will be paid on delivery.");
-        }
-        // sepay: order stays PAYMENT_PENDING. There is no customer confirmation step -
-        // payment-service's SePay webhook reconciles the bank transfer and calls back
-        // into updateOrderStatusFromPayment() below, asynchronously.
+            List<OrderItemDraft> itemDrafts = cart.getItems().stream()
+                    .map(this::buildOrderItemDraft)
+                    .collect(Collectors.toList());
 
-        OrderResponse response = buildOrderResponse(order, orderItems);
-        applyPaymentResponse(response, paymentResponse);
-        return response;
+            BigDecimal totalAmount = itemDrafts.stream()
+                    .map(OrderItemDraft::lineTotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            String paymentMethod = request.getPaymentMethod();
+            OrderStatus initialStatus = "sepay".equals(paymentMethod) ? OrderStatus.PAYMENT_PENDING : OrderStatus.PENDING;
+            String orderId = StringUtil.generateUniqueId();
+
+            Order order = Order.builder()
+                    .id(orderId)
+                    .userId(userId)
+                    .totalAmount(totalAmount)
+                    .orderStatus(initialStatus)
+                    .shippingAddress(request.getShippingAddress())
+                    .build();
+
+            order = orderRepository.save(order);
+
+            List<OrderItem> orderItems = itemDrafts.stream().map(draft -> {
+                OrderItem item = OrderItem.builder()
+                        .id(StringUtil.generateUniqueId())
+                        .orderId(orderId)
+                        .variantId(draft.variantId())
+                        .quantity(draft.quantity())
+                        .priceAtPurchase(draft.unitPrice())
+                        .isAiConversion(draft.isAiConversion())
+                        .sourceBundleId(draft.sourceBundleId())
+                        .build();
+                return orderItemRepository.save(item);
+            }).collect(Collectors.toList());
+
+            PaymentClient.PaymentResponse paymentResponse;
+            try {
+                paymentResponse = "sepay".equals(paymentMethod)
+                        ? createSepayPaymentTransaction(orderId, userId, order.getTotalAmount())
+                        : createCodPaymentTransaction(orderId, userId, order.getTotalAmount());
+            } catch (Exception ex) {
+                log.error("Payment initialization failed for order: {}", orderId, ex);
+                orderStatusService.changeStatus(order, OrderStatus.CANCELLED, userId);
+                throw new BusinessException("PAYMENT_INIT_FAILED", "Unable to initialize payment: " + ex.getMessage(), 400);
+            }
+
+            if ("cod".equals(paymentMethod)) {
+                // COD has no payment gateway step - the order is confirmed immediately.
+                // The transaction row created above just tracks the collect-on-delivery
+                // amount; its own status stays PENDING until the courier collects it.
+                order = orderStatusService.changeStatus(order, OrderStatus.CONFIRMED, userId);
+                clearCartBestEffort(authHeader, orderId);
+                notifyOrderBestEffort(order, "ORDER_CONFIRMED", "Order confirmed",
+                        "Your order " + orderId + " has been confirmed and will be paid on delivery.");
+            }
+            // sepay: order stays PAYMENT_PENDING. There is no customer confirmation step -
+            // payment-service's SePay webhook reconciles the bank transfer and calls back
+            // into updateOrderStatusFromPayment() below, asynchronously.
+
+            OrderResponse response = buildOrderResponse(order, orderItems);
+            applyPaymentResponse(response, paymentResponse);
+            markCheckoutAttemptSucceeded(checkoutIdempotency, orderId);
+            return response;
+        } catch (RuntimeException ex) {
+            markCheckoutAttemptFailed(checkoutIdempotency, ex.getMessage());
+            throw ex;
+        }
     }
 
-    private PaymentClient.PaymentResponse createCodPaymentTransaction(String orderId, BigDecimal amount) {
+    private PaymentClient.PaymentResponse createCodPaymentTransaction(String orderId, String userId, BigDecimal amount) {
         PaymentClient.CodCheckoutRequest paymentRequest = PaymentClient.CodCheckoutRequest.builder()
                 .orderId(orderId)
+                .userId(userId)
                 .amount(amount)
                 .build();
         return unwrapPaymentResponse(paymentClient.createCodPayment(paymentRequest));
     }
 
-    private PaymentClient.PaymentResponse createSepayPaymentTransaction(String orderId, BigDecimal amount) {
+    private PaymentClient.PaymentResponse createSepayPaymentTransaction(String orderId, String userId, BigDecimal amount) {
         PaymentClient.SepayCheckoutRequest paymentRequest = PaymentClient.SepayCheckoutRequest.builder()
                 .orderId(orderId)
+                .userId(userId)
                 .amount(amount)
                 .build();
         return unwrapPaymentResponse(paymentClient.createSepayPayment(paymentRequest));
@@ -191,7 +211,9 @@ public class OrderService {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
-        return buildOrderResponse(order, items);
+        OrderResponse response = buildOrderResponse(order, items);
+        applyPaymentStatusIfAvailable(orderId, response);
+        return response;
     }
 
     public List<OrderResponse> getOrders(String userId) {
@@ -276,12 +298,88 @@ public class OrderService {
 
         if ("PAID".equalsIgnoreCase(paymentStatus)) {
             order = orderStatusService.changeStatus(order, OrderStatus.PAID, "PAYMENT_WEBHOOK");
-            order = orderStatusService.changeStatus(order, OrderStatus.PROCESSING, "PAYMENT_WEBHOOK");
             clearCartByUserIdBestEffort(order.getUserId(), orderId);
             notifyOrderBestEffort(order, "ORDER_PAID", "Payment received",
-                    "Payment for your order " + orderId + " has been received. It is now being processed.");
+                    "Payment for your order " + orderId + " has been received.");
         } else if ("FAILED".equalsIgnoreCase(paymentStatus)) {
             orderStatusService.changeStatus(order, OrderStatus.FAILED, "PAYMENT_WEBHOOK");
+        }
+    }
+
+    private CheckoutIdempotency acquireCheckoutIdempotency(String userId, String idempotencyKey) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            return null;
+        }
+
+        return checkoutIdempotencyRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+                .map(existing -> {
+                    if (CHECKOUT_STATUS_SUCCEEDED.equals(existing.getStatus())) {
+                        return existing;
+                    }
+                    if (CHECKOUT_STATUS_PROCESSING.equals(existing.getStatus())) {
+                        throw new BusinessException(
+                                "CHECKOUT_IN_PROGRESS",
+                                "Đơn hàng đang được xử lý, vui lòng đợi trong giây lát.",
+                                409
+                        );
+                    }
+                    throw new BusinessException(
+                            "CHECKOUT_RETRY_REQUIRED",
+                            "Yêu cầu thanh toán trước đó không thành công. Vui lòng thử lại.",
+                            409
+                    );
+                })
+                .orElseGet(() -> createCheckoutIdempotency(userId, idempotencyKey));
+    }
+
+    private CheckoutIdempotency createCheckoutIdempotency(String userId, String idempotencyKey) {
+        CheckoutIdempotency entry = CheckoutIdempotency.builder()
+                .id(StringUtil.generateUniqueId())
+                .userId(userId)
+                .idempotencyKey(idempotencyKey)
+                .status(CHECKOUT_STATUS_PROCESSING)
+                .build();
+        try {
+            return checkoutIdempotencyRepository.save(entry);
+        } catch (DataIntegrityViolationException ex) {
+            return acquireCheckoutIdempotency(userId, idempotencyKey);
+        }
+    }
+
+    private void markCheckoutAttemptSucceeded(CheckoutIdempotency checkoutIdempotency, String orderId) {
+        if (checkoutIdempotency == null) {
+            return;
+        }
+        checkoutIdempotency.setOrderId(orderId);
+        checkoutIdempotency.setStatus(CHECKOUT_STATUS_SUCCEEDED);
+        checkoutIdempotency.setErrorMessage(null);
+        checkoutIdempotencyRepository.save(checkoutIdempotency);
+    }
+
+    private void markCheckoutAttemptFailed(CheckoutIdempotency checkoutIdempotency, String errorMessage) {
+        if (checkoutIdempotency == null) {
+            return;
+        }
+        checkoutIdempotency.setStatus(CHECKOUT_STATUS_FAILED);
+        checkoutIdempotency.setErrorMessage(errorMessage);
+        checkoutIdempotencyRepository.save(checkoutIdempotency);
+    }
+
+    private OrderResponse buildExistingOrderResponse(String userId, String orderId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+        OrderResponse response = buildOrderResponse(order, items);
+        applyPaymentStatusIfAvailable(orderId, response);
+        return response;
+    }
+
+    private void applyPaymentStatusIfAvailable(String orderId, OrderResponse response) {
+        try {
+            PaymentClient.PaymentResponse paymentResponse = unwrapPaymentResponse(paymentClient.getPaymentStatus(orderId));
+            applyPaymentResponse(response, paymentResponse);
+        } catch (Exception ex) {
+            log.debug("No payment status available for order {}: {}", orderId, ex.getMessage());
         }
     }
 

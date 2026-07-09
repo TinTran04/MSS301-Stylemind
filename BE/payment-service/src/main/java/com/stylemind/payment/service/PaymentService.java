@@ -13,6 +13,7 @@ import com.stylemind.payment.repository.PaymentWebhookEventRepository;
 import com.stylemind.payment.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,10 +22,9 @@ import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.time.LocalDateTime;
 import java.util.Comparator;
-import java.util.Locale;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -32,12 +32,19 @@ import java.util.Locale;
 @Transactional
 public class PaymentService {
 
-    private static final String TRANSFER_CONTENT_PREFIX = "STYLEMIND ORD";
+    private static final String PROVIDER_SEPAY = "SEPAY";
+    private static final String METHOD_COD = "cod";
+    private static final String METHOD_SEPAY = "sepay";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_PAID = "PAID";
+    private static final String STATUS_FAILED = "FAILED";
+    private static final String STATUS_EXPIRED = "EXPIRED";
     private static final int NOTIFY_MAX_ATTEMPTS = 3;
 
     private final TransactionRepository transactionRepository;
     private final PaymentWebhookEventRepository webhookEventRepository;
     private final OrderClient orderClient;
+    private final PaymentReferenceMatcher paymentReferenceMatcher;
 
     @Value("${app.vietqr.bank-id:970436}")
     private String vietQrBankId;
@@ -51,6 +58,12 @@ public class PaymentService {
     @Value("${app.vietqr.expiry-minutes:15}")
     private long vietQrExpiryMinutes;
 
+    @Value("${app.vietqr.qr-base-url:https://img.vietqr.io/image}")
+    private String vietQrBaseUrl;
+
+    @Value("${app.sepay.payment-code-prefix:STYLEMIND}")
+    private String paymentCodePrefix;
+
     // SePay's static per-integration webhook API key - never hardcode a real value;
     // this default is a dev/sandbox placeholder only (see BE/.env.example).
     @Value("${app.sepay.webhook-api-key:sepay-sandbox-webhook-key-2026}")
@@ -60,10 +73,10 @@ public class PaymentService {
         Transaction transaction = Transaction.builder()
                 .id(StringUtil.generateUniqueId())
                 .orderId(request.getOrderId())
-                .userId("")
+                .userId(request.getUserId())
                 .amount(request.getAmount())
-                .method("cod")
-                .status("PENDING") // collected on delivery - out of band, not a gateway flow
+                .method(METHOD_COD)
+                .status(STATUS_PENDING) // collected on delivery - out of band, not a gateway flow
                 .transactionRef(StringUtil.generateUniqueId())
                 .build();
 
@@ -72,17 +85,21 @@ public class PaymentService {
     }
 
     public PaymentResponse createSepayPayment(SepayCheckoutRequest request) {
-        String transferContent = buildTransferContent(request.getOrderId());
+        String transactionId = StringUtil.generateUniqueId();
+        String paymentToken = buildPaymentToken(transactionId);
+        String transferContent = buildTransferContent(paymentToken);
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(vietQrExpiryMinutes);
 
         Transaction transaction = Transaction.builder()
-                .id(StringUtil.generateUniqueId())
+                .id(transactionId)
                 .orderId(request.getOrderId())
-                .userId("")
+                .userId(request.getUserId())
                 .amount(request.getAmount())
-                .method("sepay")
-                .status("PENDING")
-                .transactionRef(StringUtil.generateUniqueId())
+                .method(METHOD_SEPAY)
+                .status(STATUS_PENDING)
+                .transactionRef(paymentToken)
                 .transferContent(transferContent)
+                .expiresAt(expiresAt)
                 .build();
 
         transaction = transactionRepository.save(transaction);
@@ -94,7 +111,7 @@ public class PaymentService {
                 .transferContent(transferContent)
                 .qrContent(buildQrContent(transaction.getAmount(), transferContent))
                 .qrImageUrl(buildQrImageUrl(transaction.getAmount(), transferContent))
-                .expiresAt(Instant.now().plus(vietQrExpiryMinutes, ChronoUnit.MINUTES))
+                .expiresAt(expiresAt.atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .build();
     }
 
@@ -112,55 +129,96 @@ public class PaymentService {
     public void processSepayWebhook(String authorizationHeader, SepayWebhookPayload payload) {
         if (!isAuthorized(authorizationHeader)) {
             log.warn("Rejected SePay webhook: missing/invalid credentials (gatewayTxnId={})", payload.getId());
-            logWebhookEvent(gatewayTransactionId(payload), null, payload.getContent(), payload.getTransferAmount(), "INVALID_SIGNATURE");
+            logWebhookEvent(gatewayTransactionId(payload), null, rawTransferContent(payload), payload.getTransferAmount(), "INVALID_SIGNATURE", false, null);
             throw new BusinessException("WEBHOOK_UNAUTHORIZED", "Invalid webhook credentials", 401);
         }
 
         String gatewayTransactionId = gatewayTransactionId(payload);
         if (gatewayTransactionId == null) {
-            logWebhookEvent(null, null, payload.getContent(), payload.getTransferAmount(), "INVALID_PAYLOAD");
+            logWebhookEvent(null, null, rawTransferContent(payload), payload.getTransferAmount(), "INVALID_PAYLOAD", false, null);
             throw new BusinessException("INVALID_WEBHOOK_PAYLOAD", "Webhook payload is missing an id", 400);
         }
 
-        if (webhookEventRepository.findByGatewayTransactionId(gatewayTransactionId).isPresent()) {
+        if (webhookEventRepository.findByProviderAndGatewayTransactionId(PROVIDER_SEPAY, gatewayTransactionId).isPresent()) {
+            log.info("Ignoring duplicate SePay webhook delivery for gateway transaction {}", gatewayTransactionId);
+            return;
+        }
+
+        PaymentWebhookEvent webhookEvent = createWebhookEvent(payload, gatewayTransactionId);
+        if (webhookEvent == null) {
             log.info("Ignoring duplicate SePay webhook delivery for gateway transaction {}", gatewayTransactionId);
             return;
         }
 
         if (!"in".equalsIgnoreCase(payload.getTransferType())) {
-            logWebhookEvent(gatewayTransactionId, null, payload.getContent(), payload.getTransferAmount(), "IGNORED_OUTBOUND");
+            finalizeWebhookEvent(webhookEvent, null, "IGNORED_OUTBOUND", true, null);
             return;
         }
 
-        Transaction match = findPendingSepayTransactionByContent(payload.getContent());
+        String incomingTransferContent = rawTransferContent(payload);
+        Transaction match = findPendingSepayTransactionByContent(incomingTransferContent);
         if (match == null) {
-            logWebhookEvent(gatewayTransactionId, null, payload.getContent(), payload.getTransferAmount(), "NO_MATCHING_ORDER");
+            Transaction expiredMatch = findExpiredSepayTransactionByContent(incomingTransferContent);
+            if (expiredMatch != null) {
+                finalizeWebhookEvent(webhookEvent, expiredMatch.getId(), "LATE_AFTER_EXPIRY", true,
+                        "Webhook arrived after payment/order expiration");
+                log.warn("Late SePay webhook arrived for expired payment orderId={} gatewayTxnId={}",
+                        expiredMatch.getOrderId(), gatewayTransactionId);
+                return;
+            }
+            finalizeWebhookEvent(webhookEvent, null, "NO_MATCHING_ORDER", true, null);
             log.warn("SePay webhook matched no pending order (gatewayTxnId={})", gatewayTransactionId);
             return;
         }
 
         boolean amountMatches = match.getAmount().compareTo(payload.getTransferAmount()) == 0;
-        match.setGatewayTransactionId(gatewayTransactionId);
 
         if (!amountMatches) {
-            match.setStatus("FAILED");
+            match.setStatus(STATUS_FAILED);
+            match.setGatewayTransactionId(gatewayTransactionId);
             transactionRepository.save(match);
-            logWebhookEvent(gatewayTransactionId, match.getId(), payload.getContent(), payload.getTransferAmount(), "AMOUNT_MISMATCH");
+            finalizeWebhookEvent(webhookEvent, match.getId(), "AMOUNT_MISMATCH", true, "Transfer amount does not match expected amount");
             notifyOrderBestEffort(match.getOrderId(), "FAILED");
             return;
         }
 
-        match.setStatus("COMPLETED");
+        match.setStatus(STATUS_PAID);
+        match.setGatewayTransactionId(gatewayTransactionId);
+        match.setPaidAt(LocalDateTime.now());
         transactionRepository.save(match);
-        logWebhookEvent(gatewayTransactionId, match.getId(), payload.getContent(), payload.getTransferAmount(), "MATCHED");
+        finalizeWebhookEvent(webhookEvent, match.getId(), "MATCHED", true, null);
         notifyOrderBestEffort(match.getOrderId(), "PAID");
+    }
+
+    public void expirePendingSepayPayment(String orderId) {
+        Transaction transaction = transactionRepository.findTopByOrderIdOrderByCreatedAtDesc(orderId)
+                .orElseThrow(() -> new BusinessException(
+                        "TRANSACTION_NOT_FOUND", "No transaction found for order: " + orderId, 404));
+
+        if (!METHOD_SEPAY.equalsIgnoreCase(transaction.getMethod())) {
+            return;
+        }
+
+        if (STATUS_PAID.equalsIgnoreCase(transaction.getStatus())) {
+            log.info("Ignoring expire request for already-paid SePay transaction {} on order {}", transaction.getId(), orderId);
+            return;
+        }
+
+        if (STATUS_EXPIRED.equalsIgnoreCase(transaction.getStatus()) || "CANCELLED".equalsIgnoreCase(transaction.getStatus())) {
+            return;
+        }
+
+        if (STATUS_PENDING.equalsIgnoreCase(transaction.getStatus())) {
+            transaction.setStatus(STATUS_EXPIRED);
+            transactionRepository.save(transaction);
+        }
     }
 
     public void refund(String transactionId) {
         Transaction transaction = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new BusinessException("TRANSACTION_NOT_FOUND", "Transaction not found", 404));
 
-        if (!"COMPLETED".equals(transaction.getStatus())) {
+        if (!STATUS_PAID.equals(transaction.getStatus())) {
             throw new BusinessException("INVALID_REFUND", "Only completed transactions can be refunded", 400);
         }
 
@@ -168,27 +226,47 @@ public class PaymentService {
         transactionRepository.save(transaction);
     }
 
-    private String buildTransferContent(String orderId) {
-        return TRANSFER_CONTENT_PREFIX + orderId;
+    private String buildPaymentToken(String transactionId) {
+        String compactId = transactionId == null ? StringUtil.generateShortId() : transactionId;
+        return ("SM" + compactId.substring(0, Math.min(compactId.length(), 10))).toUpperCase();
+    }
+
+    private String buildTransferContent(String paymentToken) {
+        return paymentCodePrefix + " " + paymentToken;
     }
 
     private Transaction findPendingSepayTransactionByContent(String rawContent) {
-        String normalizedWebhookContent = normalize(rawContent);
-        return transactionRepository.findByMethodAndStatus("sepay", "PENDING").stream()
-                .filter(t -> t.getTransferContent() != null
-                        && normalizedWebhookContent.contains(normalize(t.getTransferContent())))
+        return transactionRepository.findByMethodAndStatus(METHOD_SEPAY, STATUS_PENDING).stream()
+                .filter(t -> paymentReferenceMatcher.matches(t.getTransferContent(), rawContent))
                 .findFirst()
                 .orElse(null);
     }
 
-    // Banking apps routinely mangle whitespace/case in the transfer note, so
-    // reconciliation compares a normalized form rather than an exact string match.
-    private String normalize(String value) {
-        return value == null ? "" : value.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+    private Transaction findExpiredSepayTransactionByContent(String rawContent) {
+        return transactionRepository.findByMethodAndStatusIn(METHOD_SEPAY, List.of(STATUS_EXPIRED, STATUS_FAILED, "CANCELLED")).stream()
+                .filter(t -> paymentReferenceMatcher.matches(t.getTransferContent(), rawContent))
+                .findFirst()
+                .orElse(null);
     }
 
     private String gatewayTransactionId(SepayWebhookPayload payload) {
         return payload.getId() == null ? null : String.valueOf(payload.getId());
+    }
+
+    private String rawTransferContent(SepayWebhookPayload payload) {
+        if (payload == null) {
+            return "";
+        }
+        if (payload.getContent() != null && !payload.getContent().isBlank()) {
+            return payload.getContent();
+        }
+        if (payload.getDescription() != null && !payload.getDescription().isBlank()) {
+            return payload.getDescription();
+        }
+        if (payload.getReferenceCode() != null && !payload.getReferenceCode().isBlank()) {
+            return payload.getReferenceCode();
+        }
+        return "";
     }
 
     // Constant-time comparison (MessageDigest.isEqual) so webhook auth doesn't leak
@@ -203,15 +281,50 @@ public class PaymentService {
                 expected.getBytes(StandardCharsets.UTF_8));
     }
 
+    private PaymentWebhookEvent createWebhookEvent(SepayWebhookPayload payload, String gatewayTransactionId) {
+        PaymentWebhookEvent webhookEvent = PaymentWebhookEvent.builder()
+                .id(StringUtil.generateUniqueId())
+                .provider(PROVIDER_SEPAY)
+                .gatewayTransactionId(gatewayTransactionId)
+                .transactionId(null)
+                .transferContent(rawTransferContent(payload))
+                .amount(payload.getTransferAmount())
+                .result("RECEIVED")
+                .processed(Boolean.FALSE)
+                .build();
+        try {
+            return webhookEventRepository.save(webhookEvent);
+        } catch (DataIntegrityViolationException ex) {
+            return null;
+        }
+    }
+
+    private void finalizeWebhookEvent(
+            PaymentWebhookEvent webhookEvent,
+            String transactionId,
+            String result,
+            boolean processed,
+            String errorMessage) {
+        webhookEvent.setTransactionId(transactionId);
+        webhookEvent.setResult(result);
+        webhookEvent.setProcessed(processed);
+        webhookEvent.setErrorMessage(errorMessage);
+        webhookEventRepository.save(webhookEvent);
+    }
+
     private void logWebhookEvent(
-            String gatewayTransactionId, String transactionId, String rawContent, BigDecimal amount, String result) {
+            String gatewayTransactionId, String transactionId, String rawContent, BigDecimal amount, String result,
+            boolean processed, String errorMessage) {
         webhookEventRepository.save(PaymentWebhookEvent.builder()
                 .id(StringUtil.generateUniqueId())
+                .provider(PROVIDER_SEPAY)
                 .gatewayTransactionId(gatewayTransactionId)
                 .transactionId(transactionId)
                 .transferContent(rawContent)
                 .amount(amount)
                 .result(result)
+                .processed(processed)
+                .errorMessage(errorMessage)
                 .build());
     }
 
@@ -240,7 +353,8 @@ public class PaymentService {
 
     private String buildQrImageUrl(BigDecimal amount, String addInfo) {
         return String.format(
-                "https://img.vietqr.io/image/%s-%s-compact2.png?amount=%s&addInfo=%s&accountName=%s",
+                "%s/%s-%s-compact2.png?amount=%s&addInfo=%s&accountName=%s",
+                vietQrBaseUrl,
                 vietQrBankId,
                 vietQrAccountNo,
                 amount.toBigInteger(),
@@ -253,11 +367,24 @@ public class PaymentService {
     }
 
     private PaymentResponse toResponse(Transaction transaction) {
+        String transferContent = transaction.getTransferContent();
+        String qrContent = null;
+        String qrImageUrl = null;
+        if (METHOD_SEPAY.equalsIgnoreCase(transaction.getMethod()) && transferContent != null) {
+            qrContent = buildQrContent(transaction.getAmount(), transferContent);
+            qrImageUrl = buildQrImageUrl(transaction.getAmount(), transferContent);
+        }
+
         return PaymentResponse.builder()
                 .transactionId(transaction.getId())
                 .status(transaction.getStatus())
                 .amount(transaction.getAmount())
-                .transferContent(transaction.getTransferContent())
+                .transferContent(transferContent)
+                .qrContent(qrContent)
+                .qrImageUrl(qrImageUrl)
+                .expiresAt(transaction.getExpiresAt() == null
+                        ? null
+                        : transaction.getExpiresAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .build();
     }
 }

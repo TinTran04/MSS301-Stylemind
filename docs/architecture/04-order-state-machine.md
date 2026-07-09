@@ -73,3 +73,10 @@ public void changeStatus(Long orderId, OrderStatus target, Long actorId) {
 }
 ```
 > **Quy tắc:** MỌI đường đổi trạng thái (admin, webhook, timeout job) phải đi qua `changeStatus()`. Không set status trực tiếp lên entity ở bất kỳ đâu khác.
+
+## Ghi chú SePay
+- Webhook SePay chỉ xác nhận thanh toán: `PAYMENT_PENDING -> PAID`.
+- Webhook **không** tự chuyển `PAID -> PROCESSING`.
+- `PAID -> CONFIRMED` hoặc `PAID -> PROCESSING` là bước nghiệp vụ sau đó, do admin/system flow hợp lệ kích hoạt.
+- Timeout job chuyển `PAYMENT_PENDING -> EXPIRED` và expire payment tương ứng ở `payment-service`.
+- Late webhook sau khi order đã `EXPIRED` chỉ được log để review, không được kéo order quay lại `PAID`.

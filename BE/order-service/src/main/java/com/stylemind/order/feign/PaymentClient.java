@@ -19,12 +19,16 @@ public interface PaymentClient {
     @GetMapping("/internal/v1/payments/orders/{orderId}")
     ApiResponse<PaymentResponse> getPaymentStatus(@PathVariable("orderId") String orderId);
 
+    @PostMapping("/internal/v1/payments/orders/{orderId}/expire")
+    ApiResponse<Void> expirePaymentByOrderId(@PathVariable("orderId") String orderId);
+
     @lombok.Data
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     @lombok.Builder
     class CodCheckoutRequest {
         private String orderId;
+        private String userId;
         private BigDecimal amount;
     }
 
@@ -34,6 +38,7 @@ public interface PaymentClient {
     @lombok.Builder
     class SepayCheckoutRequest {
         private String orderId;
+        private String userId;
         private BigDecimal amount;
     }
 

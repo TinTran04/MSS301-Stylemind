@@ -2,6 +2,7 @@ package com.stylemind.order.job;
 
 import com.stylemind.order.entity.Order;
 import com.stylemind.order.entity.OrderStatus;
+import com.stylemind.order.feign.PaymentClient;
 import com.stylemind.order.repository.OrderRepository;
 import com.stylemind.order.service.OrderStatusService;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,7 @@ class OrderTimeoutJobTest {
 
     @Mock OrderRepository orderRepository;
     @Mock OrderStatusService orderStatusService;
+    @Mock PaymentClient paymentClient;
 
     @InjectMocks OrderTimeoutJob orderTimeoutJob;
 
@@ -54,6 +56,7 @@ class OrderTimeoutJobTest {
 
         ArgumentCaptor<String> actorCaptor = ArgumentCaptor.forClass(String.class);
         verify(orderStatusService).changeStatus(eq(stale), eq(OrderStatus.EXPIRED), actorCaptor.capture());
+        verify(paymentClient).expirePaymentByOrderId("order-1");
         assertThatActorLooksLikeSystem(actorCaptor.getValue());
     }
 

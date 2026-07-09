@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -27,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +38,7 @@ class PaymentServiceTest {
     @Mock TransactionRepository transactionRepository;
     @Mock PaymentWebhookEventRepository webhookEventRepository;
     @Mock OrderClient orderClient;
+    @Spy PaymentReferenceMatcher paymentReferenceMatcher = new PaymentReferenceMatcher();
 
     @InjectMocks
     PaymentService paymentService;
@@ -48,6 +51,8 @@ class PaymentServiceTest {
         ReflectionTestUtils.setField(paymentService, "vietQrAccountNo", "0123456789");
         ReflectionTestUtils.setField(paymentService, "vietQrAccountName", "STYLEMIND SANDBOX");
         ReflectionTestUtils.setField(paymentService, "vietQrExpiryMinutes", 15L);
+        ReflectionTestUtils.setField(paymentService, "vietQrBaseUrl", "https://img.vietqr.io/image");
+        ReflectionTestUtils.setField(paymentService, "paymentCodePrefix", "STYLEMIND");
         ReflectionTestUtils.setField(paymentService, "sepayWebhookApiKey", "test-webhook-key");
     }
 
@@ -56,7 +61,7 @@ class PaymentServiceTest {
         when(transactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         PaymentResponse response = paymentService.createCodPayment(
-                CodCheckoutRequest.builder().orderId("order-1").amount(new BigDecimal("100000")).build());
+                CodCheckoutRequest.builder().orderId("order-1").userId("user-1").amount(new BigDecimal("100000")).build());
 
         assertThat(response.getStatus()).isEqualTo("PENDING");
         assertThat(response.getQrImageUrl()).isNull();
@@ -68,18 +73,18 @@ class PaymentServiceTest {
         when(transactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         PaymentResponse response = paymentService.createSepayPayment(
-                SepayCheckoutRequest.builder().orderId("order-1").amount(new BigDecimal("100000")).build());
+                SepayCheckoutRequest.builder().orderId("order-1").userId("user-1").amount(new BigDecimal("100000")).build());
 
         assertThat(response.getStatus()).isEqualTo("PENDING");
-        assertThat(response.getTransferContent()).isEqualTo("STYLEMIND ORDorder-1");
+        assertThat(response.getTransferContent()).startsWith("STYLEMIND SM");
         assertThat(response.getQrImageUrl()).startsWith("https://img.vietqr.io/image/");
-        assertThat(response.getQrContent()).contains("100000").contains("STYLEMIND ORDorder-1");
+        assertThat(response.getQrContent()).contains("100000").contains(response.getTransferContent());
         assertThat(response.getExpiresAt()).isAfter(java.time.Instant.now());
     }
 
     @Test
     void webhook_rejectsMissingOrWrongApiKey() {
-        SepayWebhookPayload payload = webhookPayload(1L, "STYLEMIND ORDorder-1", "in", "100000");
+        SepayWebhookPayload payload = webhookPayload(1L, "STYLEMIND SMABC1234", "in", "100000");
 
         assertThatThrownBy(() -> paymentService.processSepayWebhook("Apikey wrong-key", payload))
                 .isInstanceOf(BusinessException.class)
@@ -91,7 +96,7 @@ class PaymentServiceTest {
 
     @Test
     void webhook_missingGatewayTransactionId_rejectedAsInvalidPayload() {
-        SepayWebhookPayload payload = webhookPayload(null, "STYLEMIND ORDorder-1", "in", "100000");
+        SepayWebhookPayload payload = webhookPayload(null, "STYLEMIND SMABC1234", "in", "100000");
 
         assertThatThrownBy(() -> paymentService.processSepayWebhook("Apikey test-webhook-key", payload))
                 .isInstanceOf(BusinessException.class)
@@ -103,10 +108,10 @@ class PaymentServiceTest {
 
     @Test
     void webhook_duplicateGatewayTransactionId_isIgnored() {
-        when(webhookEventRepository.findByGatewayTransactionId("42"))
+        when(webhookEventRepository.findByProviderAndGatewayTransactionId("SEPAY", "42"))
                 .thenReturn(Optional.of(com.stylemind.payment.entity.PaymentWebhookEvent.builder().id("evt-1").build()));
 
-        paymentService.processSepayWebhook("Apikey test-webhook-key", webhookPayload(42L, "STYLEMIND ORDorder-1", "in", "100000"));
+        paymentService.processSepayWebhook("Apikey test-webhook-key", webhookPayload(42L, "STYLEMIND SMABC1234", "in", "100000"));
 
         verify(transactionRepository, never()).save(any());
         verify(webhookEventRepository, never()).save(any());
@@ -114,60 +119,109 @@ class PaymentServiceTest {
 
     @Test
     void webhook_matchingContentAndAmount_marksTransactionCompletedAndNotifiesOrderService() {
-        Transaction pending = pendingSepayTransaction("txn-1", "order-1", "STYLEMIND ORDorder-1", "100000");
-        when(webhookEventRepository.findByGatewayTransactionId("42")).thenReturn(Optional.empty());
+        Transaction pending = pendingSepayTransaction("txn-1", "order-1", "STYLEMIND SMABC1234", "100000");
+        when(webhookEventRepository.findByProviderAndGatewayTransactionId("SEPAY", "42")).thenReturn(Optional.empty());
         when(transactionRepository.findByMethodAndStatus("sepay", "PENDING")).thenReturn(List.of(pending));
         when(transactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(webhookEventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        // Banks routinely mangle whitespace/case around the note - the real
-        // webhook content need not match byte-for-byte with what we generated.
         paymentService.processSepayWebhook("Apikey test-webhook-key",
-                webhookPayload(42L, "NGUYEN VAN A chuyen tien stylemind ord order-1", "in", "100000"));
+                webhookPayload(42L, "  nguyen van a chuyen tien stylemind   smabc1234  ", "in", "100000"));
 
-        assertThat(pending.getStatus()).isEqualTo("COMPLETED");
+        assertThat(pending.getStatus()).isEqualTo("PAID");
         assertThat(pending.getGatewayTransactionId()).isEqualTo("42");
-        verify(webhookEventRepository).save(argThatResult("MATCHED"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("MATCHED"));
         verify(orderClient).updatePaymentStatus(eq("order-1"),
                 argThat(r -> "PAID".equals(r.getStatus())));
     }
 
     @Test
-    void webhook_amountMismatch_marksTransactionFailedAndNotifiesOrderService() {
-        Transaction pending = pendingSepayTransaction("txn-1", "order-1", "STYLEMIND ORDorder-1", "100000");
-        when(webhookEventRepository.findByGatewayTransactionId("42")).thenReturn(Optional.empty());
+    void webhook_similarReferenceDoesNotMatchDifferentOrder() {
+        Transaction pending = pendingSepayTransaction("txn-1", "order-1", "STYLEMIND ORD123", "100000");
+        when(webhookEventRepository.findByProviderAndGatewayTransactionId("SEPAY", "42")).thenReturn(Optional.empty());
         when(transactionRepository.findByMethodAndStatus("sepay", "PENDING")).thenReturn(List.of(pending));
-        when(transactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(transactionRepository.findByMethodAndStatusIn("sepay", List.of("EXPIRED", "FAILED", "CANCELLED")))
+                .thenReturn(List.of());
+        when(webhookEventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         paymentService.processSepayWebhook("Apikey test-webhook-key",
-                webhookPayload(42L, "STYLEMIND ORDorder-1", "in", "50000"));
+                webhookPayload(42L, "STYLEMIND ORD1234", "in", "100000"));
+
+        assertThat(pending.getStatus()).isEqualTo("PENDING");
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("NO_MATCHING_ORDER"));
+        verify(orderClient, never()).updatePaymentStatus(any(), any());
+    }
+
+    @Test
+    void webhook_amountMismatch_marksTransactionFailedAndNotifiesOrderService() {
+        Transaction pending = pendingSepayTransaction("txn-1", "order-1", "STYLEMIND SMABC1234", "100000");
+        when(webhookEventRepository.findByProviderAndGatewayTransactionId("SEPAY", "42")).thenReturn(Optional.empty());
+        when(transactionRepository.findByMethodAndStatus("sepay", "PENDING")).thenReturn(List.of(pending));
+        when(transactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(webhookEventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        paymentService.processSepayWebhook("Apikey test-webhook-key",
+                webhookPayload(42L, "STYLEMIND SMABC1234", "in", "50000"));
 
         assertThat(pending.getStatus()).isEqualTo("FAILED");
-        verify(webhookEventRepository).save(argThatResult("AMOUNT_MISMATCH"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("AMOUNT_MISMATCH"));
         verify(orderClient).updatePaymentStatus(eq("order-1"),
                 argThat(r -> "FAILED".equals(r.getStatus())));
     }
 
     @Test
     void webhook_noMatchingOrder_logsAndDoesNotThrow() {
-        when(webhookEventRepository.findByGatewayTransactionId("42")).thenReturn(Optional.empty());
+        when(webhookEventRepository.findByProviderAndGatewayTransactionId("SEPAY", "42")).thenReturn(Optional.empty());
         when(transactionRepository.findByMethodAndStatus("sepay", "PENDING")).thenReturn(List.of());
+        when(transactionRepository.findByMethodAndStatusIn("sepay", List.of("EXPIRED", "FAILED", "CANCELLED")))
+                .thenReturn(List.of());
+        when(webhookEventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         paymentService.processSepayWebhook("Apikey test-webhook-key",
                 webhookPayload(42L, "some unrelated transfer note", "in", "100000"));
 
-        verify(webhookEventRepository).save(argThatResult("NO_MATCHING_ORDER"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("NO_MATCHING_ORDER"));
         verify(orderClient, never()).updatePaymentStatus(any(), any());
     }
 
     @Test
     void webhook_outboundTransfer_isIgnored() {
-        when(webhookEventRepository.findByGatewayTransactionId("42")).thenReturn(Optional.empty());
+        when(webhookEventRepository.findByProviderAndGatewayTransactionId("SEPAY", "42")).thenReturn(Optional.empty());
+        when(webhookEventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         paymentService.processSepayWebhook("Apikey test-webhook-key",
-                webhookPayload(42L, "STYLEMIND ORDorder-1", "out", "100000"));
+                webhookPayload(42L, "STYLEMIND SMABC1234", "out", "100000"));
 
-        verify(webhookEventRepository).save(argThatResult("IGNORED_OUTBOUND"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("IGNORED_OUTBOUND"));
         verify(transactionRepository, never()).findByMethodAndStatus(any(), any());
+    }
+
+    @Test
+    void webhook_lateAfterExpiration_isRecordedAndDoesNotNotifyOrderService() {
+        Transaction expired = pendingSepayTransaction("txn-1", "order-1", "STYLEMIND SMABC1234", "100000");
+        expired.setStatus("EXPIRED");
+        when(webhookEventRepository.findByProviderAndGatewayTransactionId("SEPAY", "42")).thenReturn(Optional.empty());
+        when(transactionRepository.findByMethodAndStatus("sepay", "PENDING")).thenReturn(List.of());
+        when(transactionRepository.findByMethodAndStatusIn("sepay", List.of("EXPIRED", "FAILED", "CANCELLED")))
+                .thenReturn(List.of(expired));
+        when(webhookEventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        paymentService.processSepayWebhook("Apikey test-webhook-key",
+                webhookPayload(42L, "STYLEMIND SMABC1234", "in", "100000"));
+
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("LATE_AFTER_EXPIRY"));
+        verify(orderClient, never()).updatePaymentStatus(any(), any());
+    }
+
+    @Test
+    void expirePendingSepayPayment_marksPendingTransactionExpired() {
+        Transaction pending = pendingSepayTransaction("txn-1", "order-1", "STYLEMIND SMABC1234", "100000");
+        when(transactionRepository.findTopByOrderIdOrderByCreatedAtDesc("order-1")).thenReturn(Optional.of(pending));
+        when(transactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        paymentService.expirePendingSepayPayment("order-1");
+
+        assertThat(pending.getStatus()).isEqualTo("EXPIRED");
     }
 
     private com.stylemind.payment.entity.PaymentWebhookEvent argThatResult(String expectedResult) {
