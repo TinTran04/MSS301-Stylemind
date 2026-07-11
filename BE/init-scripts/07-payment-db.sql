@@ -14,8 +14,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     gateway_transaction_id VARCHAR(100) UNIQUE,
     expires_at TIMESTAMP,
     paid_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes
@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS payment_webhook_events (
     result VARCHAR(30) NOT NULL,
     processed BOOLEAN NOT NULL DEFAULT FALSE,
     error_message TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_webhook_events_gateway_txn_id ON payment_webhook_events(gateway_transaction_id);

@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS users (
     password_reset_requested_at TIMESTAMP,
     password_reset_token_hash VARCHAR(255),
     password_reset_token_expires_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Enable pgcrypto for BCrypt password hashing
@@ -72,8 +72,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action VARCHAR(50) NOT NULL,
     target_user_id VARCHAR(50) NOT NULL,
     detail VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_target_user ON audit_log(target_user_id);
@@ -91,8 +91,8 @@ CREATE TABLE IF NOT EXISTS pending_registrations (
     otp_expires_at TIMESTAMP NOT NULL,
     otp_attempts INTEGER NOT NULL DEFAULT 0,
     requested_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_pending_registrations_email ON pending_registrations(email);

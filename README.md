@@ -23,7 +23,7 @@ Mục tiêu chính của hệ thống là cung cấp trải nghiệm **tư vấn
 * Nhận gợi ý outfit từ các sản phẩm còn hàng (`ai_curated_bundles`, `ai_curated_bundle_items`)
 * Thêm từng sản phẩm hoặc toàn bộ outfit AI đề xuất vào giỏ hàng (`cart_items`: is_ai_recommended, source_bundle_id)
 * Quản lý giỏ hàng (`shopping_carts`, `cart_items` với variant_id FK)
-* Checkout và thanh toán giả lập (`payment-service`: transactions)
+* Checkout với COD hoặc SePay VietQR (`payment-service`: transactions)
 * Tạo đơn hàng với snapshot giá (`orders`: order_status PENDING/PROCESSING/COMPENSATING_ROLLBACK/FULFILLED/CANCELLED; `order_items`: price_at_purchase, is_ai_conversion, source_bundle_id)
 * Theo dõi trạng thái đơn hàng
 * Xem lịch sử mua hàng
@@ -182,7 +182,7 @@ Khách hàng truy cập hệ thống
 → Nhận gợi ý outfit từ sản phẩm còn hàng (inventory-aware)
 → Thêm sản phẩm vào giỏ hàng (variant_id, is_ai_recommended)
 → Checkout (shipping_address snapshot)
-→ Thanh toán giả lập
+→ Thanh toán COD hoặc SePay VietQR
 → Tạo đơn hàng (order_status: PENDING → PROCESSING → FULFILLED)
 → Theo dõi trạng thái đơn hàng
 ```
@@ -321,16 +321,151 @@ Chỉ commit file .env.example nếu cần.
 
 Backend sẽ được phát triển bằng Spring Boot Microservices (8 services).
 
-Dự kiến chạy local bằng Docker Compose:
+Chạy toàn bộ backend bằng Docker Compose:
 
 ```bash
 cd BE
-docker compose up
+docker compose -f docker-compose.full.yml up -d --build
 ```
+
+Before the first full-stack start, create `BE/.env` from `BE/.env.example` and
+set the required SePay values. Do not commit this local file:
+
+```bash
+cp .env.example .env
+```
+
+At minimum, configure `SEPAY_BANK_SHORT_NAME`, `SEPAY_ACCOUNT_NUMBER`,
+`SEPAY_ACCOUNT_NAME`, and `SEPAY_WEBHOOK_API_KEY` with values from your own
+SePay/bank configuration. Docker Compose intentionally fails fast when any of
+these values are absent.
 
 Hoặc chạy từng service Spring Boot riêng tùy giai đoạn phát triển.
 
-Xem chi tiết tại [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) và [MICROSERVICE_ARCHITECTURE.md](docs/MICROSERVICE_ARCHITECTURE.md).
+Windows không cần GNU Make. Xem hướng dẫn và các script PowerShell tại
+[README-WINDOWS.md](README-WINDOWS.md).
+
+## Testing SePay payment locally with ngrok
+
+SePay phải gọi được API Gateway từ Internet. Không expose `payment-service`
+trực tiếp và không dùng URL `localhost` trong SePay Dashboard.
+
+```text
+Customer -> Frontend -> API Gateway -> order-service -> payment-service
+         -> VietQR -> Bank transfer -> SePay -> ngrok -> API Gateway
+         -> payment-service webhook -> order-service callback -> Frontend polling
+```
+
+Prerequisites:
+
+- API Gateway đang chạy ở port `3001`.
+- `payment-service`, `order-service` và PostgreSQL đang chạy.
+- Tài khoản ngân hàng đã liên kết với SePay và webhook SePay đang active.
+- `SEPAY_WEBHOOK_API_KEY` cùng cấu hình SePay/VietQR đã được đặt qua environment variables.
+- Đã cài ngrok.
+
+macOS/Linux installation example:
+
+```bash
+brew install ngrok/ngrok/ngrok
+ngrok config add-authtoken <YOUR_NGROK_AUTHTOKEN>
+```
+
+Start a tunnel to the API Gateway and keep this terminal open while testing:
+
+```bash
+ngrok http 3001
+```
+
+Copy the generated HTTPS domain and configure this exact webhook URL in SePay
+Dashboard:
+
+```text
+https://<ngrok-domain>/api/v1/payments/webhook/sepay
+```
+
+Free ngrok domains often change after restart, so update the SePay Dashboard
+whenever the URL changes. The ngrok inspection UI is available at
+`http://localhost:4040`; use it to inspect request paths, status codes,
+payloads, and upstream errors.
+
+In the SePay Dashboard, select the linked bank account and configure:
+
+| Setting | Value |
+| --- | --- |
+| Event | Incoming transaction / money received |
+| Method | `POST` |
+| URL | `https://<ngrok-domain>/api/v1/payments/webhook/sepay` |
+| Authentication | `Authorization: Apikey <SEPAY_WEBHOOK_API_KEY>` |
+| Status | Active |
+
+The application persists and displays one authoritative transfer note in
+`transactions.transfer_content`. Its current format is:
+
+```text
+SEVQR STYLEMIND <reference>
+```
+
+The QR note and bank transfer must preserve the complete value and the exact
+VND amount. The webhook reconciles the full normalized value plus amount; the
+shared `SEVQR` prefix alone is never sufficient.
+
+Check local gateway connectivity before attempting a real transfer:
+
+```bash
+curl -i -X POST \
+  http://localhost:3001/api/v1/payments/webhook/sepay \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Apikey <YOUR_WEBHOOK_API_KEY>" \
+  -d '{}'
+```
+
+Expected results: `400` means the route reached the backend but the payload is
+invalid; `401` or `403` means the webhook key does not match; `404` means a
+gateway route/path problem; `502` means the gateway or payment-service is
+unavailable; and connection refused means the relevant service or port is not
+running.
+
+After a test payment, verify state without using real customer data:
+
+```sql
+SELECT
+    id,
+    order_id,
+    status,
+    transfer_content,
+    gateway_transaction_id,
+    paid_at,
+    expires_at,
+    updated_at
+FROM transactions
+WHERE order_id = '<ORDER_ID>';
+
+SELECT *
+FROM payment_webhook_events
+ORDER BY created_at DESC
+LIMIT 20;
+
+SELECT
+    id,
+    status,
+    total_amount,
+    updated_at
+FROM orders
+WHERE id = '<ORDER_ID>';
+```
+
+A successful flow has `transaction.status = PAID`,
+`payment_webhook_events.processed = true`, and `order.status = PAID`.
+
+| Symptom | Likely cause |
+| --- | --- |
+| Webhook test does not reach backend | ngrok, API Gateway, or payment-service is unavailable |
+| ngrok returns `502` | API Gateway/payment-service is unavailable, or an upstream Docker hostname is wrong |
+| Webhook test works but a bank transfer does not appear | SePay bank-account connection or transaction synchronization issue |
+| SePay shows a transaction but payment remains `PENDING` | Transfer content or amount reconciliation failed |
+| Payment is `PAID` but order stays `PAYMENT_PENDING` | payment-service callback to order-service failed |
+| Order is `PAID` but UI stays on payment page | Frontend polling or redirect logic needs inspection |
 
 ---
 
@@ -391,7 +526,7 @@ Lưu ý khi test:
 * Frontend và client nên gọi qua API Gateway `http://localhost:3001/api/v1/...`.
 * Swagger UI của từng service dùng để inspect/test nhanh API nội bộ trong môi trường local.
 * Các endpoint admin cần JWT của user có role `ADMIN`.
-* Nếu Docker Dashboard hiển thị log cũ, kiểm tra trạng thái thật bằng `docker compose -f BE/docker-compose.yml ps -a`.
+* Nếu Docker Dashboard hiển thị log cũ, kiểm tra trạng thái thật bằng `docker compose -f BE/docker-compose.full.yml ps -a`.
 * Nếu endpoint cần quyền trả `401` hoặc `403`, kiểm tra lại token JWT và role của user.
 
 ---

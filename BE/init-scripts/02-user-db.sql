@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS customer_style_profiles (
     body_morphology VARCHAR(50),
     preferred_fit VARCHAR(30),
     style_personas JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Delivery Addresses
@@ -24,9 +24,9 @@ CREATE TABLE IF NOT EXISTS delivery_addresses (
     phone_number VARCHAR(20) NOT NULL,
     address_line TEXT NOT NULL,
     city VARCHAR(100) NOT NULL,
-    is_default BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes
