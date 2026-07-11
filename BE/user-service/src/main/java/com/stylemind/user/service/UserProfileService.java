@@ -28,16 +28,16 @@ public class UserProfileService {
     private final DeliveryAddressRepository addressRepository;
 
     // Style Profile
+    @Transactional
     public StyleProfileResponse getStyleProfile(String userId) {
-        CustomerStyleProfile profile = profileRepository.findByUserId(userId)
-                .orElseGet(() -> createDefaultProfile(userId));
-        return mapToStyleProfileResponse(profile);
+        return mapToStyleProfileResponse(ensureProfile(userId));
     }
 
+    @Transactional
     public StyleProfileResponse updateStyleProfile(String userId, StyleProfileRequest request) {
-        CustomerStyleProfile profile = profileRepository.findByUserId(userId)
-                .orElseGet(() -> createDefaultProfile(userId));
+        CustomerStyleProfile profile = ensureProfile(userId);
 
+        profile.setDisplayName(request.getDisplayName());
         profile.setGender(request.getGender());
         profile.setAge(request.getAge());
         profile.setHeightCm(request.getHeightCm());
@@ -50,26 +50,20 @@ public class UserProfileService {
         return mapToStyleProfileResponse(profile);
     }
 
-    private CustomerStyleProfile createDefaultProfile(String userId) {
-        return profileRepository.save(CustomerStyleProfile.builder()
-                .userId(userId)
-                .build());
-    }
-
     // Delivery Addresses
+    @Transactional
     public List<DeliveryAddressResponse> getAddresses(String userId) {
+        ensureProfile(userId);
         return addressRepository.findByUserId(userId).stream()
                 .map(this::mapToAddressResponse)
                 .collect(Collectors.toList());
     }
 
+    @Transactional
     public DeliveryAddressResponse createAddress(String userId, DeliveryAddressRequest request) {
         if (Boolean.TRUE.equals(request.getIsDefault())) {
-            addressRepository.findByUserIdAndIsDefaultTrue(userId)
-                    .ifPresent(addr -> {
-                        addr.setIsDefault(false);
-                        addressRepository.save(addr);
-                    });
+            // Single atomic UPDATE — no race condition
+            addressRepository.clearAllDefaultsByUserId(userId);
         }
 
         DeliveryAddress address = DeliveryAddress.builder()
@@ -79,7 +73,7 @@ public class UserProfileService {
                 .phoneNumber(request.getPhoneNumber())
                 .addressLine(request.getAddressLine())
                 .city(request.getCity())
-                .isDefault(request.getIsDefault())
+                .isDefault(Boolean.TRUE.equals(request.getIsDefault()))
                 .build();
 
         return mapToAddressResponse(addressRepository.save(address));
@@ -94,11 +88,8 @@ public class UserProfileService {
         }
 
         if (Boolean.TRUE.equals(request.getIsDefault()) && !Boolean.TRUE.equals(address.getIsDefault())) {
-            addressRepository.findByUserIdAndIsDefaultTrue(userId)
-                    .ifPresent(addr -> {
-                        addr.setIsDefault(false);
-                        addressRepository.save(addr);
-                    });
+            // Single atomic UPDATE — no race condition
+            addressRepository.clearAllDefaultsByUserId(userId);
         }
 
         address.setRecipientName(request.getRecipientName());
@@ -121,9 +112,24 @@ public class UserProfileService {
         addressRepository.delete(address);
     }
 
+    /**
+     * Internal use only — called by InternalUserController for cross-service lookups.
+     * Validates that the address belongs to the given userId before returning.
+     */
+    @Transactional(readOnly = true)
+    public DeliveryAddressResponse getAddressById(String userId, String addressId) {
+        DeliveryAddress address = addressRepository.findById(addressId)
+                .orElseThrow(() -> new BusinessException("ADDRESS_NOT_FOUND", "Không tìm thấy địa chỉ", 404));
+        if (!address.getUserId().equals(userId)) {
+            throw new BusinessException("ACCESS_DENIED", "Địa chỉ không thuộc người dùng này", 403);
+        }
+        return mapToAddressResponse(address);
+    }
+
     private StyleProfileResponse mapToStyleProfileResponse(CustomerStyleProfile profile) {
         return StyleProfileResponse.builder()
                 .userId(profile.getUserId())
+                .displayName(profile.getDisplayName())
                 .gender(profile.getGender())
                 .age(profile.getAge())
                 .heightCm(profile.getHeightCm())
@@ -136,16 +142,23 @@ public class UserProfileService {
                 .build();
     }
 
+    private CustomerStyleProfile ensureProfile(String userId) {
+        profileRepository.insertProfileShell(userId);
+        return profileRepository.findById(userId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Profile shell was not available after initialization for user " + userId));
+    }
+
     private DeliveryAddressResponse mapToAddressResponse(DeliveryAddress address) {
         return DeliveryAddressResponse.builder()
                 .id(address.getId())
-                .userId(address.getUserId())
                 .recipientName(address.getRecipientName())
                 .phoneNumber(address.getPhoneNumber())
                 .addressLine(address.getAddressLine())
                 .city(address.getCity())
                 .isDefault(address.getIsDefault())
                 .createdAt(address.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
+                .updatedAt(address.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .build();
     }
 }

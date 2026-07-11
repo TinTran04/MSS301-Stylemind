@@ -15,7 +15,7 @@ RUN mvn dependency:go-offline -B
 
 COPY common-lib/src common-lib/src
 COPY payment-service/src payment-service/src
-RUN mvn clean package -pl payment-service -am -DskipTests
+RUN mvn clean install -pl common-lib -am -DskipTests -Dspring-boot.repackage.skip=true && mvn clean package spring-boot:repackage -pl payment-service -am -DskipTests
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
@@ -23,5 +23,8 @@ RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 COPY --from=builder /app/payment-service/target/*.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
+ENV SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/payment_db
+ENV SPRING_DATASOURCE_USERNAME=postgres
+ENV SPRING_DATASOURCE_PASSWORD=password
 EXPOSE 8088
 ENTRYPOINT ["java", "-jar", "app.jar"]

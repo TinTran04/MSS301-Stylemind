@@ -15,7 +15,7 @@ RUN mvn dependency:go-offline -B
 
 COPY common-lib/src common-lib/src
 COPY ai-agent-service/src ai-agent-service/src
-RUN mvn clean package -pl ai-agent-service -am -DskipTests
+RUN mvn clean install -pl common-lib -am -DskipTests -Dspring-boot.repackage.skip=true && mvn clean package spring-boot:repackage -pl ai-agent-service -am -DskipTests
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app

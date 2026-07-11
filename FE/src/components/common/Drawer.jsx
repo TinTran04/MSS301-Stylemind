@@ -2,7 +2,7 @@ import { X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import clsx from 'clsx'
 
-export default function Drawer({ isOpen, onClose, title, children, side = 'right' }) {
+export default function Drawer({ isOpen, onClose, title, children, side = 'right', panelClassName = '' }) {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -21,6 +21,7 @@ export default function Drawer({ isOpen, onClose, title, children, side = 'right
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className={clsx(
               'absolute top-0 h-full w-full max-w-md bg-surface-container-lowest shadow-xl overflow-y-auto',
+              panelClassName,
               side === 'right' ? 'right-0' : 'left-0'
             )}
           >

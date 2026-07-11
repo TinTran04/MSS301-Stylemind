@@ -27,49 +27,24 @@ spring:
     init:
       mode: never
 
-# Qdrant Configuration
-qdrant:
-  host: ${QDRANT_HOST:localhost}
-  port: ${QDRANT_PORT:6333}
+jwt:
+  secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:86400000}
 
-# Neo4j Configuration
-neo4j:
-  uri: ${NEO4J_URI:bolt://localhost:7687}
-  username: ${NEO4J_USERNAME:neo4j}
-  password: ${NEO4J_PASSWORD:password}
-
-# LLM Configuration
-llm:
-  api-key: ${LLM_API_KEY}
-  model: gpt-4o-mini
-  max-tokens: 4096
-  temperature: 0.7
-
-# Internal Security
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
-# JWT Asymmetric Key Configuration (Consumer)
-jwt:
-  # Public Key Path ONLY - REQUIRED for token verification
-  # NO DEFAULT VALUE - Must be set via environment variable
-  public-key-path: ${JWT_PUBLIC_KEY_PATH}
-  
-  # Algorithm Configuration (must match issuer)
-  algorithm: ${JWT_ALGORITHM:RSA}
-  key-size: ${JWT_KEY_SIZE:2048}
-  
-  # Token Expiration (for validation checks)
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
-
-# Service URLs
+# Feign timeouts: bound the product-service lookup so a slow/down downstream
+# can't hang chat requests - recommendations degrade to an empty list instead.
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 3000
+        readTimeout: 5000
 product-service:
   url: ${PRODUCT_SERVICE_URL:http://localhost:8083}
-inventory-service:
-  url: ${INVENTORY_SERVICE_URL:http://localhost:8084}
-order-service:
-  url: ${ORDER_SERVICE_URL:http://localhost:8087}
 
 management:
   endpoints:
@@ -83,6 +58,5 @@ management:
 logging:
   level:
     com.stylemind.ai: DEBUG
-    com.stylemind.ai.feign: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n"

@@ -9,5 +9,5 @@ import java.util.List;
 @Repository
 public interface AiCuratedBundleItemRepository extends JpaRepository<AiCuratedBundleItem, AiCuratedBundleItem.AiCuratedBundleItemId> {
     List<AiCuratedBundleItem> findByBundleId(String bundleId);
-    List<AiCuratedBundleItem> findByProductId(String productId);
+    List<AiCuratedBundleItem> findByBundleIdIn(List<String> bundleIds);
 }

@@ -1,63 +1,97 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Package, Download, Truck } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import { getOrders } from '../../features/orders/order.api'
 import { formatDate } from '../../utils/formatDate'
 import { formatCurrency } from '../../utils/formatCurrency'
+import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/orderStatus'
 
-const statusTabs = ['All', 'Processing', 'Shipped', 'Delivered']
+const statusTabs = [
+  { key: 'All', label: 'Tất cả' },
+  { key: 'Processing', label: 'Đang xử lý' },
+  { key: 'Shipped', label: 'Đang giao' },
+  { key: 'Completed', label: 'Hoàn tất' },
+]
+
+const badgeVariants = {
+  completed: 'success',
+  shipped: 'warning',
+  processing: 'secondary',
+  confirmed: 'secondary',
+  paid: 'success',
+  pending: 'default',
+  payment_pending: 'warning',
+  cancelled: 'error',
+  expired: 'default',
+  failed: 'error',
+}
 
 export default function OrderTrackingPage() {
   const [orders, setOrders] = useState([])
   const [selectedTab, setSelectedTab] = useState('All')
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const location = useLocation()
 
   useEffect(() => {
-    getOrders().then((o) => {
-      setOrders(o)
-      if (o.length > 0) setSelectedOrder(o[0])
-    })
+    getOrders()
+      .then((o) => {
+        setOrders(o)
+        if (o.length > 0) setSelectedOrder(o[0])
+      })
+      .catch(() => setError('Không thể tải đơn hàng.'))
+      .finally(() => setLoading(false))
   }, [])
 
   const filteredOrders = selectedTab === 'All'
     ? orders
-    : orders.filter((o) => o.status === selectedTab.toLowerCase())
-
-  const timelineSteps = [
-    { label: 'Pending', status: 'pending' },
-    { label: 'Confirmed', status: 'confirmed' },
-    { label: 'Processing', status: 'processing' },
-    { label: 'Shipped', status: 'shipped' },
-    { label: 'Delivered', status: 'delivered' },
-  ]
-
-  const getCurrentStepIndex = (order) => {
-    return order.timeline.findIndex((t) => !t.completed)
-  }
+    : orders.filter((o) => normalizeOrderStatus(o.status).toLowerCase() === selectedTab.toLowerCase())
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 md:px-16 py-8">
-      <h1 className="font-headline-md text-primary mb-8">Order Tracking</h1>
+      <h1 className="font-headline-md text-primary mb-8">Đơn hàng của tôi</h1>
 
+      {location.state?.flashMessage && (
+        <div role="status" className="mb-6 rounded-lg border border-tertiary-container/30 bg-tertiary-container/20 px-4 py-3 text-sm text-primary">
+          {location.state.flashMessage}
+        </div>
+      )}
+
+      {loading && <div className="py-20 text-center text-on-surface-variant">Đang tải đơn hàng...</div>}
+      {error && (
+        <div role="alert" className="rounded-xl border border-error/20 bg-error-container/30 p-6 text-sm text-error">
+          {error}
+        </div>
+      )}
+      {!loading && !error && orders.length === 0 && (
+        <div className="py-20 text-center">
+          <Package size={48} className="text-on-surface-variant/30 mx-auto mb-4" />
+          <p className="text-on-surface-variant">Bạn chưa có đơn hàng nào.</p>
+        </div>
+      )}
+
+      {!loading && !error && orders.length > 0 && (
       <div className="flex gap-6">
         {/* Left: Order List */}
-        <div className="w-full lg:w-5/12 space-y-4">
-          {/* Filter Tabs */}
-          <div className="flex gap-2">
+          <div className="w-full lg:w-5/12 space-y-4">
+            {/* Filter Tabs */}
+            <div className="flex gap-2">
             {statusTabs.map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setSelectedTab(tab)}
-                className={`px-4 py-2 rounded-full text-xs font-medium transition-all ${
-                  selectedTab === tab
+                <button
+                key={tab.key}
+                onClick={() => setSelectedTab(tab.key)}
+                  className={`px-4 py-2 rounded-full text-xs font-medium transition-all ${
+                  selectedTab === tab.key
                     ? 'bg-primary text-on-primary'
                     : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
                 }`}
               >
-                {tab}
-              </button>
-            ))}
-          </div>
+                {tab.label}
+                </button>
+              ))}
+            </div>
 
           {/* Order Cards */}
           <div className="space-y-3">
@@ -65,16 +99,16 @@ export default function OrderTrackingPage() {
               <button
                 key={order.id}
                 onClick={() => setSelectedOrder(order)}
-                className={`w-full text-left bg-surface-container-lowest rounded-xl p-4 transition-all border-l-4 ${
-                  selectedOrder?.id === order.id
-                    ? 'border-primary ambient-shadow'
-                    : 'border-transparent hover:bg-surface-container-low'
-                }`}
+                  className={`w-full text-left bg-surface-container-lowest rounded-xl p-4 transition-all border-l-4 ${
+                    selectedOrder?.id === order.id
+                      ? 'border-primary ambient-shadow'
+                      : 'border-transparent hover:bg-surface-container-low'
+                  }`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-primary">{order.id}</span>
-                  <Badge variant={order.status === 'delivered' ? 'success' : order.status === 'shipped' ? 'warning' : 'secondary'}>
-                    {order.status}
+                  <Badge variant={badgeVariants[normalizeOrderStatus(order.status).toLowerCase()] || 'default'}>
+                    {formatStatusLabel(order.status)}
                   </Badge>
                 </div>
                 <p className="text-xs text-on-surface-variant">{formatDate(order.date)}</p>
@@ -96,7 +130,7 @@ export default function OrderTrackingPage() {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="font-title-lg text-primary">{selectedOrder.id}</h2>
-                  <p className="text-xs text-on-surface-variant mt-1">Placed on {formatDate(selectedOrder.date)}</p>
+                  <p className="text-xs text-on-surface-variant mt-1">Đặt lúc {formatDate(selectedOrder.date)}</p>
                 </div>
                 {selectedOrder.carrier && (
                   <div className="text-right">
@@ -112,31 +146,28 @@ export default function OrderTrackingPage() {
               <div className="mb-8">
                 <div className="flex items-center justify-between relative">
                   <div className="absolute top-4 left-4 right-4 h-px bg-outline-variant/30" />
-                  {selectedOrder.timeline.map((step, idx) => {
-                    const stepIdx = timelineSteps.findIndex((s) => s.status === step.status)
-                    return (
+                  {selectedOrder.timeline.map((step, idx) => (
                       <div key={idx} className="relative flex flex-col items-center z-10">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
                           step.completed ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest border-2 border-outline-variant text-on-surface-variant'
                         }`}>
                           {step.completed ? '✓' : idx + 1}
                         </div>
-                        <span className="mt-2 text-[10px] text-on-surface-variant whitespace-nowrap">{step.label}</span>
+                      <span className="mt-2 text-[10px] text-on-surface-variant whitespace-nowrap">{step.label}</span>
                       </div>
-                    )
-                  })}
+                  ))}
                 </div>
               </div>
 
               {/* Items */}
-              <h3 className="font-label-sm uppercase tracking-wider text-on-surface-variant mb-3">Package Contents</h3>
+              <h3 className="font-label-sm uppercase tracking-wider text-on-surface-variant mb-3">Nội dung kiện hàng</h3>
               <div className="space-y-3 mb-6">
                 {selectedOrder.items.map((item, idx) => (
                   <div key={idx} className="flex gap-3 p-3 bg-surface-container-low rounded-lg">
                     <img src={item.image} alt={item.name} className="w-16 h-20 object-cover rounded-lg" />
                     <div>
                       <p className="text-sm font-medium text-primary">{item.name}</p>
-                      <p className="text-xs text-on-surface-variant">Size: {item.size} / {item.color}</p>
+                      <p className="text-xs text-on-surface-variant">Kích cỡ: {item.size} / Màu sắc: {item.color}</p>
                       <p className="text-sm font-semibold text-primary mt-1">{formatCurrency(item.price)}</p>
                     </div>
                   </div>
@@ -146,18 +177,19 @@ export default function OrderTrackingPage() {
               {/* Summary */}
               <div className="border-t border-outline-variant/20 pt-4">
                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-on-surface-variant">Total</span>
+                  <span className="text-on-surface-variant">Tổng cộng</span>
                   <span className="font-semibold text-primary">{formatCurrency(selectedOrder.total)}</span>
                 </div>
               </div>
 
               <button className="w-full mt-4 bg-surface-container text-on-surface rounded-lg py-2.5 text-sm font-medium hover:bg-surface-container-high transition-colors flex items-center justify-center gap-2">
-                <Download size={14} /> Download Invoice
+                <Download size={14} /> Tải hóa đơn
               </button>
             </div>
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }

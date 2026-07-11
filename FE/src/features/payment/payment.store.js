@@ -1,4 +1,12 @@
 import { create } from 'zustand'
+import { createOrder, getOrderById } from '../orders/order.api'
+import { createCheckoutAttemptKey, isCurrentCheckoutAttempt } from './checkoutAttempt'
+
+const TERMINAL_SUCCESS_STATUSES = ['PAID', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'COMPLETED']
+const TERMINAL_FAILURE_STATUSES = ['EXPIRED', 'CANCELLED', 'FAILED']
+
+let pollTimer = null
+let attemptSequence = 0
 
 const usePaymentStore = create((set, get) => ({
   status: 'idle',
@@ -6,62 +14,168 @@ const usePaymentStore = create((set, get) => ({
   currentStep: -1,
   error: null,
   lastOrder: null,
+  activeOrderId: null,
+  idempotencyKey: null,
+  attemptId: 0,
   method: 'cod',
 
   setMethod: (method) => set({ method }),
 
   processPayment: async (orderData) => {
+    const currentStatus = get().status
+    if (currentStatus === 'processing' || currentStatus === 'awaiting_confirmation') {
+      return { success: false, inProgress: true }
+    }
+
     const { method } = get()
-    set({ status: 'processing', steps: [], currentStep: -1, error: null })
+    const attemptId = ++attemptSequence
+    const idempotencyKey = createCheckoutAttemptKey()
+    set({
+      status: 'processing',
+      steps: [],
+      currentStep: -1,
+      error: null,
+      lastOrder: null,
+      activeOrderId: null,
+      idempotencyKey,
+      attemptId,
+    })
 
     const steps = [
-      { label: 'Creating order', status: 'pending' },
-      { label: 'Reserving stock', status: 'pending' },
-      { label: 'Processing payment', status: 'pending' },
-      { label: 'Confirming order', status: 'pending' },
+      { label: 'Đang tạo đơn hàng', status: 'pending' },
+      { label: method === 'cod' ? 'Thiết lập thanh toán khi nhận hàng' : 'Tạo mã VietQR', status: 'pending' },
+      { label: method === 'cod' ? 'Xác nhận đơn hàng' : 'Chờ chuyển khoản từ ngân hàng', status: 'pending' },
     ]
     set({ steps: [...steps] })
 
-    for (let i = 0; i < steps.length; i++) {
-      set({ currentStep: i })
+    const markProcessing = (index) => {
+      set({ currentStep: index })
       const updated = [...get().steps]
-      updated[i] = { ...updated[i], status: 'processing' }
+      updated[index] = { ...updated[index], status: 'processing' }
       set({ steps: [...updated] })
+    }
 
-      await new Promise((r) => setTimeout(r, 800 + Math.random() * 600))
-
-      if (i === 2 && method === 'online_simulated' && orderData?.simulateFailure) {
-        const failed = [...get().steps]
-        failed[i] = { ...failed[i], status: 'failed' }
-        set({ steps: [...failed], status: 'failed', error: 'Payment was declined. Your card was not charged.' })
-        return { success: false }
-      }
-
+    const markDone = (index) => {
       const done = [...get().steps]
-      done[i] = { ...done[i], status: 'completed' }
+      done[index] = { ...done[index], status: 'completed' }
       set({ steps: [...done] })
     }
 
-    const order = {
-      id: `ORD-${Date.now()}`,
-      date: new Date().toISOString(),
-      status: 'processing',
-      items: orderData.items,
-      total: orderData.total,
-      timeline: [
-        { status: 'pending', date: new Date().toISOString(), completed: true },
-        { status: 'confirmed', date: new Date().toISOString(), completed: true },
-        { status: 'processing', date: new Date().toISOString(), completed: true },
-        { status: 'shipped', date: null, completed: false },
-        { status: 'delivered', date: null, completed: false },
-      ],
+    const markFailed = (index, message) => {
+      const failed = [...get().steps]
+      failed[index] = { ...failed[index], status: 'failed' }
+      set({
+        steps: [...failed],
+        status: 'failed',
+        error: message,
+        activeOrderId: null,
+        idempotencyKey: null,
+      })
     }
 
-    set({ status: 'success', lastOrder: order })
-    return { success: true, order }
+    try {
+      markProcessing(0)
+      const shippingAddress = orderData.shippingAddress
+        || [orderData.address?.line1, orderData.address?.line2].filter(Boolean).join(', ')
+      const order = await createOrder({
+        shippingAddress,
+        paymentMethod: method,
+      }, {
+        idempotencyKey,
+      })
+      if (!isCurrentCheckoutAttempt(get(), attemptId)) {
+        return { success: false, stale: true }
+      }
+      markDone(0)
+
+      markProcessing(1)
+      markDone(1)
+
+      if (method === 'sepay') {
+        // No customer confirmation step - SePay's webhook reconciles the bank
+        // transfer server-side. Polling is the only way this tab finds out.
+        markProcessing(2)
+        set({ status: 'awaiting_confirmation', lastOrder: order, activeOrderId: order.id })
+        get().startPollingOrderStatus(order.id, attemptId)
+        return { success: true, requiresConfirmation: true, order }
+      }
+
+      markProcessing(2)
+      markDone(2)
+
+      set({ status: 'success', lastOrder: order, activeOrderId: order.id, idempotencyKey: null })
+      return { success: true, order }
+    } catch (err) {
+      if (!isCurrentCheckoutAttempt(get(), attemptId)) {
+        return { success: false, stale: true }
+      }
+      markFailed(Math.max(get().currentStep, 0), err?.message || 'Không thể đặt hàng.')
+      return { success: false }
+    }
   },
 
-  reset: () => set({ status: 'idle', steps: [], currentStep: -1, error: null }),
+  // Poll order status while a SePay payment is awaiting the bank transfer. This
+  // is the only way we learn of a PAID webhook or an OrderTimeoutJob expiry -
+  // both happen entirely server-side with no action from this tab.
+  startPollingOrderStatus: (orderId, attemptId = get().attemptId) => {
+    get().stopPolling()
+    pollTimer = setInterval(async () => {
+      if (!isCurrentCheckoutAttempt(get(), attemptId, orderId)) {
+        get().stopPolling()
+        return
+      }
+      try {
+        const order = await getOrderById(orderId)
+        if (!isCurrentCheckoutAttempt(get(), attemptId, orderId)) {
+          get().stopPolling()
+          return
+        }
+        const status = String(order.orderStatus || '').toUpperCase()
+
+        if (TERMINAL_SUCCESS_STATUSES.includes(status)) {
+          get().stopPolling()
+          set({ status: 'success', error: null, lastOrder: order, idempotencyKey: null })
+        } else if (TERMINAL_FAILURE_STATUSES.includes(status)) {
+          get().stopPolling()
+          set({
+            status: 'failed',
+            error: status === 'EXPIRED'
+              ? 'Phiên thanh toán đã hết hạn. Vui lòng đặt hàng mới.'
+              : 'Thanh toán thất bại.',
+            lastOrder: order,
+            activeOrderId: null,
+            idempotencyKey: null,
+          })
+        } else {
+          set({ lastOrder: order })
+        }
+      } catch {
+        // Transient poll failure - keep polling rather than flipping to failed on one blip.
+      }
+    }, 3000)
+  },
+
+  stopPolling: () => {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
+    }
+  },
+
+  reset: () => {
+    get().stopPolling()
+    const nextAttemptId = ++attemptSequence
+    set({
+      status: 'idle',
+      steps: [],
+      currentStep: -1,
+      error: null,
+      lastOrder: null,
+      activeOrderId: null,
+      idempotencyKey: null,
+      attemptId: nextAttemptId,
+    })
+  },
 }))
 
 export default usePaymentStore

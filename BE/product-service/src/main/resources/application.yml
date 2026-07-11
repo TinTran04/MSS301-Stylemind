@@ -4,11 +4,14 @@ server:
 spring:
   application:
     name: product-service
+  main:
+    allow-bean-definition-overriding: true
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5435/product_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
+    type: com.zaxxer.hikari.HikariDataSource
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
@@ -26,18 +29,26 @@ spring:
   sql:
     init:
       mode: never
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 50MB
 
-aws:
-  s3:
-    endpoint: ${S3_ENDPOINT:http://localhost:9000}
-    access-key: ${S3_ACCESS_KEY:admin}
-    secret-key: ${S3_SECRET_KEY:password}
-    bucket: ${S3_BUCKET:stylemind-products}
-    region: us-east-1
+jwt:
+  secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
+  access-token-expiration: 3600000
+  refresh-token-expiration: 604800000
+
+cloudinary:
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  api-key: ${CLOUDINARY_API_KEY:}
+  api-secret: ${CLOUDINARY_API_SECRET:}
+  folder: ${CLOUDINARY_FOLDER:stylemind/products}
 
 management:
   endpoints:
@@ -51,23 +62,13 @@ management:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
-# JWT Asymmetric Key Configuration (Consumer)
-jwt:
-  # Public Key Path ONLY - REQUIRED for token verification
-  # NO DEFAULT VALUE - Must be set via environment variable
-  public-key-path: ${JWT_PUBLIC_KEY_PATH}
-  
-  # Algorithm Configuration (must match issuer)
-  algorithm: ${JWT_ALGORITHM:RSA}
-  key-size: ${JWT_KEY_SIZE:2048}
-  
-  # Token Expiration (for validation checks)
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+app:
+  product:
+    default-currency: ${PRODUCT_DEFAULT_CURRENCY:VND}
 
 logging:
   level:
     com.stylemind.product: DEBUG
-    software.amazon.awssdk: WARN
+    com.cloudinary: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n"

@@ -1,55 +1,70 @@
 package com.stylemind.ai.service;
 
-import com.stylemind.ai.dto.*;
-import com.stylemind.ai.entity.*;
-import com.stylemind.ai.repository.*;
-import com.stylemind.ai.feign.*;
+import com.stylemind.ai.dto.BundleResponse;
+import com.stylemind.ai.dto.ChatRequest;
+import com.stylemind.ai.dto.ChatResponse;
+import com.stylemind.ai.dto.RecommendedProduct;
+import com.stylemind.ai.entity.AiCuratedBundle;
+import com.stylemind.ai.entity.AiCuratedBundleItem;
+import com.stylemind.ai.entity.ChatMessage;
+import com.stylemind.ai.entity.ChatSession;
+import com.stylemind.ai.feign.ProductClient;
+import com.stylemind.ai.repository.AiCuratedBundleItemRepository;
+import com.stylemind.ai.repository.AiCuratedBundleRepository;
+import com.stylemind.ai.repository.ChatMessageRepository;
+import com.stylemind.ai.repository.ChatSessionRepository;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.util.StringUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.*;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+// MVP AI Stylist: rule-based keyword matching against real product-service data,
+// not a real LLM/vector search yet (see docs/services/ai-agent-service.md - phase sau).
+// Chat/history/bundle persistence is real so the endpoints and the eventual swap-in
+// of real AI don't require frontend or DTO changes (see RecommendedProduct).
 @Service
 @RequiredArgsConstructor
 @Slf4j
 @Transactional
 public class AiChatService {
 
+    private static final Map<String, StyleContext> STYLE_CONTEXTS = new HashMap<>();
+    static {
+        STYLE_CONTEXTS.put("dinner", new StyleContext("dinner",
+                "For a dinner event, I recommend elegant pieces that transition from golden hour to evening.",
+                List.of("dress", "elegant", "evening")));
+        STYLE_CONTEXTS.put("casual", new StyleContext("casual",
+                "For a relaxed everyday look, these pieces offer comfort without sacrificing style.",
+                List.of("casual", "everyday")));
+        STYLE_CONTEXTS.put("work", new StyleContext("work",
+                "Professional pieces that command attention while staying comfortable for the office.",
+                List.of("office", "professional", "work")));
+        STYLE_CONTEXTS.put("summer", new StyleContext("summer",
+                "Lightweight, breathable pieces perfect for warm weather.",
+                List.of("summer", "light")));
+    }
+
     private final ChatSessionRepository sessionRepository;
     private final ChatMessageRepository messageRepository;
     private final AiCuratedBundleRepository bundleRepository;
     private final AiCuratedBundleItemRepository bundleItemRepository;
-    private final AiAnalyticsLogRepository analyticsLogRepository;
-    private final AiIndexJobRepository indexJobRepository;
-    
     private final ProductClient productClient;
-    private final OrderClient orderClient;
 
     public ChatResponse chat(ChatRequest request, String userId) {
-        // Get or create session
-        UUID sessionId = request.getConversationId();
-        ChatSession session = null;
-        
-        if (sessionId != null) {
-            session = sessionRepository.findById(sessionId).orElse(null);
-        }
-        
-        if (session == null) {
-            session = ChatSession.builder()
-                    .id(UUID.randomUUID())
-                    .userId(userId)
-                    .build();
-            session = sessionRepository.save(session);
-        }
+        ChatSession session = resolveSession(request.getConversationId(), userId);
 
-        // Save user message
         ChatMessage userMessage = ChatMessage.builder()
                 .id(StringUtil.generateUniqueId())
                 .sessionId(session.getId())
@@ -59,257 +74,218 @@ public class AiChatService {
                 .build();
         messageRepository.save(userMessage);
 
-        // Process intent and generate response
-        String intent = detectIntent(request.getMessage());
-        List<ChatResponse.RecommendedProduct> recommendations = new ArrayList<>();
-        List<String> styleTips = new ArrayList<>();
-        ChatResponse.CuratedBundle curatedBundle = null;
+        StyleContext context = detectContext(request.getMessage());
+        List<RecommendedProduct> recommendations = findRecommendations(context);
 
-        if ("product_recommendation".equals(intent) || "outfit_recommendation".equals(intent)) {
-            // Hybrid Search: Vector + Keyword + Graph + Metadata Filter
-            List<String> productIds = hybridSearch(request.getMessage(), userId);
-            
-            recommendations = productIds.stream()
-                    .limit(5)
-                    .map(this::buildRecommendation)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+        String aiText = recommendations.isEmpty()
+                ? "I couldn't find matching pieces right now, but here's my general style advice: " + context.reply()
+                : context.reply();
 
-            if (!recommendations.isEmpty()) {
-                styleTips = generateStyleTips(request.getMessage(), recommendations);
-                
-                // Create curated bundle
-                curatedBundle = createCuratedBundle(session.getId(), recommendations);
-            }
-        } else if ("order_tracking".equals(intent)) {
-            // Handle order tracking with ownership check
-            String orderId = extractOrderId(request.getMessage());
-            if (orderId != null && userId != null) {
-                try {
-                    var orderResponse = orderClient.getOrder(orderId, userId);
-                    if (orderResponse.isSuccess() && orderResponse.getData() != null) {
-                        String status = orderResponse.getData().getOrderStatus();
-                        String responseText = String.format("Đơn hàng %s hiện tại đang ở trạng thái: %s", orderId, status);
-                        return saveAndReturnAiResponse(session, userMessage, responseText, null, null, null);
-                    }
-                } catch (Exception ex) {
-                    log.warn("Order tracking failed", ex);
-                }
-            }
-        }
-
-        String aiResponse = generateResponse(request.getMessage(), intent, recommendations, styleTips);
-        
-        return saveAndReturnAiResponse(session, userMessage, aiResponse, intent, recommendations, curatedBundle);
-    }
-
-    private String detectIntent(String message) {
-        String lower = message.toLowerCase();
-        if (lower.contains("đơn") && (lower.contains("thế nào") || lower.contains("đến đâu") || lower.contains("trạng thái"))) {
-            return "order_tracking";
-        }
-        if (lower.contains("phối") || lower.contains("outfit") || lower.contains("bộ")) {
-            return "outfit_recommendation";
-        }
-        if (lower.contains("gợi ý") || lower.contains("tư vấn") || lower.contains("tìm") || lower.contains("muốn mua")) {
-            return "product_recommendation";
-        }
-        return "general_chat";
-    }
-
-    private String extractOrderId(String message) {
-        // Simple regex to extract order ID
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("ORD-\\d{4}-\\d+");
-        java.util.regex.Matcher matcher = pattern.matcher(message);
-        if (matcher.find()) {
-            return matcher.group();
-        }
-        return null;
-    }
-
-    private List<String> hybridSearch(String query, String userId) {
-        // TODO: Implement actual hybrid search with:
-        // 1. Vector Search (Qdrant) - semantic similarity
-        // 2. Keyword Search (PostgreSQL Full Text) - exact matches
-        // 3. Graph Traversal (Neo4j) - fashion rules
-        // 4. Metadata Filter - inventory, price range, user preferences
-        // 5. Re-ranking with weights: Vector(0.35) + Keyword(0.25) + Graph(0.25) + Personalization(0.15)
-        
-        // For now, return mock product IDs
-        return Arrays.asList("P001", "P101", "P102", "P003", "P005");
-    }
-
-    private ChatResponse.RecommendedProduct buildRecommendation(String productId) {
-        try {
-            var productResponse = productClient.getProduct(productId);
-            if (!productResponse.isSuccess() || productResponse.getData() == null) {
-                return null;
-            }
-
-            ProductClient.ProductDetail product = productResponse.getData();
-
-            String primaryImage = product.getImages().stream()
-                    .filter(ProductClient.ImageDetail::getIsPrimary)
-                    .findFirst()
-                    .map(ProductClient.ImageDetail::getImageUrl)
-                    .orElse(product.getImages().isEmpty() ? null : product.getImages().get(0).getImageUrl());
-
-            return ChatResponse.RecommendedProduct.builder()
-                    .productId(product.getId())
-                    .name(product.getName())
-                    .basePrice(product.getBasePrice())
-                    .imageUrl(primaryImage)
-                    .reason(generateReason(product))
-                    .matchScore(0.92) // TODO: Calculate actual score
-                    .build();
-        } catch (Exception ex) {
-            log.warn("Failed to build recommendation for product: {}", productId, ex);
-            return null;
-        }
-    }
-
-    private String generateReason(ProductClient.ProductDetail product) {
-        return String.format("Sản phẩm %s phù hợp với yêu cầu của bạn. Giá: %,.0f VNĐ", 
-                product.getName(), product.getBasePrice());
-    }
-
-    private List<String> generateStyleTips(String message, List<ChatResponse.RecommendedProduct> recommendations) {
-        List<String> tips = new ArrayList<>();
-        if (!recommendations.isEmpty()) {
-            tips.add("Kết hợp với phụ kiện phù hợp để hoàn thiện trang phục");
-            tips.add("Chọn size đúng chuẩn để đảm bảo form dáng đẹp nhất");
-        }
-        return tips;
-    }
-
-    private ChatResponse.CuratedBundle createCuratedBundle(UUID sessionId, List<ChatResponse.RecommendedProduct> recommendations) {
-        String bundleId = StringUtil.generateUniqueId();
-        
-        AiCuratedBundle bundle = AiCuratedBundle.builder()
-                .id(bundleId)
-                .messageId("") // Will be updated after AI message is saved
-                .justificationSummary("Bộ trang phục được AI gợi ý dựa trên nhu cầu và sở thích của bạn")
-                .build();
-        bundleRepository.save(bundle);
-
-        for (ChatResponse.RecommendedProduct rec : recommendations) {
-            AiCuratedBundleItem item = AiCuratedBundleItem.builder()
-                    .bundleId(bundleId)
-                    .productId(rec.getProductId())
-                    .build();
-            bundleItemRepository.save(item);
-        }
-
-        // Log IMPRESSION analytics
-        logInteraction(null, bundleId, "IMPRESSION");
-
-        return ChatResponse.CuratedBundle.builder()
-                .id(bundleId)
-                .justificationSummary(bundle.getJustificationSummary())
-                .items(recommendations.stream()
-                        .map(rec -> ChatResponse.CuratedBundle.BundleItem.builder()
-                                .productId(rec.getProductId())
-                                .build())
-                        .collect(Collectors.toList()))
-                .build();
-    }
-
-    private String generateResponse(String message, String intent, List<ChatResponse.RecommendedProduct> recommendations, List<String> styleTips) {
-        StringBuilder response = new StringBuilder();
-        
-        switch (intent) {
-            case "product_recommendation":
-                response.append("Dựa trên yêu cầu của bạn, tôi gợi ý một số sản phẩm phù hợp:");
-                break;
-            case "outfit_recommendation":
-                response.append("Tôi đã phối cho bạn một bộ trang phục hoàn chỉnh:");
-                break;
-            case "order_tracking":
-                response.append("Đang tra cứu thông tin đơn hàng...");
-                break;
-            default:
-                response.append("Xin chào! Tôi có thể giúp gì cho bạn hôm nay?");
-        }
-        
-        return response.toString();
-    }
-
-    private ChatResponse saveAndReturnAiResponse(ChatSession session, ChatMessage userMessage, 
-                                                  String responseText, String intent,
-                                                  List<ChatResponse.RecommendedProduct> recommendations,
-                                                  ChatResponse.CuratedBundle curatedBundle) {
-        
-        // Save AI message
         ChatMessage aiMessage = ChatMessage.builder()
                 .id(StringUtil.generateUniqueId())
                 .sessionId(session.getId())
                 .senderType("AI")
-                .messageText(responseText)
-                .hasProductBlock(recommendations != null && !recommendations.isEmpty())
+                .messageText(aiText)
+                .hasProductBlock(!recommendations.isEmpty())
                 .build();
         messageRepository.save(aiMessage);
 
-        // Update bundle with message_id if exists
-        if (curatedBundle != null) {
-            AiCuratedBundle bundle = bundleRepository.findById(curatedBundle.getId()).orElse(null);
-            if (bundle != null) {
-                bundle.setMessageId(aiMessage.getId());
-                bundleRepository.save(bundle);
-            }
-        }
-
-        // Log analytics
-        if (curatedBundle != null) {
-            logInteraction(session.getUserId(), curatedBundle.getId(), "IMPRESSION");
+        String bundleId = null;
+        if (!recommendations.isEmpty()) {
+            bundleId = saveBundle(aiMessage.getId(), aiText, recommendations);
         }
 
         return ChatResponse.builder()
                 .conversationId(session.getId())
                 .messageId(aiMessage.getId())
                 .senderType("AI")
-                .messageText(responseText)
-                .hasProductBlock(aiMessage.getHasProductBlock())
-                .intent(intent)
+                .messageText(aiText)
+                .hasProductBlock(!recommendations.isEmpty())
                 .recommendedProducts(recommendations)
-                .styleTips(styleTips)
-                .curatedBundle(curatedBundle)
-                .build();
-    }
-
-    private void logInteraction(String userId, String bundleId, String interactionType) {
-        AiAnalyticsLog log = AiAnalyticsLog.builder()
-                .id(StringUtil.generateUniqueId())
-                .userId(userId)
                 .bundleId(bundleId)
-                .interactionType(interactionType)
+                .createdAt(java.time.Instant.now())
                 .build();
-        analyticsLogRepository.save(log);
-    }
-
-    public void logRecommendationInteraction(String userId, String bundleId, String interactionType) {
-        logInteraction(userId, bundleId, interactionType);
     }
 
     public List<ChatResponse> getHistory(String userId) {
-        return sessionRepository.findByUserId(userId).stream()
-                .map(session -> {
-                    List<ChatMessage> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(session.getId());
+        List<ChatSession> sessions = sessionRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        if (sessions.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> sessionIds = sessions.stream().map(ChatSession::getId).collect(Collectors.toList());
+        List<ChatMessage> messages = messageRepository.findBySessionIdInOrderByCreatedAtAsc(sessionIds);
+
+        List<String> aiMessageIds = messages.stream()
+                .filter(ChatMessage::getHasProductBlock)
+                .map(ChatMessage::getId)
+                .collect(Collectors.toList());
+        Map<String, AiCuratedBundle> bundleByMessageId = aiMessageIds.isEmpty()
+                ? Map.of()
+                : bundleRepository.findByMessageIdInOrderByCreatedAtDesc(aiMessageIds).stream()
+                        .collect(Collectors.toMap(AiCuratedBundle::getMessageId, b -> b, (a, b) -> a));
+
+        return messages.stream()
+                .map(msg -> {
+                    AiCuratedBundle bundle = bundleByMessageId.get(msg.getId());
                     return ChatResponse.builder()
-                            .conversationId(session.getId())
-                            .build(); // Simplified
+                            .conversationId(msg.getSessionId())
+                            .messageId(msg.getId())
+                            .senderType(msg.getSenderType())
+                            .messageText(msg.getMessageText())
+                            .hasProductBlock(msg.getHasProductBlock())
+                            .recommendedProducts(bundle != null ? hydrateBundleItems(bundle.getId()) : List.of())
+                            .bundleId(bundle != null ? bundle.getId() : null)
+                            .createdAt(toInstant(msg.getCreatedAt()))
+                            .build();
                 })
                 .collect(Collectors.toList());
     }
 
-    // Index management
-    public void triggerReindex(String targetType, String targetId) {
-        AiIndexJob job = AiIndexJob.builder()
-                .id(StringUtil.generateUniqueId())
-                .targetType(targetType)
-                .targetId(targetId)
-                .operationType("UPDATE")
-                .status("PENDING")
-                .build();
-        indexJobRepository.save(job);
+    public List<BundleResponse> getBundles(String userId) {
+        List<ChatSession> sessions = sessionRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        if (sessions.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> sessionIds = sessions.stream().map(ChatSession::getId).collect(Collectors.toList());
+        List<String> aiMessageIds = messageRepository.findBySessionIdInOrderByCreatedAtAsc(sessionIds).stream()
+                .filter(ChatMessage::getHasProductBlock)
+                .map(ChatMessage::getId)
+                .collect(Collectors.toList());
+        if (aiMessageIds.isEmpty()) {
+            return List.of();
+        }
+
+        return bundleRepository.findByMessageIdInOrderByCreatedAtDesc(aiMessageIds).stream()
+                .map(bundle -> BundleResponse.builder()
+                        .id(bundle.getId())
+                        .justificationSummary(bundle.getJustificationSummary())
+                        .items(hydrateBundleItems(bundle.getId()))
+                        .createdAt(toInstant(bundle.getCreatedAt()))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private ChatSession resolveSession(UUID conversationId, String userId) {
+        if (conversationId == null) {
+            return sessionRepository.save(ChatSession.builder()
+                    .id(UUID.randomUUID())
+                    .userId(userId)
+                    .build());
+        }
+        return sessionRepository.findByIdAndUserId(conversationId, userId)
+                .orElseThrow(() -> new BusinessException("CONVERSATION_NOT_FOUND", "Conversation not found", 404));
+    }
+
+    private StyleContext detectContext(String message) {
+        String lower = message.toLowerCase();
+        if (lower.contains("dinner") || lower.contains("evening") || lower.contains("formal")) {
+            return STYLE_CONTEXTS.get("dinner");
+        }
+        if (lower.contains("work") || lower.contains("office") || lower.contains("professional")) {
+            return STYLE_CONTEXTS.get("work");
+        }
+        if (lower.contains("summer") || lower.contains("beach") || lower.contains("vacation")) {
+            return STYLE_CONTEXTS.get("summer");
+        }
+        if (lower.contains("casual") || lower.contains("everyday") || lower.contains("relaxed")) {
+            return STYLE_CONTEXTS.get("casual");
+        }
+        return new StyleContext("default",
+                "Based on your style profile, here are a few pieces you might like.", List.of());
+    }
+
+    private List<RecommendedProduct> findRecommendations(StyleContext context) {
+        try {
+            String keyword = context.searchTerms().isEmpty() ? null : context.searchTerms().get(0);
+            var response = productClient.getProducts(keyword, 0, 2);
+            List<ProductClient.ProductSummary> products = response != null && response.isSuccess() && response.getData() != null
+                    ? response.getData().getContent()
+                    : List.of();
+
+            if (products.isEmpty() && StringUtils.hasText(keyword)) {
+                // Fallback: no keyword match, surface latest catalog items instead of nothing.
+                var fallback = productClient.getProducts(null, 0, 2);
+                products = fallback != null && fallback.isSuccess() && fallback.getData() != null
+                        ? fallback.getData().getContent()
+                        : List.of();
+            }
+
+            List<RecommendedProduct> result = new ArrayList<>();
+            double score = 0.95;
+            for (ProductClient.ProductSummary product : products) {
+                result.add(RecommendedProduct.builder()
+                        .productId(product.getId())
+                        .name(product.getName())
+                        .basePrice(product.getBasePrice())
+                        .imageUrl(primaryImage(product))
+                        .reason(String.format("Matches your \"%s\" request", context.label()))
+                        .matchScore(score)
+                        .build());
+                score -= 0.06;
+            }
+            return result;
+        } catch (Exception ex) {
+            log.warn("product-service lookup failed for AI recommendation, returning empty list", ex);
+            return List.of();
+        }
+    }
+
+    private List<RecommendedProduct> hydrateBundleItems(String bundleId) {
+        List<AiCuratedBundleItem> items = bundleItemRepository.findByBundleId(bundleId);
+        List<RecommendedProduct> result = new ArrayList<>();
+        for (AiCuratedBundleItem item : items) {
+            try {
+                var response = productClient.getProduct(item.getProductId());
+                if (response != null && response.isSuccess() && response.getData() != null) {
+                    ProductClient.ProductSummary product = response.getData();
+                    result.add(RecommendedProduct.builder()
+                            .productId(product.getId())
+                            .name(product.getName())
+                            .basePrice(product.getBasePrice())
+                            .imageUrl(primaryImage(product))
+                            .reason(null)
+                            .matchScore(null)
+                            .build());
+                }
+            } catch (Exception ex) {
+                log.warn("product-service lookup failed while hydrating bundle {}, skipping item {}", bundleId, item.getProductId(), ex);
+            }
+        }
+        return result;
+    }
+
+    private String saveBundle(String messageId, String justification, List<RecommendedProduct> recommendations) {
+        String bundleId = StringUtil.generateUniqueId();
+        bundleRepository.save(AiCuratedBundle.builder()
+                .id(bundleId)
+                .messageId(messageId)
+                .justificationSummary(justification)
+                .build());
+        for (RecommendedProduct rec : recommendations) {
+            bundleItemRepository.save(AiCuratedBundleItem.builder()
+                    .bundleId(bundleId)
+                    .productId(rec.getProductId())
+                    .build());
+        }
+        return bundleId;
+    }
+
+    private String primaryImage(ProductClient.ProductSummary product) {
+        if (product.getImages() == null || product.getImages().isEmpty()) {
+            return null;
+        }
+        return product.getImages().stream()
+                .filter(img -> Boolean.TRUE.equals(img.getIsPrimary()))
+                .findFirst()
+                .map(ProductClient.ImageSummary::getImageUrl)
+                .orElse(product.getImages().get(0).getImageUrl());
+    }
+
+    private java.time.Instant toInstant(LocalDateTime dateTime) {
+        return dateTime == null ? null : dateTime.atZone(ZoneId.systemDefault()).toInstant();
+    }
+
+    private record StyleContext(String label, String reply, List<String> searchTerms) {
     }
 }

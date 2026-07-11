@@ -10,6 +10,7 @@ import java.time.Instant;
 @Builder
 public class StyleProfileResponse {
     private String userId;
+    private String displayName;
     private String gender;
     private Integer age;
     private java.math.BigDecimal heightCm;

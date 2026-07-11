@@ -1,21 +1,21 @@
 package com.stylemind.order.service;
 
 import com.stylemind.cart.dto.CartItemResponse;
-import com.stylemind.cart.dto.CartMergeRequest;
 import com.stylemind.cart.dto.CartResponse;
-import com.stylemind.order.dto.*;
-import com.stylemind.order.entity.*;
-import com.stylemind.order.repository.*;
-import com.stylemind.order.feign.*;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.util.StringUtil;
+import com.stylemind.order.dto.*;
+import com.stylemind.order.entity.*;
+import com.stylemind.order.feign.*;
+import com.stylemind.order.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,100 +27,242 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final CheckoutIdempotencyRepository checkoutIdempotencyRepository;
     private final CartClient cartClient;
     private final PaymentClient paymentClient;
     private final ProductClient productClient;
+    private final UserClient userClient;
+    private final NotificationClient notificationClient;
+    private final OrderStatusService orderStatusService;
 
-    public OrderResponse createOrder(String userId, String authHeader, CreateOrderRequest request) {
-        // Get cart
-        CartResponse cart = getCart(authHeader).getData();
-        if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
-            throw new BusinessException("CART_EMPTY", "Giỏ hàng trống", 400);
+    private static final String CHECKOUT_STATUS_PROCESSING = "PROCESSING";
+    private static final String CHECKOUT_STATUS_SUCCEEDED = "SUCCEEDED";
+    private static final String CHECKOUT_STATUS_FAILED = "FAILED";
+
+    public OrderResponse createOrder(String userId, String authHeader, String idempotencyKey, CreateOrderRequest request) {
+        CheckoutIdempotency checkoutIdempotency = acquireCheckoutIdempotency(userId, idempotencyKey);
+        if (checkoutIdempotency != null && CHECKOUT_STATUS_SUCCEEDED.equals(checkoutIdempotency.getStatus())
+                && StringUtils.hasText(checkoutIdempotency.getOrderId())) {
+            return buildExistingOrderResponse(userId, checkoutIdempotency.getOrderId());
         }
+        try {
+            CartResponse cart = getCart(authHeader).getData();
+            if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
+                throw new BusinessException("CART_EMPTY", "Cart is empty", 400);
+            }
 
-        // Create order with PENDING status
-        String orderId = StringUtil.generateUniqueId();
-        Order order = Order.builder()
-                .id(orderId)
-                .userId(userId)
-                .totalAmount(cart.getTotalAmount())
-                .orderStatus("PENDING")
-                .shippingAddress(request.getShippingAddress())
-                .build();
+            List<OrderItemDraft> itemDrafts = cart.getItems().stream()
+                    .map(this::buildOrderItemDraft)
+                    .collect(Collectors.toList());
 
-        order = orderRepository.save(order);
+            BigDecimal totalAmount = itemDrafts.stream()
+                    .map(OrderItemDraft::lineTotal)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Create order items
-        List<OrderItem> orderItems = cart.getItems().stream().map(cartItem -> {
-            OrderItem item = OrderItem.builder()
-                    .id(StringUtil.generateUniqueId())
-                    .orderId(orderId)
-                    .variantId(cartItem.getVariantId())
-                    .quantity(cartItem.getQuantity())
-                    .priceAtPurchase(getVariantPrice(cartItem))
-                    .isAiConversion(cartItem.getIsAiRecommended())
-                    .sourceBundleId(cartItem.getSourceBundleId())
+            String paymentMethod = request.getPaymentMethod();
+            OrderStatus initialStatus = "sepay".equals(paymentMethod) ? OrderStatus.PAYMENT_PENDING : OrderStatus.PENDING;
+            String orderId = StringUtil.generateUniqueId();
+
+            Order order = Order.builder()
+                    .id(orderId)
+                    .userId(userId)
+                    .totalAmount(totalAmount)
+                    .orderStatus(initialStatus)
+                    .shippingAddress(request.getShippingAddress())
                     .build();
-            return orderItemRepository.save(item);
-        }).collect(Collectors.toList());
 
-        // Process payment (Saga step 2 - no inventory reservation step)
-        if ("online_simulated".equals(request.getPaymentMethod())) {
-            if (request.getTransactionId() == null) {
-                throw new BusinessException("INVALID_PAYMENT", "Thiếu transactionId cho thanh toán online", 400);
-            }
+            order = orderRepository.save(order);
 
+            List<OrderItem> orderItems = itemDrafts.stream().map(draft -> {
+                OrderItem item = OrderItem.builder()
+                        .id(StringUtil.generateUniqueId())
+                        .orderId(orderId)
+                        .variantId(draft.variantId())
+                        .quantity(draft.quantity())
+                        .priceAtPurchase(draft.unitPrice())
+                        .isAiConversion(draft.isAiConversion())
+                        .sourceBundleId(draft.sourceBundleId())
+                        .build();
+                return orderItemRepository.save(item);
+            }).collect(Collectors.toList());
+
+            PaymentClient.PaymentResponse paymentResponse;
             try {
-                processPayment(orderId, request.getTransactionId(), order.getTotalAmount());
+                paymentResponse = "sepay".equals(paymentMethod)
+                        ? createSepayPaymentTransaction(orderId, userId, order.getTotalAmount())
+                        : createCodPaymentTransaction(orderId, userId, order.getTotalAmount());
             } catch (Exception ex) {
-                log.error("Payment failed for order: {}", orderId, ex);
-                order.setOrderStatus("CANCELLED");
-                orderRepository.save(order);
-                throw new BusinessException("PAYMENT_FAILED", "Thanh toán thất bại: " + ex.getMessage(), 400);
+                log.error("Payment initialization failed for order: {}", orderId, ex);
+                orderStatusService.changeStatus(order, OrderStatus.CANCELLED, userId);
+                throw new BusinessException("PAYMENT_INIT_FAILED", "Unable to initialize payment: " + ex.getMessage(), 400);
             }
+
+            if ("cod".equals(paymentMethod)) {
+                // COD has no payment gateway step - the order is confirmed immediately.
+                // The transaction row created above just tracks the collect-on-delivery
+                // amount; its own status stays PENDING until the courier collects it.
+                order = orderStatusService.changeStatus(order, OrderStatus.CONFIRMED, userId);
+                clearCartBestEffort(authHeader, orderId);
+                notifyOrderBestEffort(order, "ORDER_CONFIRMED", "Order confirmed",
+                        "Your order " + orderId + " has been confirmed and will be paid on delivery.");
+            }
+            // sepay: order stays PAYMENT_PENDING. There is no customer confirmation step -
+            // payment-service's SePay webhook reconciles the bank transfer and calls back
+            // into updateOrderStatusFromPayment() below, asynchronously.
+
+            OrderResponse response = buildOrderResponse(order, orderItems);
+            applyPaymentResponse(response, paymentResponse);
+            markCheckoutAttemptSucceeded(checkoutIdempotency, orderId);
+            return response;
+        } catch (RuntimeException ex) {
+            markCheckoutAttemptFailed(checkoutIdempotency, ex.getMessage());
+            throw ex;
         }
-
-        // Complete order
-        order.setOrderStatus("FULFILLED");
-        order = orderRepository.save(order);
-
-        // Clear cart
-        cartClient.mergeCart(authHeader, CartMergeRequest.builder()
-                .guestSessionId("") // Will be handled by cart service
-                .build());
-
-        return buildOrderResponse(order, orderItems);
     }
 
-    private void processPayment(String orderId, String transactionId, BigDecimal amount) {
-        PaymentClient.ProcessPaymentRequest paymentRequest = PaymentClient.ProcessPaymentRequest.builder()
-                .transactionId(transactionId)
+    private PaymentClient.PaymentResponse createCodPaymentTransaction(String orderId, String userId, BigDecimal amount) {
+        PaymentClient.CodCheckoutRequest paymentRequest = PaymentClient.CodCheckoutRequest.builder()
                 .orderId(orderId)
+                .userId(userId)
                 .amount(amount)
                 .build();
-        paymentClient.processPayment(paymentRequest);
+        return unwrapPaymentResponse(paymentClient.createCodPayment(paymentRequest));
     }
 
-    private String getVariantSku(String variantId) {
-        ProductClient.VariantDetail variant = productClient.getVariants(List.of(variantId)).getData().get(0);
-        return variant.getSku();
+    private PaymentClient.PaymentResponse createSepayPaymentTransaction(String orderId, String userId, BigDecimal amount) {
+        PaymentClient.SepayCheckoutRequest paymentRequest = PaymentClient.SepayCheckoutRequest.builder()
+                .orderId(orderId)
+                .userId(userId)
+                .amount(amount)
+                .build();
+        return unwrapPaymentResponse(paymentClient.createSepayPayment(paymentRequest));
     }
 
-    private BigDecimal getVariantPrice(CartItemResponse cartItem) {
-        if (cartItem.getVariant() != null && cartItem.getVariant().getPriceOverride() != null) {
-            return cartItem.getVariant().getPriceOverride();
+    private PaymentClient.PaymentResponse unwrapPaymentResponse(com.stylemind.common.dto.ApiResponse<PaymentClient.PaymentResponse> response) {
+        if (response == null || !response.isSuccess() || response.getData() == null
+                || response.getData().getTransactionId() == null) {
+            throw new BusinessException("PAYMENT_INIT_FAILED", "Payment service did not create a transaction", 502);
         }
-        if (cartItem.getVariant() != null && cartItem.getVariant().getProduct() != null) {
-            return cartItem.getVariant().getProduct().getBasePrice();
+        return response.getData();
+    }
+
+    private OrderItemDraft buildOrderItemDraft(CartItemResponse cartItem) {
+        String variantId = cartItem.getVariantId();
+        if (variantId == null || variantId.isBlank()) {
+            throw new BusinessException("INVALID_CART_ITEM", "Cart item is missing variantId", 400);
         }
-        return BigDecimal.ZERO;
+
+        Integer quantity = cartItem.getQuantity();
+        if (quantity == null || quantity <= 0) {
+            throw new BusinessException("INVALID_CART_ITEM", "Cart item quantity is invalid", 400);
+        }
+
+        ProductClient.VariantSnapshot snapshot = getVariantSnapshot(variantId);
+        BigDecimal unitPrice = snapshot.getEffectivePrice();
+        if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(
+                    "VARIANT_PRICE_UNAVAILABLE",
+                    "Valid price is unavailable for variant: " + variantId,
+                    400
+            );
+        }
+
+        if (!"ACTIVE".equalsIgnoreCase(snapshot.getStatus())) {
+            throw new BusinessException(
+                    "PRODUCT_NOT_ACTIVE",
+                    "Product variant is not active: " + variantId,
+                    400
+            );
+        }
+
+        return new OrderItemDraft(
+                variantId,
+                quantity,
+                unitPrice,
+                Boolean.TRUE.equals(cartItem.getIsAiRecommended()),
+                cartItem.getSourceBundleId()
+        );
+    }
+
+    private ProductClient.VariantSnapshot getVariantSnapshot(String variantId) {
+        try {
+            var response = productClient.getVariantSnapshot(variantId);
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                throw new BusinessException(
+                        "VARIANT_NOT_FOUND",
+                        "Variant not found: " + variantId,
+                        404
+                );
+            }
+            return response.getData();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("Failed to fetch variant snapshot for {}: {}", variantId, ex.getMessage());
+            throw new BusinessException(
+                    "VARIANT_PRICE_UNAVAILABLE",
+                    "Unable to fetch product price for variant: " + variantId,
+                    502
+            );
+        }
     }
 
     public OrderResponse getOrder(String userId, String orderId) {
         Order order = orderRepository.findByIdAndUserId(orderId, userId)
-                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Không tìm thấy đơn hàng", 404));
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
-        return buildOrderResponse(order, items);
+        OrderResponse response = buildOrderResponse(order, items);
+        applyPaymentStatusIfAvailable(orderId, response);
+        return response;
+    }
+
+    public OrderResponse cancelOrder(String userId, String orderId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
+
+        OrderStatus currentStatus = order.getOrderStatus();
+        if (currentStatus != OrderStatus.PENDING && currentStatus != OrderStatus.PAYMENT_PENDING) {
+            throw new BusinessException(
+                    "ORDER_CANCEL_NOT_ALLOWED",
+                    "Không thể hủy thanh toán cho đơn hàng này.",
+                    409
+            );
+        }
+
+        if (currentStatus == OrderStatus.PAYMENT_PENDING) {
+            expirePaymentBeforeCancellation(orderId);
+        }
+
+        // Keep the local order transition after the payment-side compensation
+        // succeeds, so a failed internal call cannot leave CANCELLED + PENDING.
+        Order cancelled = orderStatusService.changeStatus(order, OrderStatus.CANCELLED, userId);
+
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+        OrderResponse response = buildOrderResponse(cancelled, items);
+        applyPaymentStatusIfAvailable(orderId, response);
+        return response;
+    }
+
+    private void expirePaymentBeforeCancellation(String orderId) {
+        try {
+            com.stylemind.common.dto.ApiResponse<Void> response = paymentClient.expirePaymentByOrderId(orderId);
+            if (response == null || !response.isSuccess()) {
+                throw new BusinessException(
+                        "PAYMENT_CANCEL_FAILED",
+                        "Không thể hủy thanh toán cho đơn hàng này.",
+                        502
+                );
+            }
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("Failed to expire payment before cancelling order {}: {}", orderId, ex.getMessage());
+            throw new BusinessException(
+                    "PAYMENT_CANCEL_FAILED",
+                    "Không thể hủy thanh toán cho đơn hàng này.",
+                    502
+            );
+        }
     }
 
     public List<OrderResponse> getOrders(String userId) {
@@ -130,24 +272,164 @@ public class OrderService {
                 .collect(Collectors.toList());
     }
 
-    public OrderResponse updateOrderStatus(String orderId, UpdateOrderStatusRequest request) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Không tìm thấy đơn hàng", 404));
+    public org.springframework.data.domain.Page<OrderResponse> getAllOrdersForAdmin(
+            String status, String userId, java.time.LocalDateTime fromDate, java.time.LocalDateTime toDate,
+            org.springframework.data.domain.Pageable pageable) {
+        OrderStatus statusFilter = null;
+        if (org.springframework.util.StringUtils.hasText(status)) {
+            try {
+                statusFilter = OrderStatus.valueOf(status.toUpperCase());
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessException("INVALID_ORDER_STATUS_FILTER", "Unknown order status: " + status, 400);
+            }
+        }
+        String userIdFilter = org.springframework.util.StringUtils.hasText(userId) ? userId : null;
+        return orderRepository.search(statusFilter, userIdFilter, fromDate, toDate, pageable)
+                .map(order -> buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId())));
+    }
 
-        order.setOrderStatus(request.getOrderStatus());
-        order = orderRepository.save(order);
+    public OrderResponse getOrderForAdmin(String orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+        return buildOrderResponse(order, items);
+    }
+
+    /**
+     * Real order/revenue aggregates for the admin dashboard. Revenue counts only
+     * orders whose payment has been received and are progressing or done
+     * (PAID/CONFIRMED/PROCESSING/SHIPPED/COMPLETED) — never PENDING/PAYMENT_PENDING
+     * (unpaid) or CANCELLED/EXPIRED/FAILED.
+     */
+    @Transactional(readOnly = true)
+    public AdminOrderSummaryResponse getAdminSummary() {
+        var revenueStatuses = java.util.EnumSet.of(
+                OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.PROCESSING,
+                OrderStatus.SHIPPED, OrderStatus.COMPLETED);
+        java.time.LocalDateTime startOfToday = java.time.LocalDate.now().atStartOfDay();
+
+        return AdminOrderSummaryResponse.builder()
+                .totalOrders(orderRepository.count())
+                .pendingOrders(orderRepository.countByStatuses(
+                        java.util.EnumSet.of(OrderStatus.PENDING, OrderStatus.PAYMENT_PENDING)))
+                .paidOrders(orderRepository.countByStatuses(java.util.EnumSet.of(OrderStatus.PAID)))
+                .completedOrders(orderRepository.countByStatuses(java.util.EnumSet.of(OrderStatus.COMPLETED)))
+                .cancelledOrders(orderRepository.countByStatuses(
+                        java.util.EnumSet.of(OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.FAILED)))
+                .todayOrders(orderRepository.countCreatedSince(startOfToday))
+                .totalRevenue(orderRepository.sumRevenueByStatuses(revenueStatuses))
+                .todayRevenue(orderRepository.sumRevenueByStatusesSince(revenueStatuses, startOfToday))
+                .build();
+    }
+
+    public OrderResponse updateOrderStatusForAdmin(String orderId, UpdateOrderStatusRequest request, String adminUserId) {
+        OrderStatus target = OrderStatus.valueOf(request.getOrderStatus());
+        Order order = orderStatusService.changeStatus(orderId, target, adminUserId);
 
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
         return buildOrderResponse(order, items);
     }
 
-    // Internal endpoint for payment service callback
-    public void updateOrderStatusFromPayment(String orderId, String status) {
+    // Called by payment-service after it reconciles a SePay webhook (see
+    // InternalOrderController). There is no customer confirmation step for SePay -
+    // this is the only place a PAYMENT_PENDING order ever resolves.
+    public void updateOrderStatusFromPayment(String orderId, String paymentStatus) {
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Không tìm thấy đơn hàng", 404));
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
 
-        order.setOrderStatus(status);
-        orderRepository.save(order);
+        if (order.getOrderStatus() != OrderStatus.PAYMENT_PENDING) {
+            // Idempotent no-op: a redelivered webhook, or the order already expired
+            // via OrderTimeoutJob before this callback arrived.
+            log.info("Ignoring payment-status callback for order {} - not PAYMENT_PENDING (current={})",
+                    orderId, order.getOrderStatus());
+            return;
+        }
+
+        if ("PAID".equalsIgnoreCase(paymentStatus)) {
+            order = orderStatusService.changeStatus(order, OrderStatus.PAID, "PAYMENT_WEBHOOK");
+            clearCartByUserIdBestEffort(order.getUserId(), orderId);
+            notifyOrderBestEffort(order, "ORDER_PAID", "Payment received",
+                    "Payment for your order " + orderId + " has been received.");
+        } else if ("FAILED".equalsIgnoreCase(paymentStatus)) {
+            orderStatusService.changeStatus(order, OrderStatus.FAILED, "PAYMENT_WEBHOOK");
+        }
+    }
+
+    private CheckoutIdempotency acquireCheckoutIdempotency(String userId, String idempotencyKey) {
+        if (!StringUtils.hasText(idempotencyKey)) {
+            return null;
+        }
+
+        return checkoutIdempotencyRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+                .map(existing -> {
+                    if (CHECKOUT_STATUS_SUCCEEDED.equals(existing.getStatus())) {
+                        return existing;
+                    }
+                    if (CHECKOUT_STATUS_PROCESSING.equals(existing.getStatus())) {
+                        throw new BusinessException(
+                                "CHECKOUT_IN_PROGRESS",
+                                "Đơn hàng đang được xử lý, vui lòng đợi trong giây lát.",
+                                409
+                        );
+                    }
+                    throw new BusinessException(
+                            "CHECKOUT_RETRY_REQUIRED",
+                            "Yêu cầu thanh toán trước đó không thành công. Vui lòng thử lại.",
+                            409
+                    );
+                })
+                .orElseGet(() -> createCheckoutIdempotency(userId, idempotencyKey));
+    }
+
+    private CheckoutIdempotency createCheckoutIdempotency(String userId, String idempotencyKey) {
+        CheckoutIdempotency entry = CheckoutIdempotency.builder()
+                .id(StringUtil.generateUniqueId())
+                .userId(userId)
+                .idempotencyKey(idempotencyKey)
+                .status(CHECKOUT_STATUS_PROCESSING)
+                .build();
+        try {
+            return checkoutIdempotencyRepository.save(entry);
+        } catch (DataIntegrityViolationException ex) {
+            return acquireCheckoutIdempotency(userId, idempotencyKey);
+        }
+    }
+
+    private void markCheckoutAttemptSucceeded(CheckoutIdempotency checkoutIdempotency, String orderId) {
+        if (checkoutIdempotency == null) {
+            return;
+        }
+        checkoutIdempotency.setOrderId(orderId);
+        checkoutIdempotency.setStatus(CHECKOUT_STATUS_SUCCEEDED);
+        checkoutIdempotency.setErrorMessage(null);
+        checkoutIdempotencyRepository.save(checkoutIdempotency);
+    }
+
+    private void markCheckoutAttemptFailed(CheckoutIdempotency checkoutIdempotency, String errorMessage) {
+        if (checkoutIdempotency == null) {
+            return;
+        }
+        checkoutIdempotency.setStatus(CHECKOUT_STATUS_FAILED);
+        checkoutIdempotency.setErrorMessage(errorMessage);
+        checkoutIdempotencyRepository.save(checkoutIdempotency);
+    }
+
+    private OrderResponse buildExistingOrderResponse(String userId, String orderId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+        OrderResponse response = buildOrderResponse(order, items);
+        applyPaymentStatusIfAvailable(orderId, response);
+        return response;
+    }
+
+    private void applyPaymentStatusIfAvailable(String orderId, OrderResponse response) {
+        try {
+            PaymentClient.PaymentResponse paymentResponse = unwrapPaymentResponse(paymentClient.getPaymentStatus(orderId));
+            applyPaymentResponse(response, paymentResponse);
+        } catch (Exception ex) {
+            log.debug("No payment status available for order {}: {}", orderId, ex.getMessage());
+        }
     }
 
     private OrderResponse buildOrderResponse(Order order, List<OrderItem> items) {
@@ -168,7 +450,8 @@ public class OrderService {
                 .id(order.getId())
                 .userId(order.getUserId())
                 .totalAmount(order.getTotalAmount())
-                .orderStatus(order.getOrderStatus())
+                .orderStatus(order.getOrderStatus().name())
+                .availableTransitions(order.getOrderStatus().allowedTransitions().stream().map(Enum::name).collect(Collectors.toList()))
                 .shippingAddress(order.getShippingAddress())
                 .items(itemResponses)
                 .createdAt(order.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
@@ -176,7 +459,87 @@ public class OrderService {
                 .build();
     }
 
+    private void applyPaymentResponse(OrderResponse orderResponse, PaymentClient.PaymentResponse paymentResponse) {
+        if (paymentResponse == null) {
+            return;
+        }
+        orderResponse.setPaymentTransactionId(paymentResponse.getTransactionId());
+        orderResponse.setPaymentStatus(paymentResponse.getStatus());
+        orderResponse.setQrContent(paymentResponse.getQrContent());
+        orderResponse.setQrImageUrl(paymentResponse.getQrImageUrl());
+        orderResponse.setTransferContent(paymentResponse.getTransferContent());
+        orderResponse.setPaymentExpiresAt(paymentResponse.getExpiresAt());
+    }
+
+    private void clearCartBestEffort(String authHeader, String orderId) {
+        try {
+            cartClient.clearCart(authHeader);
+        } catch (Exception ex) {
+            log.warn("Failed to clear cart after order {} - cart may still show purchased items", orderId, ex);
+        }
+    }
+
+    // Used by the webhook-driven path, which has no end-user Authorization header
+    // to forward (SePay calls payment-service, which calls us, server-to-server).
+    private void clearCartByUserIdBestEffort(String userId, String orderId) {
+        try {
+            cartClient.clearCartByUserId(userId);
+        } catch (Exception ex) {
+            log.warn("Failed to clear cart for user {} after order {} - cart may still show purchased items",
+                    userId, orderId, ex);
+        }
+    }
+
+    // Compensation guardrail: a notification failure must never roll back an
+    // already-confirmed/paid order. Swallows all exceptions after a few quick
+    // retries and only logs - the caller's transaction (and returned response)
+    // proceeds regardless of whether this succeeds.
+    private static final int NOTIFY_MAX_ATTEMPTS = 3;
+
+    private void notifyOrderBestEffort(Order order, String type, String title, String content) {
+        for (int attempt = 1; attempt <= NOTIFY_MAX_ATTEMPTS; attempt++) {
+            try {
+                var userResponse = userClient.getUserEmail(order.getUserId());
+                String email = userResponse != null && userResponse.getData() != null
+                        ? userResponse.getData().getEmail() : null;
+                if (email == null || email.isBlank()) {
+                    log.warn("No email on file for user {} - skipping {} notification for order {}",
+                            order.getUserId(), type, order.getId());
+                    return;
+                }
+
+                notificationClient.sendEmail(NotificationClient.EmailRequest.builder()
+                        .userId(order.getUserId())
+                        .recipientEmail(email)
+                        .type(type)
+                        .title(title)
+                        .content(content)
+                        .build());
+                return;
+            } catch (Exception ex) {
+                if (attempt == NOTIFY_MAX_ATTEMPTS) {
+                    log.warn("Failed to send {} notification for order {} after {} attempts - order is not affected: {}",
+                            type, order.getId(), attempt, ex.getMessage());
+                } else {
+                    log.debug("Notification attempt {} failed for order {}, retrying: {}", attempt, order.getId(), ex.getMessage());
+                }
+            }
+        }
+    }
+
     private com.stylemind.common.dto.ApiResponse<CartResponse> getCart(String authHeader) {
         return cartClient.getCart(authHeader, null);
+    }
+
+    private record OrderItemDraft(
+            String variantId,
+            Integer quantity,
+            BigDecimal unitPrice,
+            Boolean isAiConversion,
+            String sourceBundleId
+    ) {
+        BigDecimal lineTotal() {
+            return unitPrice.multiply(BigDecimal.valueOf(quantity));
+        }
     }
 }

@@ -3,14 +3,18 @@
 
 -- Notification Logs
 CREATE TABLE IF NOT EXISTS notification_logs (
-    id SERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     user_id VARCHAR(50),
+    recipient_email VARCHAR(150),
     type VARCHAR(30) NOT NULL,
+    channel VARCHAR(20) NOT NULL DEFAULT 'EMAIL',
     title VARCHAR(200),
     content TEXT,
     status VARCHAR(20) NOT NULL,
+    error_message VARCHAR(500),
     sent_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes

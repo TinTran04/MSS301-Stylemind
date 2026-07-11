@@ -1,0 +1,1 @@
+SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment_db

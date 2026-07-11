@@ -14,7 +14,7 @@ import com.stylemind.common.security.UserPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/cart")
+@RequestMapping("/api/v1/cart")
 @RequiredArgsConstructor
 public class CartController {
 
@@ -66,6 +66,16 @@ public class CartController {
         String guestSessionId = getGuestSessionId(request);
         cartService.removeItem(userId, guestSessionId, itemId);
         return ResponseEntity.ok(ApiResponse.success("Xóa sản phẩm khỏi giỏ hàng thành công", null));
+    }
+
+    @DeleteMapping
+    public ResponseEntity<ApiResponse<Void>> clearCart(
+            @AuthenticationPrincipal UserPrincipal principal,
+            HttpServletRequest request) {
+        String userId = principal != null ? principal.getUserId() : null;
+        String guestSessionId = getGuestSessionId(request);
+        cartService.clearCart(userId, guestSessionId);
+        return ResponseEntity.ok(ApiResponse.success("Xóa toàn bộ giỏ hàng thành công", null));
     }
 
     @PostMapping("/merge")

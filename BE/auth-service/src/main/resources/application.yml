@@ -26,6 +26,10 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
   sql:
     init:
       mode: never
@@ -66,3 +70,29 @@ logging:
     org.springframework.security: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n"
+
+notification:
+  service:
+    # Default to localhost so services run from an IDE reach notification-service
+    # without extra env vars (matches the datasource/Redis localhost defaults).
+    # Docker overrides this to the container hostname (docker-compose.full.yml).
+    url: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
+
+app:
+  frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  auth:
+    setup-token-expiry-minutes: ${AUTH_SETUP_TOKEN_EXPIRY_MINUTES:1440}
+    reset-otp-expiry-minutes: ${AUTH_RESET_OTP_EXPIRY_MINUTES:10}
+    reset-token-expiry-minutes: ${AUTH_RESET_TOKEN_EXPIRY_MINUTES:30}
+    reset-otp-max-attempts: ${AUTH_RESET_OTP_MAX_ATTEMPTS:5}
+    reset-otp-resend-cooldown-seconds: ${AUTH_RESET_OTP_RESEND_COOLDOWN_SECONDS:60}
+    register-otp-expiry-minutes: ${AUTH_REGISTER_OTP_EXPIRY_MINUTES:10}
+    register-otp-max-attempts: ${AUTH_REGISTER_OTP_MAX_ATTEMPTS:5}
+    register-otp-resend-cooldown-seconds: ${AUTH_REGISTER_OTP_RESEND_COOLDOWN_SECONDS:60}
+
+feign:
+  client:
+    config:
+      notification-internal-client:
+        connectTimeout: 3000
+        readTimeout: 5000

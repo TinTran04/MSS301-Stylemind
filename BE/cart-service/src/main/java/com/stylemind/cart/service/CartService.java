@@ -3,6 +3,7 @@ package com.stylemind.cart.service;
 import com.stylemind.cart.dto.*;
 import com.stylemind.cart.entity.CartItem;
 import com.stylemind.cart.entity.ShoppingCart;
+import com.stylemind.cart.feign.ProductClient;
 import com.stylemind.cart.repository.CartItemRepository;
 import com.stylemind.cart.repository.ShoppingCartRepository;
 import com.stylemind.common.exception.BusinessException;
@@ -25,6 +26,7 @@ public class CartService {
 
     private final ShoppingCartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
+    private final ProductClient productClient;
 
     private String getCartId(String userId, String guestSessionId) {
         if (userId != null) {
@@ -51,6 +53,12 @@ public class CartService {
     }
 
     public CartResponse addItem(String userId, String guestSessionId, CartItemRequest request) {
+        if (request.getQuantity() == null || request.getQuantity() <= 0) {
+            throw new BusinessException("INVALID_QUANTITY", "Số lượng phải lớn hơn 0", 400);
+        }
+
+        validateVariant(request.getVariantId());
+
         String cartId = getCartId(userId, guestSessionId);
 
         ShoppingCart cart = cartRepository.findById(cartId)
@@ -123,49 +131,81 @@ public class CartService {
             return getCart(userId, null);
         }
 
+        log.info("Merging guest cart into user cart: userId={}, guestCartPresent=true", userId);
+
         ShoppingCart userCart = cartRepository.findById(userCartId).orElse(null);
         if (userCart == null) {
+            List<CartItem> guestOnlyItems = cartItemRepository.findByCartId(guestCartId);
             cartRepository.delete(guestCart);
-            guestCart.setId(userCartId);
-            guestCart.setUserId(userId);
-            cartRepository.save(guestCart);
+            cartRepository.save(ShoppingCart.builder()
+                    .id(userCartId)
+                    .userId(userId)
+                    .build());
+            guestOnlyItems.forEach(item -> item.setCartId(userCartId));
+            cartItemRepository.saveAll(guestOnlyItems);
             return getCart(userId, null);
         }
 
         List<CartItem> guestItems = cartItemRepository.findByCartId(guestCartId);
+        log.info("Guest cart merge details: userId={}, guestCartId={}, guestItemCount={}", userId, guestCartId, guestItems.size());
         for (CartItem guestItem : guestItems) {
             CartItem existing = cartItemRepository.findByCartIdAndVariantId(userCartId, guestItem.getVariantId()).orElse(null);
             if (existing != null) {
                 existing.setQuantity(existing.getQuantity() + guestItem.getQuantity());
                 cartItemRepository.save(existing);
+                cartItemRepository.delete(guestItem);
             } else {
                 guestItem.setCartId(userCartId);
                 cartItemRepository.save(guestItem);
             }
         }
 
-        cartItemRepository.deleteAll(guestItems);
         cartRepository.delete(guestCart);
 
         return getCart(userId, null);
     }
 
+    public void clearCart(String userId, String guestSessionId) {
+        String cartId = getCartId(userId, guestSessionId);
+
+        List<CartItem> items = cartItemRepository.findByCartId(cartId);
+        if (!items.isEmpty()) {
+            cartItemRepository.deleteAll(items);
+        }
+        cartRepository.findById(cartId).ifPresent(cartRepository::delete);
+    }
+
+    private void validateVariant(String variantId) {
+        ProductClient.VariantSnapshot snapshot;
+        try {
+            var response = productClient.getVariantSnapshot(variantId);
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                throw new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể sản phẩm", 404);
+            }
+            snapshot = response.getData();
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("Failed to validate variant {}: {}", variantId, ex.getMessage());
+            throw new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể sản phẩm", 404);
+        }
+
+        if (!"ACTIVE".equalsIgnoreCase(snapshot.getStatus())) {
+            throw new BusinessException("PRODUCT_NOT_ACTIVE", "Sản phẩm hiện không khả dụng", 400);
+        }
+        if (Boolean.FALSE.equals(snapshot.getActive())
+                || (snapshot.getStockQuantity() != null && snapshot.getStockQuantity() <= 0)) {
+            throw new BusinessException("VARIANT_OUT_OF_STOCK", "Biến thể này đã hết hàng.", 400);
+        }
+    }
+
     private CartResponse buildCartResponse(ShoppingCart cart, List<CartItem> items) {
-        List<CartItemResponse> itemResponses = items.stream().map(item ->
-            CartItemResponse.builder()
-                .id(item.getId())
-                .cartId(item.getCartId())
-                .variantId(item.getVariantId())
-                .quantity(item.getQuantity())
-                .isAiRecommended(item.getIsAiRecommended())
-                .sourceBundleId(item.getSourceBundleId())
-                .addedAt(item.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
-                .build()
-        ).collect(Collectors.toList());
+        List<CartItemResponse> itemResponses = items.stream()
+            .map(this::buildItemResponse)
+            .collect(Collectors.toList());
 
         BigDecimal totalAmount = itemResponses.stream()
-            .filter(ir -> ir.getVariant() != null && ir.getVariant().getProduct() != null)
-            .map(ir -> ir.getVariant().getPriceOverride() != null ? ir.getVariant().getPriceOverride() : ir.getVariant().getProduct().getBasePrice())
+            .map(ir -> unitPrice(ir).multiply(BigDecimal.valueOf(ir.getQuantity())))
             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         int totalQuantity = itemResponses.stream().mapToInt(CartItemResponse::getQuantity).sum();
@@ -176,5 +216,75 @@ public class CartService {
             .totalAmount(totalAmount)
             .totalQuantity(totalQuantity)
             .build();
+    }
+
+    // Display-only price: authoritative price is re-fetched from product-service
+    // by order-service at checkout and stored as price_at_purchase, so it is
+    // safe (and expected) for this figure to go stale between cart view and order.
+    private BigDecimal unitPrice(CartItemResponse item) {
+        if (!Boolean.TRUE.equals(item.getAvailable()) || item.getVariant() == null || item.getVariant().getProduct() == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal priceOverride = item.getVariant().getPriceOverride();
+        BigDecimal basePrice = item.getVariant().getProduct().getBasePrice();
+        BigDecimal price = priceOverride != null ? priceOverride : basePrice;
+        return price != null ? price : BigDecimal.ZERO;
+    }
+
+    private CartItemResponse buildItemResponse(CartItem item) {
+        CartItemResponse.CartItemResponseBuilder response = CartItemResponse.builder()
+            .id(item.getId())
+            .cartId(item.getCartId())
+            .variantId(item.getVariantId())
+            .quantity(item.getQuantity())
+            .isAiRecommended(item.getIsAiRecommended())
+            .sourceBundleId(item.getSourceBundleId())
+            .addedAt(item.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant());
+
+        ProductClient.VariantSnapshot snapshot = fetchSnapshot(item.getVariantId());
+        if (snapshot == null || !"ACTIVE".equalsIgnoreCase(snapshot.getStatus())) {
+            return response
+                .available(false)
+                .unavailableMessage("This item is no longer available.")
+                .build();
+        }
+
+        CartItemResponse.VariantInfo.ProductInfo.ImageInfo image = snapshot.getPrimaryImageUrl() != null
+            ? CartItemResponse.VariantInfo.ProductInfo.ImageInfo.builder()
+                .imageUrl(snapshot.getPrimaryImageUrl())
+                .isPrimary(true)
+                .build()
+            : null;
+
+        CartItemResponse.VariantInfo.ProductInfo product = CartItemResponse.VariantInfo.ProductInfo.builder()
+            .id(snapshot.getProductId())
+            .name(snapshot.getProductName())
+            .basePrice(snapshot.getEffectivePrice())
+            .images(image != null ? List.of(image) : List.of())
+            .build();
+
+        CartItemResponse.VariantInfo variant = CartItemResponse.VariantInfo.builder()
+            .id(snapshot.getVariantId())
+            .sku(snapshot.getSku())
+            .size(snapshot.getSize())
+            .color(snapshot.getColor())
+            .material(snapshot.getMaterial())
+            .product(product)
+            .build();
+
+        return response
+            .available(true)
+            .variant(variant)
+            .build();
+    }
+
+    private ProductClient.VariantSnapshot fetchSnapshot(String variantId) {
+        try {
+            var response = productClient.getVariantSnapshot(variantId);
+            return response != null && response.isSuccess() ? response.getData() : null;
+        } catch (Exception ex) {
+            log.warn("Failed to fetch variant snapshot {} for cart display: {}", variantId, ex.getMessage());
+            return null;
+        }
     }
 }

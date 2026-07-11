@@ -19,18 +19,18 @@ export default function RecommendationAnalyticsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-headline-md text-primary">Recommendation Analytics</h1>
+      <h1 className="font-headline-md text-primary">Phân tích gợi ý</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <MetricCard title="Total Recommendations" value={formatNumber(12500)} change={18.2} icon={MousePointerClick} />
-        <MetricCard title="Avg CTR" value="12.4%" change={14.8} icon={TrendingUp} />
-        <MetricCard title="AI Revenue" value={formatCurrency(45320)} change={19.0} icon={DollarSign} />
-        <MetricCard title="Conversion Rate" value="10%" change={12.5} icon={BarChart3} />
+        <MetricCard title="Tổng lượt gợi ý" value={formatNumber(12500)} change={18.2} icon={MousePointerClick} />
+        <MetricCard title="CTR trung bình" value="12.4%" change={14.8} icon={TrendingUp} />
+        <MetricCard title="Doanh thu từ AI" value={formatCurrency(45320)} change={19.0} icon={DollarSign} />
+        <MetricCard title="Tỷ lệ chuyển đổi" value="10%" change={12.5} icon={BarChart3} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Funnel */}
-        <ChartCard title="Recommendation Funnel">
+        <ChartCard title="Phễu gợi ý">
           <div className="space-y-4">
             {funnel.map((f, idx) => (
               <div key={f.stage} className="flex items-center gap-4">
@@ -47,7 +47,7 @@ export default function RecommendationAnalyticsPage() {
         </ChartCard>
 
         {/* CTR Over Time */}
-        <ChartCard title="CTR Trend">
+        <ChartCard title="Xu hướng CTR">
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={ctrData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#efeded" />
@@ -61,16 +61,16 @@ export default function RecommendationAnalyticsPage() {
       </div>
 
       {/* Top Products */}
-      <ChartCard title="Top AI Recommended Products">
+      <ChartCard title="Sản phẩm AI gợi ý nhiều nhất">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-outline-variant/20">
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Product</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Recs</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Clicks</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Purchases</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Conv.</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Sản phẩm</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Lượt gợi ý</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Lượt nhấp</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Lượt mua</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Chuyển đổi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">

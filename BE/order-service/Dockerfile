@@ -14,8 +14,9 @@ COPY ai-agent-service/pom.xml ai-agent-service/pom.xml
 RUN mvn dependency:go-offline -B
 
 COPY common-lib/src common-lib/src
+COPY cart-service/src cart-service/src
 COPY order-service/src order-service/src
-RUN mvn clean package -pl order-service -am -DskipTests
+RUN mvn clean install -pl common-lib,cart-service -am -DskipTests -Dspring-boot.repackage.skip=true && mvn clean package spring-boot:repackage -pl order-service -am -DskipTests
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app

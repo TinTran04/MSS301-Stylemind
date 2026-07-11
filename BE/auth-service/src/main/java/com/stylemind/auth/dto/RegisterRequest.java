@@ -10,10 +10,6 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class RegisterRequest {
-    @NotBlank(message = "Họ tên không được để trống")
-    @Size(max = 150, message = "Họ tên tối đa 150 ký tự")
-    private String name;
-
     @NotBlank(message = "Email không được để trống")
     @Email(message = "Email không đúng định dạng")
     private String email;

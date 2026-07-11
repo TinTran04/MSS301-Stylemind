@@ -1,6 +1,7 @@
 package com.stylemind.user.dto;
 
 import jakarta.validation.constraints.*;
+import com.stylemind.user.validation.ValidJson;
 import lombok.*;
 
 @Data
@@ -8,6 +9,9 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class StyleProfileRequest {
+    @Size(max = 150, message = "Tên hiển thị tối đa 150 ký tự")
+    private String displayName;
+
     @Size(max = 20, message = "Giới tính tối đa 20 ký tự")
     private String gender;
 
@@ -29,5 +33,6 @@ public class StyleProfileRequest {
     @Size(max = 30, message = "Form dáng tối đa 30 ký tự")
     private String preferredFit;
 
-    private String stylePersonas; // JSON string
+    @ValidJson
+    private String stylePersonas; // JSON string — validated to be syntactically correct JSON
 }

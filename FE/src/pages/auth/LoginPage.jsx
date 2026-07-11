@@ -1,19 +1,53 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import useAuthStore from '../../features/auth/auth.store'
+import { loginUser } from '../../features/auth/auth.api'
+import { getEmailValidationMessage, normalizeEmailInput } from '../../features/auth/auth.validation'
+
+function messageForError(err, fallback) {
+  if (err?.status === 401) return 'Email hoặc mật khẩu không đúng.'
+  if (err?.status === 403) return 'Tài khoản của bạn đã bị vô hiệu hóa.'
+  if (err?.status === 0 || err?.errorCode === 'ERR_NETWORK') return 'Không thể kết nối máy chủ. Vui lòng thử lại sau.'
+  return fallback
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
+  const location = useLocation()
   const login = useAuthStore((s) => s.login)
+  const loading = useAuthStore((s) => s.loading)
+  const setLoading = useAuthStore((s) => s.setLoading)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    login({ id: '1', name: 'Guest User', email, role: 'customer' })
-    navigate('/')
+    setError('')
+
+    const emailError = getEmailValidationMessage(email)
+    if (emailError) {
+      setError(emailError)
+      return
+    }
+    if (!password.trim()) {
+      setError('Mật khẩu là bắt buộc.')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const session = await loginUser(normalizeEmailInput(email), password)
+      login(session)
+      navigate(session.user?.role === 'admin' ? '/admin' : '/')
+    } catch (err) {
+      setError(messageForError(err, 'Không thể đăng nhập. Vui lòng kiểm tra lại thông tin.'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -22,13 +56,13 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img
           src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=1200&h=1600&fit=crop"
-          alt="Fashion editorial"
+          alt="Ảnh biên tập thời trang"
           className="w-full h-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent" />
         <div className="absolute bottom-16 left-16 right-16">
           <h1 className="font-headline-lg text-on-primary mb-4">StyleMind</h1>
-          <p className="text-on-primary/80 text-lg font-light">AI-Curated Fashion</p>
+          <p className="text-on-primary/80 text-lg font-light">Thời trang được AI tuyển chọn</p>
         </div>
       </div>
 
@@ -39,11 +73,17 @@ export default function LoginPage() {
             <Link to="/" className="font-display-lg tracking-tighter text-primary no-underline lg:hidden">
               StyleMind
             </Link>
-            <h2 className="font-headline-md text-primary mt-8 lg:mt-0">Welcome Back</h2>
-            <p className="text-on-surface-variant mt-2">Sign in to your atelier</p>
+            <h2 className="font-headline-md text-primary mt-8 lg:mt-0">Chào mừng trở lại</h2>
+            <p className="text-on-surface-variant mt-2">Đăng nhập để tiếp tục hành trình phong cách</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {location.state?.flashMessage && (
+            <div role="status" className="mb-6 rounded-lg border border-tertiary-container/30 bg-tertiary-container/20 px-4 py-3 text-sm text-primary">
+              {location.state.flashMessage}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             <div>
               <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">
                 Email
@@ -54,15 +94,16 @@ export default function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                   className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
-                  placeholder="your@email.com"
+                  placeholder="tenban@email.com"
                 />
               </div>
             </div>
 
             <div>
               <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">
-                Password
+                Mật khẩu
               </label>
               <div className="relative">
                 <Lock size={16} className="absolute left-0 top-1/2 -translate-y-1/2 text-on-surface-variant" />
@@ -70,8 +111,9 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  required
                   className="w-full bg-transparent border-0 border-b border-outline-variant py-2 pl-7 pr-10 text-sm text-on-surface focus:border-tertiary-container focus:outline-none transition-colors"
-                  placeholder="Enter password"
+                  placeholder="Nhập mật khẩu"
                 />
                 <button
                   type="button"
@@ -82,17 +124,24 @@ export default function LoginPage() {
                 </button>
               </div>
               <div className="text-right mt-2">
-                <a href="#" className="text-xs text-on-surface-variant hover:text-primary transition-colors">
-                  Forgot credentials?
-                </a>
+                <Link to="/forgot-password" className="text-xs text-on-surface-variant hover:text-primary transition-colors">
+                  Quên mật khẩu?
+                </Link>
               </div>
             </div>
 
+            {error && (
+              <div role="alert" className="rounded-lg border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-error">
+                {error}
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase"
+              disabled={loading}
+              className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Enter the Atelier
+              {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
             </button>
 
             <div className="relative my-6">
@@ -100,7 +149,7 @@ export default function LoginPage() {
                 <div className="w-full border-t border-outline-variant/20" />
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-surface-container-lowest px-4 text-on-surface-variant uppercase tracking-wider">OR</span>
+                <span className="bg-surface-container-lowest px-4 text-on-surface-variant uppercase tracking-wider">HOẶC</span>
               </div>
             </div>
 
@@ -114,14 +163,14 @@ export default function LoginPage() {
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
-              Continue with Google
+              Tiếp tục với Google
             </button>
           </form>
 
           <p className="text-center text-sm text-on-surface-variant mt-8">
-            New to StyleMind?{' '}
+            Bạn mới đến với StyleMind?{' '}
             <Link to="/register" className="text-primary font-medium hover:underline">
-              Create an account
+              Tạo tài khoản
             </Link>
           </p>
         </div>

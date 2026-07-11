@@ -13,13 +13,18 @@
 
     <artifactId>ai-agent-service</artifactId>
     <name>StyleMind AI Agent Service</name>
-    <description>AI Stylist Service with Vector Search and Knowledge Graph</description>
+    <description>AI Stylist Service (MVP: rule-based recommendations, no vector/graph search yet)</description>
 
     <dependencies>
         <dependency>
             <groupId>com.stylemind</groupId>
             <artifactId>common-lib</artifactId>
             <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -79,6 +84,11 @@
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

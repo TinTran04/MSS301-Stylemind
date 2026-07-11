@@ -36,6 +36,22 @@ public class Transaction extends BaseEntity {
     @Column(name = "transaction_ref", length = 100)
     private String transactionRef;
 
+    // Unique per-order note the customer must transfer with (e.g. "SEVQR STYLEMIND SMabc123"),
+    // used to reconcile an inbound SePay webhook to this transaction. Null for COD.
+    @Column(name = "transfer_content", length = 100)
+    private String transferContent;
+
+    // SePay's own transaction id from the webhook payload ("id" field) - the idempotency
+    // key that lets us detect and no-op a redelivered webhook. Null until a webhook matches.
+    @Column(name = "gateway_transaction_id", length = 100, unique = true)
+    private String gatewayTransactionId;
+
+    @Column(name = "expires_at")
+    private java.time.LocalDateTime expiresAt;
+
+    @Column(name = "paid_at")
+    private java.time.LocalDateTime paidAt;
+
     // Explicit getters/setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -51,4 +67,12 @@ public class Transaction extends BaseEntity {
     public void setStatus(String status) { this.status = status; }
     public String getTransactionRef() { return transactionRef; }
     public void setTransactionRef(String transactionRef) { this.transactionRef = transactionRef; }
+    public String getTransferContent() { return transferContent; }
+    public void setTransferContent(String transferContent) { this.transferContent = transferContent; }
+    public String getGatewayTransactionId() { return gatewayTransactionId; }
+    public void setGatewayTransactionId(String gatewayTransactionId) { this.gatewayTransactionId = gatewayTransactionId; }
+    public java.time.LocalDateTime getExpiresAt() { return expiresAt; }
+    public void setExpiresAt(java.time.LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+    public java.time.LocalDateTime getPaidAt() { return paidAt; }
+    public void setPaidAt(java.time.LocalDateTime paidAt) { this.paidAt = paidAt; }
 }

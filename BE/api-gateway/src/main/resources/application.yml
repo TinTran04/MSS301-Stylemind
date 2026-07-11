@@ -1,77 +1,112 @@
 server:
-  port: ${SERVER_PORT:3000}
+  port: 3001
 
 spring:
   application:
     name: api-gateway
+  main:
+    allow-bean-definition-overriding: true
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   cloud:
     gateway:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "*"
-            allowedMethods: "*"
-            allowedHeaders: "*"
-            exposedHeaders: "X-Request-Id,X-User-Id,X-User-Roles"
+            allowedOriginPatterns: '*'
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: '*'
+            exposedHeaders: 'X-Request-Id,X-User-Id,X-User-Roles'
+            allowCredentials: false
+      # Strip duplicate CORS headers that downstream services add on top of gateway's own headers
+      # (every service's own common-lib SecurityConfig also has a CorsConfigurationSource).
+      # Without this, browser sees two values for these headers and can block the response —
+      # covers Allow-Origin/Allow-Credentials plus Expose-Headers/Vary, which the gateway's own
+      # globalcors filter and each downstream service both add independently.
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Access-Control-Expose-Headers Vary, RETAIN_FIRST
       routes:
         - id: auth-service
-          uri: lb://auth-service
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
           predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/auth/**
         - id: user-service
-          uri: lb://user-service
+          uri: ${USER_SERVICE_URL:http://localhost:8082}
           predicates:
-            - Path=/api/users/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/users/**
         - id: product-service
-          uri: lb://product-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
           predicates:
-            - Path=/api/products/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/products/**
         - id: category-service
-          uri: lb://product-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
           predicates:
-            - Path=/api/categories/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/categories/**
         - id: cart-service
-          uri: lb://cart-service
+          uri: ${CART_SERVICE_URL:http://localhost:8086}
           predicates:
-            - Path=/api/cart/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/cart/**
         - id: order-service
-          uri: lb://order-service
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
           predicates:
-            - Path=/api/orders/**
-          filters:
-            - StripPrefix=1
-        - id: payment-service
-          uri: lb://payment-service
+            - Path=/api/v1/orders/**
+        - id: admin-order-service
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
           predicates:
-            - Path=/api/payment/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/admin/orders/**
+        - id: sepay-webhook
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8088}
+          predicates:
+            - Path=/api/v1/payments/webhook/sepay
+            - Method=POST
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
+          predicates:
+            - Path=/api/v1/notifications/**
+        - id: admin-notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
+          predicates:
+            - Path=/api/v1/admin/notifications/**
         - id: ai-service
-          uri: lb://ai-agent-service
+          uri: ${AI_SERVICE_URL:http://localhost:8085}
           predicates:
-            - Path=/api/ai-stylist/**
-          filters:
-            - StripPrefix=1
-        - id: admin-service
-          uri: lb://product-service
+            - Path=/api/v1/ai-stylist/**
+        - id: admin-ai-service
+          uri: ${AI_SERVICE_URL:http://localhost:8085}
           predicates:
-            - Path=/api/admin/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/admin/ai/**
+        - id: admin-users-service
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/admin/users/**
+        - id: admin-product-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/admin/products/**
+        - id: admin-category-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/admin/categories/**
         - id: internal-block
-          uri: "no://op"
+          uri: no://op
           predicates:
-            - Path=/internal/**
+            - Path=/internal/v1/**
+          filters:
+            - SetStatus=401
 
 # JWT Asymmetric Key Configuration (Consumer)
 jwt:
@@ -101,4 +136,4 @@ logging:
     com.stylemind.gateway: DEBUG
     org.springframework.cloud.gateway: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n"
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n'

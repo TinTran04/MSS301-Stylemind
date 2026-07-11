@@ -9,6 +9,7 @@ BE/target/
 BE/**/target/
 BE/.env
 BE/**/.env
+BE/.claude   
 
 # Environment
 .env
@@ -34,3 +35,14 @@ Thumbs.db
 
 # Logs
 *.log
+
+.codegraph/
+.superpowers/
+.venv/
+.agents/
+.claude/
+HIOS/
+change/
+.agent/skills/
+.playwright-cli/
+output/

@@ -1,22 +1,27 @@
 package com.stylemind.order.dto;
 
-import jakarta.validation.constraints.*;
-import lombok.*;
-
-import java.math.BigDecimal;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class CreateOrderRequest {
-    @NotBlank(message = "Địa chỉ giao hàng không được để trống")
+    @NotBlank(message = "Shipping address is required")
     private String shippingAddress;
 
-    @NotBlank(message = "Phương thức thanh toán không được để trống")
-    @Pattern(regexp = "^(cod|online_simulated)$", message = "Phương thức thanh toán không hợp lệ")
+    @NotBlank(message = "Payment method is required")
+    @Pattern(regexp = "^(cod|sepay)$", message = "Payment method is invalid")
     private String paymentMethod;
 
+    // Deprecated/ignored: checkout is orchestrated by order-service and payment
+    // transactions are created server-side. Kept only for backward compatibility.
+    @Deprecated
     private String transactionId;
 
     public String getShippingAddress() { return shippingAddress; }

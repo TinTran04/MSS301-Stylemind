@@ -1,22 +1,28 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Link, useLocation, Outlet } from 'react-router-dom'
-import { ShoppingBag, User, Menu, X, Search } from 'lucide-react'
+import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
+import { ShoppingBag, User, Menu, X, Search, LogOut, Settings, Bell } from 'lucide-react'
 import { useCart } from '../hooks/useCart'
+import { useAuth } from '../hooks/useAuth'
+import { getInitials } from '../features/auth/auth.utils'
 
 const navLinks = [
-  { to: '/', label: 'Home' },
-  { to: '/shop', label: 'Shop' },
-  { to: '/ai-stylist', label: 'AI Stylist' },
-  { to: '/shop?collection=new', label: 'Collections' },
-  { to: '/orders', label: 'Orders' },
+  { to: '/', label: 'Trang chủ' },
+  { to: '/shop', label: 'Cửa hàng' },
+  { to: '/ai-stylist', label: 'Stylist AI' },
+  { to: '/shop?collection=new', label: 'Bộ sưu tập' },
+  { to: '/orders', label: 'Đơn hàng' },
 ]
 
 export default function CustomerLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { itemCount } = useCart()
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileRef = useRef(null)
+  const { itemCount, loadCart } = useCart()
+  const { user, isAuthenticated, logout } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -27,6 +33,27 @@ export default function CustomerLayout() {
   useEffect(() => {
     setMobileOpen(false)
   }, [location])
+
+  useEffect(() => {
+    loadCart()
+  }, [loadCart])
+
+  // Close profile dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const handleLogout = () => {
+    logout()
+    setProfileOpen(false)
+    navigate('/')
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -60,10 +87,10 @@ export default function CustomerLayout() {
           </div>
 
           <div className="flex items-center gap-4">
-            <Link to="/shop" className="p-2 rounded-full hover:bg-surface-container transition-colors">
+            <Link to="/shop" className="p-2 rounded-full hover:bg-surface-container transition-colors" aria-label="Tìm kiếm" title="Tìm kiếm">
               <Search size={20} className="text-on-surface-variant" />
             </Link>
-            <Link to="/cart" className="p-2 rounded-full hover:bg-surface-container transition-colors relative">
+            <Link to="/cart" className="p-2 rounded-full hover:bg-surface-container transition-colors relative" aria-label="Giỏ hàng" title="Giỏ hàng">
               <ShoppingBag size={20} className="text-on-surface-variant" />
               {itemCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-primary text-on-primary text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
@@ -71,9 +98,58 @@ export default function CustomerLayout() {
                 </span>
               )}
             </Link>
-            <Link to="/login" className="p-2 rounded-full hover:bg-surface-container transition-colors">
-              <User size={20} className="text-on-surface-variant" />
-            </Link>
+            {isAuthenticated ? (
+              <div className="relative" ref={profileRef}>
+                <button
+                  onClick={() => setProfileOpen((o) => !o)}
+                  className="flex items-center gap-2 p-1 rounded-full hover:bg-surface-container transition-colors"
+                  aria-label="Menu tài khoản"
+                >
+                  <div className="w-8 h-8 rounded-full bg-primary text-on-primary text-xs font-semibold flex items-center justify-center">
+                    {getInitials(user?.name || user?.email)}
+                  </div>
+                </button>
+                {profileOpen && (
+                  <div className="absolute right-0 mt-2 w-52 bg-surface-container-lowest rounded-xl shadow-lg border border-outline-variant/20 py-1 z-50">
+                    <div className="px-4 py-3 border-b border-outline-variant/10">
+                      <p className="text-sm font-medium text-primary truncate">{user?.name || user?.email}</p>
+                      <p className="text-xs text-on-surface-variant truncate">{user?.email}</p>
+                    </div>
+                    <Link
+                      to="/profile"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"
+                    >
+                      <User size={14} /> Hồ sơ cá nhân
+                    </Link>
+                    <Link
+                      to="/orders"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"
+                    >
+                      <Settings size={14} /> Đơn hàng của tôi
+                    </Link>
+                    <Link
+                      to="/notifications"
+                      onClick={() => setProfileOpen(false)}
+                      className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"
+                    >
+                      <Bell size={14} /> Thông báo
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-error hover:bg-error-container/20 transition-colors"
+                    >
+                      <LogOut size={14} /> Đăng xuất
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Link to="/login" className="p-2 rounded-full hover:bg-surface-container transition-colors" aria-label="Tài khoản" title="Tài khoản">
+                <User size={20} className="text-on-surface-variant" />
+              </Link>
+            )}
             <button
               className="md:hidden p-2 rounded-full hover:bg-surface-container transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}

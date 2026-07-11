@@ -15,7 +15,7 @@ RUN mvn dependency:go-offline -B
 
 COPY common-lib/src common-lib/src
 COPY cart-service/src cart-service/src
-RUN mvn clean package -pl cart-service -am -DskipTests
+RUN mvn clean install -pl common-lib -am -DskipTests -Dspring-boot.repackage.skip=true && mvn clean package spring-boot:repackage -pl cart-service -am -DskipTests
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app

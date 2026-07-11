@@ -26,8 +26,8 @@ public class InternalAuthFilter extends OncePerRequestFilter {
         
         String path = request.getRequestURI();
         
-        // Only validate internal token for /internal/** endpoints
-        if (path.startsWith("/internal/")) {
+        // Only validate internal token for /internal/v1/** endpoints
+        if (path.startsWith("/internal/v1/")) {
             String token = request.getHeader("X-Internal-Token");
             if (token == null || !token.equals(internalToken)) {
                 throw new BusinessException(ErrorCode.AUTH_ACCESS_DENIED);

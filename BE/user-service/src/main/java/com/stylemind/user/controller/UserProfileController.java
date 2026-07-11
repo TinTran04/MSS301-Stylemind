@@ -16,19 +16,19 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
 
-    @GetMapping("/profile")
+    @GetMapping("/style-profile")
     public ResponseEntity<ApiResponse<StyleProfileResponse>> getProfile(@AuthenticationPrincipal UserPrincipal principal) {
         StyleProfileResponse profile = userProfileService.getStyleProfile(principal.getUserId());
         return ResponseEntity.ok(ApiResponse.success("Lấy hồ sơ phong cách thành công", profile));
     }
 
-    @PutMapping("/profile")
+    @PutMapping("/style-profile")
     public ResponseEntity<ApiResponse<StyleProfileResponse>> updateProfile(
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody StyleProfileRequest request) {

@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: order-service
+  main:
+    allow-bean-definition-overriding: true
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5437/order_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
@@ -30,19 +32,35 @@ spring:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
-# JWT Asymmetric Key Configuration (Consumer)
+# Auth-service is only used to look up a user's email for order notifications.
+auth:
+  service:
+    url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+notification:
+  service:
+    url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8089}
+
+app:
+  order:
+    # 15 min mirrors the SePay VietQR window (payment-service app.vietqr.expiry-minutes)
+    # so the QR shown to the customer expires around the same time the order does.
+    payment-timeout-minutes: ${ORDER_PAYMENT_TIMEOUT_MINUTES:15}
+    timeout-job-interval-ms: ${ORDER_TIMEOUT_JOB_INTERVAL_MS:300000}
+
+# Feign timeouts: bound every outbound call so a slow/down downstream service
+# (cart, product, payment) can't hang order-service threads indefinitely.
+# Conservative defaults; tune per-client as needed. See ARCHITECTURE_AND_QUALITY_REVIEW.md M1.
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 3000
+        readTimeout: 5000
+
 jwt:
-  # Public Key Path ONLY - REQUIRED for token verification
-  # NO DEFAULT VALUE - Must be set via environment variable
-  public-key-path: ${JWT_PUBLIC_KEY_PATH}
-  
-  # Algorithm Configuration (must match issuer)
-  algorithm: ${JWT_ALGORITHM:RSA}
-  key-size: ${JWT_KEY_SIZE:2048}
-  
-  # Token Expiration (for validation checks)
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+  secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
+  access-token-expiration: 3600000
+  refresh-token-expiration: 604800000
 
 management:
   endpoints:

@@ -4,6 +4,7 @@ import com.stylemind.common.util.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Entity
@@ -23,7 +24,7 @@ public class ChatSession extends BaseEntity {
     private String userId;
 
     @Column(name = "context_weather_temp", precision = 4, scale = 1)
-    private java.math.BigDecimal contextWeatherTemp;
+    private BigDecimal contextWeatherTemp;
 
     @Column(name = "context_weather_condition", length = 30)
     private String contextWeatherCondition;

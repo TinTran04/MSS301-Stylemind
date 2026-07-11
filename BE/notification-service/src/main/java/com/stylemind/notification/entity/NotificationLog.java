@@ -20,8 +20,14 @@ public class NotificationLog extends BaseEntity {
     @Column(name = "user_id", length = 50)
     private String userId;
 
+    @Column(name = "recipient_email", length = 150)
+    private String recipientEmail;
+
     @Column(name = "type", length = 30, nullable = false)
     private String type;
+
+    @Column(name = "channel", length = 20, nullable = false)
+    private String channel;
 
     @Column(name = "title", length = 200)
     private String title;
@@ -32,6 +38,9 @@ public class NotificationLog extends BaseEntity {
     @Column(name = "status", length = 20, nullable = false)
     private String status;
 
+    @Column(name = "error_message", length = 500)
+    private String errorMessage;
+
     @Column(name = "sent_at")
     private java.time.LocalDateTime sentAt;
 
@@ -40,14 +49,20 @@ public class NotificationLog extends BaseEntity {
     public void setId(Long id) { this.id = id; }
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
+    public String getRecipientEmail() { return recipientEmail; }
+    public void setRecipientEmail(String recipientEmail) { this.recipientEmail = recipientEmail; }
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+    public String getChannel() { return channel; }
+    public void setChannel(String channel) { this.channel = channel; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getErrorMessage() { return errorMessage; }
+    public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
     public java.time.LocalDateTime getSentAt() { return sentAt; }
     public void setSentAt(java.time.LocalDateTime sentAt) { this.sentAt = sentAt; }
 }

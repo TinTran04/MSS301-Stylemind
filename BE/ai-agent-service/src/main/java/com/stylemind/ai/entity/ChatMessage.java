@@ -4,6 +4,8 @@ import com.stylemind.common.util.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "chat_messages")
 @Data
