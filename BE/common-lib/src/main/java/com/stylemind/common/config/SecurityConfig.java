@@ -67,7 +67,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/cart/**").permitAll()
                         // SePay calls this directly (server-to-server, no user JWT) - authenticity
                         // is verified inside PaymentService via the webhook's own API-key header.
-                        .requestMatchers("/api/v1/payments/webhook/**").permitAll()
+                        // Only SePay's public webhook is unauthenticated. Other payment
+                        // paths must still require the caller's normal authentication.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/payments/webhook/sepay").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(internalAuthFilter, UsernamePasswordAuthenticationFilter.class)

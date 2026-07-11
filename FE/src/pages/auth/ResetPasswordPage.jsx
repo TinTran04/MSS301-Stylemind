@@ -1,28 +1,41 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff, Lock } from 'lucide-react'
-import { resetPassword } from '../../features/auth/auth.api'
+import { resetPassword, setupPassword } from '../../features/auth/auth.api'
 import {
   clearPasswordResetContext,
   getPasswordResetContext,
 } from '../../features/auth/passwordResetSession'
 import PasswordRecoveryShell from './PasswordRecoveryShell'
+import {
+  RESET_PASSWORD_INVALID_MESSAGE,
+  RESET_PASSWORD_SUCCESS_MESSAGE,
+  SET_PASSWORD_SUCCESS_MESSAGE,
+  resolveResetPasswordContext,
+} from './resetPassword.utils'
 
 export default function ResetPasswordPage() {
-  const [resetContext] = useState(getPasswordResetContext)
+  const [searchParams] = useSearchParams()
+  const [sessionContext] = useState(getPasswordResetContext)
+  const navigate = useNavigate()
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [complete, setComplete] = useState(false)
+  const resetContext = resolveResetPasswordContext({
+    searchParams,
+    sessionContext,
+  })
+  const isInviteSetup = resetContext?.mode === 'setup'
 
   if (!resetContext?.email || !resetContext?.resetToken) {
     return (
       <PasswordRecoveryShell
         eyebrow="Mật khẩu mới"
-        title="Cần xác minh"
-        description="Hãy xác minh mã đặt lại hiện tại trước khi chọn mật khẩu mới."
+        title="Liên kết không hợp lệ"
+        description={RESET_PASSWORD_INVALID_MESSAGE}
       >
         <Link
           to="/forgot-password"
@@ -45,11 +58,21 @@ export default function ResetPasswordPage() {
 
     setLoading(true)
     try {
-      await resetPassword(resetContext.email, resetContext.resetToken, newPassword)
+      if (isInviteSetup) {
+        await setupPassword(resetContext.email, resetContext.resetToken, newPassword)
+      } else {
+        await resetPassword(resetContext.email, resetContext.resetToken, newPassword)
+      }
       clearPasswordResetContext()
       setComplete(true)
+      navigate('/login', {
+        replace: true,
+        state: {
+          flashMessage: isInviteSetup ? SET_PASSWORD_SUCCESS_MESSAGE : RESET_PASSWORD_SUCCESS_MESSAGE,
+        },
+      })
     } catch {
-      setError('Không thể đặt lại mật khẩu.')
+      setError(RESET_PASSWORD_INVALID_MESSAGE)
     } finally {
       setLoading(false)
     }
@@ -58,22 +81,16 @@ export default function ResetPasswordPage() {
   return (
     <PasswordRecoveryShell
       eyebrow="Mật khẩu mới"
-      title={complete ? 'Mật khẩu đã được cập nhật' : 'Chọn mật khẩu mới'}
+      title={complete ? 'Mật khẩu đã được cập nhật' : isInviteSetup ? 'Thiết lập mật khẩu' : 'Chọn mật khẩu mới'}
       description={complete
         ? 'Mật khẩu mới của bạn đã sẵn sàng để sử dụng.'
-        : 'Hãy dùng ít nhất 6 ký tự và chọn một mật khẩu riêng cho StyleMind.'}
+        : isInviteSetup
+          ? 'Hãy chọn mật khẩu mới để hoàn tất thiết lập tài khoản StyleMind.'
+          : 'Hãy dùng ít nhất 6 ký tự và chọn một mật khẩu riêng cho StyleMind.'}
     >
       {complete ? (
         <div role="status" className="space-y-6">
-          <p className="text-sm text-on-surface-variant">
-            Bây giờ bạn có thể đăng nhập bằng mật khẩu mới.
-          </p>
-          <Link
-            to="/login"
-            className="flex w-full items-center justify-center bg-primary text-on-primary rounded-lg py-3 text-sm font-medium uppercase"
-          >
-            Quay lại đăng nhập
-          </Link>
+          <p className="text-sm text-on-surface-variant">Đang chuyển bạn đến trang đăng nhập…</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">

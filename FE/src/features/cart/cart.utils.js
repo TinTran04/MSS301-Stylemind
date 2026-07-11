@@ -1,3 +1,6 @@
+export const TAX_RATE = 0.08
+export const TAX_LABEL = 'Thuế VAT (8%)'
+
 export function calculateSubtotal(items) {
   return items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 }
@@ -7,7 +10,7 @@ export function calculateShipping(subtotal) {
 }
 
 export function calculateTax(subtotal) {
-  return Math.round(subtotal * 0.08 * 100) / 100
+  return Math.round(subtotal * TAX_RATE * 100) / 100
 }
 
 export function calculateTotal(items) {

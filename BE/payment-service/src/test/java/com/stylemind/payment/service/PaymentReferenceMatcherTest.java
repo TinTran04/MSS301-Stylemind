@@ -14,6 +14,11 @@ class PaymentReferenceMatcherTest {
     }
 
     @Test
+    void matchesFullBankHubAndStyleMindContent() {
+        assertThat(matcher.matches("SEVQR STYLEMIND SMABC1234", "SEVQR STYLEMIND SMABC1234")).isTrue();
+    }
+
+    @Test
     void matches_whenIncomingHasExtraSpacesAndDifferentCase() {
         assertThat(matcher.matches("STYLEMIND SMABC1234", "   stylemind   smabc1234  ")).isTrue();
     }
@@ -26,5 +31,20 @@ class PaymentReferenceMatcherTest {
     @Test
     void doesNotMatchDifferentToken() {
         assertThat(matcher.matches("STYLEMIND SMABC1234", "STYLEMIND SMXYZ9999")).isFalse();
+    }
+
+    @Test
+    void matchesTokenOnlyFieldUsedByWebhookCode() {
+        assertThat(matcher.matches("STYLEMIND SME61D2372F2", "SME61D2372F2")).isTrue();
+    }
+
+    @Test
+    void doesNotMatchSharedBankHubPrefixWithoutUniqueReference() {
+        assertThat(matcher.matches("SEVQR STYLEMIND SMABC1234", "SEVQR")).isFalse();
+    }
+
+    @Test
+    void wrongStyleMindReferenceDoesNotMatchFullContent() {
+        assertThat(matcher.matches("SEVQR STYLEMIND SMABC1234", "SEVQR STYLEMIND SMXYZ9999")).isFalse();
     }
 }

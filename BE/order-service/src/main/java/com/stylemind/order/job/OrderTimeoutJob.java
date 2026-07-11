@@ -35,8 +35,10 @@ public class OrderTimeoutJob {
 
         for (Order order : staleOrders) {
             try {
+                if (!expirePayment(order.getId())) {
+                    continue;
+                }
                 orderStatusService.changeStatus(order, OrderStatus.EXPIRED, SYSTEM_ACTOR);
-                expirePaymentBestEffort(order.getId());
             } catch (Exception ex) {
                 log.warn("Failed to expire stale order {}: {}", order.getId(), ex.getMessage());
             }
@@ -47,11 +49,17 @@ public class OrderTimeoutJob {
         }
     }
 
-    private void expirePaymentBestEffort(String orderId) {
+    private boolean expirePayment(String orderId) {
         try {
-            paymentClient.expirePaymentByOrderId(orderId);
+            com.stylemind.common.dto.ApiResponse<Void> response = paymentClient.expirePaymentByOrderId(orderId);
+            if (response == null || !response.isSuccess()) {
+                log.warn("Payment-service did not confirm expiry for order {}", orderId);
+                return false;
+            }
+            return true;
         } catch (Exception ex) {
             log.warn("Failed to expire payment for order {}: {}", orderId, ex.getMessage());
+            return false;
         }
     }
 }

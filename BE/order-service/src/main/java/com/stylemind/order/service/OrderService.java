@@ -216,6 +216,55 @@ public class OrderService {
         return response;
     }
 
+    public OrderResponse cancelOrder(String userId, String orderId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
+
+        OrderStatus currentStatus = order.getOrderStatus();
+        if (currentStatus != OrderStatus.PENDING && currentStatus != OrderStatus.PAYMENT_PENDING) {
+            throw new BusinessException(
+                    "ORDER_CANCEL_NOT_ALLOWED",
+                    "Không thể hủy thanh toán cho đơn hàng này.",
+                    409
+            );
+        }
+
+        if (currentStatus == OrderStatus.PAYMENT_PENDING) {
+            expirePaymentBeforeCancellation(orderId);
+        }
+
+        // Keep the local order transition after the payment-side compensation
+        // succeeds, so a failed internal call cannot leave CANCELLED + PENDING.
+        Order cancelled = orderStatusService.changeStatus(order, OrderStatus.CANCELLED, userId);
+
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+        OrderResponse response = buildOrderResponse(cancelled, items);
+        applyPaymentStatusIfAvailable(orderId, response);
+        return response;
+    }
+
+    private void expirePaymentBeforeCancellation(String orderId) {
+        try {
+            com.stylemind.common.dto.ApiResponse<Void> response = paymentClient.expirePaymentByOrderId(orderId);
+            if (response == null || !response.isSuccess()) {
+                throw new BusinessException(
+                        "PAYMENT_CANCEL_FAILED",
+                        "Không thể hủy thanh toán cho đơn hàng này.",
+                        502
+                );
+            }
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            log.warn("Failed to expire payment before cancelling order {}: {}", orderId, ex.getMessage());
+            throw new BusinessException(
+                    "PAYMENT_CANCEL_FAILED",
+                    "Không thể hủy thanh toán cho đơn hàng này.",
+                    502
+            );
+        }
+    }
+
     public List<OrderResponse> getOrders(String userId) {
         List<Order> orders = orderRepository.findByUserId(userId);
         return orders.stream()

@@ -45,4 +45,12 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success("Order fetched successfully", order));
     }
 
+    @PatchMapping("/{orderId}/cancel")
+    public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String orderId) {
+        OrderResponse order = orderService.cancelOrder(principal.getUserId(), orderId);
+        return ResponseEntity.ok(ApiResponse.success("Order cancelled successfully", order));
+    }
+
 }

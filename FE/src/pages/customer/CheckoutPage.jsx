@@ -5,6 +5,9 @@ import { MapPin, CreditCard, Lock, AlertTriangle, Check, Sparkles, Loader2, Arro
 import usePaymentStore from '../../features/payment/payment.store'
 import { useCart } from '../../hooks/useCart'
 import { formatCurrency } from '../../utils/formatCurrency'
+import Modal from '../../components/common/Modal'
+import { cancelOrder } from '../../features/orders/order.api'
+import { TAX_LABEL, TAX_RATE } from '../../features/cart/cart.utils'
 
 const paymentMethods = [
   { id: 'cod', label: 'Thanh toán khi nhận hàng', icon: Banknote, description: 'Thanh toán khi đơn hàng được giao đến bạn' },
@@ -19,11 +22,14 @@ export default function CheckoutPage() {
 
   const [shippingAddress, setShippingAddress] = useState('')
   const [addressError, setAddressError] = useState('')
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const [cancelError, setCancelError] = useState('')
 
   const displayItems = items
   const displaySubtotal = subtotal
   const shipping = displaySubtotal > 200 ? 0 : 15
-  const tax = Math.round(displaySubtotal * 0.08 * 100) / 100
+  const tax = Math.round(displaySubtotal * TAX_RATE * 100) / 100
   const total = displaySubtotal + shipping + tax
 
   useEffect(() => {
@@ -66,6 +72,30 @@ export default function CheckoutPage() {
 
   const handleTryAgain = () => {
     reset()
+  }
+
+  const handleCancelPayment = async () => {
+    const cancelledOrderId = lastOrder?.id
+    if (!cancelledOrderId) return
+    setCancelLoading(true)
+    setCancelError('')
+    try {
+      await cancelOrder(cancelledOrderId)
+      stopPolling()
+      reset()
+      navigate('/orders', {
+        replace: true,
+        state: { flashMessage: 'Đã hủy thanh toán.', cancelledOrderId },
+      })
+    } catch (err) {
+      if (err?.status === 409) {
+        setCancelError('Không thể hủy thanh toán cho đơn hàng này.')
+      } else {
+        setCancelError('Không thể hủy thanh toán. Vui lòng thử lại.')
+      }
+    } finally {
+      setCancelLoading(false)
+    }
   }
 
   if (items.length === 0 && status === 'idle') {
@@ -151,11 +181,11 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            <div className="bg-error-container/20 border border-error/20 rounded-xl p-4 mb-4">
-              <p className="text-xs text-error text-center font-medium">
-                Không chỉnh sửa nội dung chuyển khoản. Nếu thay đổi hoặc bỏ trống, hệ thống sẽ không thể đối soát thanh toán.
-              </p>
-            </div>
+                <div className="bg-error-container/20 border border-error/20 rounded-xl p-4 mb-4">
+                  <p className="text-xs text-error text-center font-medium">
+                    Không chỉnh sửa nội dung chuyển khoản. Nếu thay đổi hoặc bỏ trống, hệ thống sẽ không thể đối soát thanh toán.
+                  </p>
+                </div>
 
             {lastOrder?.paymentExpiresAt && (
               <p className="text-xs text-on-surface-variant text-center mb-4">
@@ -166,6 +196,16 @@ export default function CheckoutPage() {
             <div className="flex items-center justify-center gap-2 text-sm text-on-surface-variant">
               <Loader2 size={16} className="animate-spin text-primary" />
               Đang chờ ngân hàng ghi nhận chuyển khoản... trang này sẽ tự cập nhật.
+            </div>
+
+            <div className="mt-6 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setCancelModalOpen(true)}
+                className="inline-flex items-center justify-center rounded-lg border border-outline-variant px-4 py-2 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              >
+                Hủy thanh toán
+              </button>
             </div>
           </div>
 
@@ -193,6 +233,41 @@ export default function CheckoutPage() {
           </div>
         </motion.div>
       )}
+
+      <Modal
+        isOpen={cancelModalOpen}
+        onClose={() => {
+          if (!cancelLoading) setCancelModalOpen(false)
+        }}
+        title="Hủy thanh toán?"
+      >
+        <p className="text-sm text-on-surface-variant">
+          Đơn hàng đang chờ thanh toán sẽ được hủy. Bạn có chắc chắn muốn tiếp tục?
+        </p>
+        {cancelError && (
+          <p role="alert" className="mt-4 rounded-lg border border-error/20 bg-error-container/30 px-4 py-3 text-sm text-error">
+            {cancelError}
+          </p>
+        )}
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => setCancelModalOpen(false)}
+            disabled={cancelLoading}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40"
+          >
+            Tiếp tục thanh toán
+          </button>
+          <button
+            type="button"
+            onClick={handleCancelPayment}
+            disabled={cancelLoading}
+            className="rounded-lg bg-error px-4 py-2 text-sm font-medium text-on-primary hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            {cancelLoading ? 'Đang hủy...' : 'Hủy thanh toán'}
+          </button>
+        </div>
+      </Modal>
 
       {/* Success State */}
       {status === 'success' && (
@@ -368,7 +443,7 @@ export default function CheckoutPage() {
               <div className="border-t border-outline-variant/20 pt-4 space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-on-surface-variant">Tạm tính</span><span>{formatCurrency(displaySubtotal)}</span></div>
                 <div className="flex justify-between"><span className="text-on-surface-variant">Phí vận chuyển</span><span className={shipping === 0 ? 'text-green-status' : ''}>{shipping === 0 ? 'Miễn phí' : formatCurrency(shipping)}</span></div>
-                <div className="flex justify-between"><span className="text-on-surface-variant">Thuế</span><span>{formatCurrency(tax)}</span></div>
+                <div className="flex justify-between"><span className="text-on-surface-variant">{TAX_LABEL}</span><span>{formatCurrency(tax)}</span></div>
                 <div className="border-t border-outline-variant/20 pt-2 flex justify-between font-semibold text-primary text-lg">
                   <span>Tổng cộng</span><span>{formatCurrency(total)}</span>
                 </div>

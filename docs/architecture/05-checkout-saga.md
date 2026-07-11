@@ -25,7 +25,7 @@ Luồng **COD** đơn giản: tạo Order (PENDING) → payment COD → Order = 
 - COD: order chuyển thẳng `CONFIRMED`, clear cart ngay.
 - SePay: order chỉ chuyển `PAYMENT_PENDING -> PAID` khi webhook/IPN đã xác thực và đối soát thành công.
 - Webhook **không** tự đẩy `PAID -> PROCESSING`.
-- `payment-service` đối soát bằng **exact normalized transferContent** hoặc token `STYLEMIND <payment-token>` có boundary rõ ràng; cấm `contains(...)`.
+- `payment-service` lưu và đưa vào VietQR cùng một giá trị **`SEVQR STYLEMIND <payment-token>`**, đối soát bằng exact normalized transferContent hoặc token có boundary rõ ràng; chỉ prefix `SEVQR` không được coi là thanh toán và cấm `contains(...)`.
 - Duplicate webhook cùng `gateway_transaction_id` là **no-op**: trả success nhưng không mark paid lần hai, không callback order-service lần hai.
 - Timeout job của `order-service` đổi `PAYMENT_PENDING -> EXPIRED`, sau đó gọi `payment-service` expire transaction tương ứng.
 - Late webhook sau khi order/payment đã EXPIRED chỉ được log thành event review (`LATE_AFTER_EXPIRY`), **không** revive order về `PAID`.
@@ -35,6 +35,9 @@ Luồng **COD** đơn giản: tạo Order (PENDING) → payment COD → Order = 
 - `order-service` giữ khóa theo `userId + idempotencyKey` trong bảng `checkout_idempotency`.
 - Cùng key đang xử lý → trả `409 CHECKOUT_IN_PROGRESS`.
 - Cùng key đã thành công → trả lại order/payment hiện có, không tạo order/payment SePay thứ hai.
+- Hủy một đơn `PAYMENT_PENDING` kết thúc checkout attempt hiện tại. FE xóa `lastOrder`, polling và key của attempt đó trước khi rời màn hình.
+- Lần checkout tiếp theo tạo key mới và chỉ hiển thị order trả về từ request `POST /api/v1/orders` mới. `CANCELLED`, `EXPIRED` và `FAILED` không được dùng làm kết quả checkout hiện tại.
+- Khi customer hủy `PAYMENT_PENDING`, order-service expire payment qua internal endpoint trước rồi mới chuyển order sang `CANCELLED`; nếu payment-service không xác nhận được, order không bị chuyển một mình. Webhook đến sau `CANCELLED`/`EXPIRED` chỉ được ghi nhận để review, không đổi lại `PAID`.
 
 ## Ghi chú schema local
 - Hiện tại `order-service` và `payment-service` vẫn dùng **init-scripts** (`BE/init-scripts/06-order-db.sql`, `07-payment-db.sql`) cho local Docker schema.

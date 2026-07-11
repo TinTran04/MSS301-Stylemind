@@ -42,11 +42,12 @@ app:
     bank-id: ${SEPAY_BANK_SHORT_NAME:970415}
     account-no: ${SEPAY_ACCOUNT_NUMBER:101876751836}
     account-name: ${SEPAY_ACCOUNT_NAME:NGUYEN MINH KHOI}
+    required-transfer-prefix: ${SEPAY_BANK_HUB_PREFIX:SEVQR}
     expiry-minutes: ${SEPAY_PAYMENT_EXPIRE_MINUTES:15}
     qr-base-url: ${SEPAY_QR_BASE_URL:https://img.vietqr.io/image}
   sepay:
-    enabled: ${SEPAY_ENABLED:false}
-    mode: ${SEPAY_MODE:sandbox}
+    enabled: ${SEPAY_ENABLED:true}
+    mode: ${SEPAY_MODE:live}
     payment-code-prefix: ${SEPAY_PAYMENT_CODE_PREFIX:STYLEMIND}
     webhook-auth-mode: ${SEPAY_WEBHOOK_AUTH_MODE:API_KEY}
     # SePay sends "Authorization: Apikey <this value>" on every webhook call -

@@ -5,7 +5,13 @@ import StatusBadge from '../../components/admin/StatusBadge'
 import Drawer from '../../components/common/Drawer'
 import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
 import { getAdminOrders, updateAdminOrderStatus } from '../../features/orders/admin-order.api'
-import { getAvailableTransitions, formatStatusLabel, ORDER_STATUS_TRANSITIONS } from '../../features/orders/orderStatus'
+import {
+  getAvailableTransitions,
+  formatStatusLabel,
+  ORDER_STATUS_TRANSITIONS,
+  ORDER_REVENUE_STATUSES,
+  normalizeOrderStatus,
+} from '../../features/orders/orderStatus'
 import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatDate } from '../../utils/formatDate'
@@ -73,7 +79,12 @@ export default function OrderManagementPage() {
     setTimeout(() => setToast(null), 4000)
   }
 
-  const getOrderStatus = (order) => String(order?.orderStatus || 'PENDING').toUpperCase()
+  const getOrderStatus = (order) => normalizeOrderStatus(order?.orderStatus || 'PENDING')
+  const revenueTotal = orders.reduce((sum, order) => {
+    const status = normalizeOrderStatus(order.orderStatus)
+    if (!ORDER_REVENUE_STATUSES.has(status)) return sum
+    return sum + (order.totalAmount || order.total || 0)
+  }, 0)
 
   const requestStatusChange = (order, newStatus) => {
     if (!newStatus) return
@@ -182,7 +193,7 @@ export default function OrderManagementPage() {
         <MetricCard title="Giao dịch" value={orders.length} change={0} icon={ShoppingCart} />
         <MetricCard title="Tỷ lệ thất bại" value="0%" change={0} icon={TrendingDown} status="good" />
         <MetricCard title="Thời gian xử lý TB" value="-" change={0} icon={Clock} status="good" />
-        <MetricCard title="Doanh thu" value={formatCurrency(orders.reduce((sum, o) => sum + (o.totalAmount || o.total || 0), 0))} change={0} icon={DollarSign} />
+        <MetricCard title="Doanh thu" value={formatCurrency(revenueTotal)} change={0} icon={DollarSign} />
       </div>
 
       <div className="bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden">

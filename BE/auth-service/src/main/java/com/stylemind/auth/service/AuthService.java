@@ -47,6 +47,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -255,22 +257,20 @@ public class AuthService implements UserDetailsService {
 
     public void setupPassword(PasswordSetupRequest request) {
         User user = userRepository.findByEmail(normalizeEmail(request.getEmail()))
-                .orElseThrow(() -> new BusinessException("AUTH_SETUP_TOKEN_INVALID", "Liên kết thiết lập mật khẩu không hợp lệ hoặc đã hết hạn", 400));
+                .orElseThrow(() -> new BusinessException("AUTH_SETUP_TOKEN_INVALID", "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn", 400));
 
         if (!Boolean.TRUE.equals(user.getPasswordSetupRequired())
                 || user.getPasswordSetupTokenHash() == null
                 || user.getPasswordSetupTokenExpiresAt() == null
                 || user.getPasswordSetupTokenExpiresAt().isBefore(LocalDateTime.now())
                 || !passwordEncoder.matches(request.getToken(), user.getPasswordSetupTokenHash())) {
-            throw new BusinessException("AUTH_SETUP_TOKEN_INVALID", "Liên kết thiết lập mật khẩu không hợp lệ hoặc đã hết hạn", 400);
+            throw new BusinessException("AUTH_SETUP_TOKEN_INVALID", "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn", 400);
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        user.setPasswordSetupRequired(false);
-        user.setPasswordSetupTokenHash(null);
-        user.setPasswordSetupTokenExpiresAt(null);
+        clearPasswordSetupState(user);
         clearForgotPasswordState(user);
-        userRepository.save(user);
+        userRepository.saveAndFlush(user);
     }
 
     public void requestForgotPasswordOtp(ForgotPasswordRequest request) {
@@ -352,7 +352,7 @@ public class AuthService implements UserDetailsService {
         user.setPasswordSetupTokenHash(null);
         user.setPasswordSetupTokenExpiresAt(null);
         clearForgotPasswordState(user);
-        userRepository.save(user);
+        userRepository.saveAndFlush(user);
     }
 
     // ─── Admin operations ────────────────────────────────────────────────────
@@ -479,7 +479,9 @@ public class AuthService implements UserDetailsService {
     }
 
     private void sendSetupPasswordEmail(User user, String setupToken) {
-        String setupUrl = String.format("%s/set-password?email=%s&token=%s", frontendBaseUrl, user.getEmail(), setupToken);
+        String encodedEmail = URLEncoder.encode(user.getEmail(), StandardCharsets.UTF_8);
+        String encodedToken = URLEncoder.encode(setupToken, StandardCharsets.UTF_8);
+        String setupUrl = String.format("%s/reset-password?token=%s&email=%s", frontendBaseUrl, encodedToken, encodedEmail);
         try {
             notificationInternalClient.sendEmail(InternalEmailNotificationRequest.builder()
                     .userId(user.getId())
@@ -537,6 +539,12 @@ public class AuthService implements UserDetailsService {
         user.setPasswordResetRequestedAt(null);
         user.setPasswordResetTokenHash(null);
         user.setPasswordResetTokenExpiresAt(null);
+    }
+
+    private void clearPasswordSetupState(User user) {
+        user.setPasswordSetupRequired(false);
+        user.setPasswordSetupTokenHash(null);
+        user.setPasswordSetupTokenExpiresAt(null);
     }
 
     private String normalizeEmail(String email) {

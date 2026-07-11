@@ -4,6 +4,7 @@ const statusConfig = {
   synced: { color: 'bg-green-status/10 text-green-status', dot: 'bg-green-status', label: 'Đã đồng bộ' },
   processing: { color: 'bg-tertiary-fixed/30 text-tertiary', dot: 'bg-tertiary', label: 'Đang xử lý' },
   pending: { color: 'bg-surface-container-high text-on-surface-variant', dot: 'bg-on-surface-variant', label: 'Đang chờ' },
+  payment_pending: { color: 'bg-tertiary-fixed/30 text-tertiary', dot: 'bg-tertiary', label: 'Chờ thanh toán' },
   pending_payment: { color: 'bg-tertiary-fixed/30 text-tertiary', dot: 'bg-tertiary', label: 'Chờ thanh toán' },
   failed: { color: 'bg-error-container text-error', dot: 'bg-error', label: 'Thất bại' },
   cancelled: { color: 'bg-error-container text-error', dot: 'bg-error', label: 'Đã hủy' },
@@ -22,7 +23,7 @@ const statusConfig = {
 
 export default function StatusBadge({ status }) {
   const config = statusConfig[status] || statusConfig.pending
-  const label = config.label || status?.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const label = config.label || 'Không xác định'
 
   return (
     <span className={clsx('inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium', config.color)}>

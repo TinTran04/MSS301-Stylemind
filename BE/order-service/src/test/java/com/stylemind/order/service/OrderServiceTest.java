@@ -222,6 +222,78 @@ class OrderServiceTest {
     }
 
     @Test
+    void cancelOrder_pendingCancelsWithoutTouchingPaymentService() {
+        Order order = Order.builder()
+                .id("order-1")
+                .userId("user-1")
+                .totalAmount(new BigDecimal("150000"))
+                .orderStatus(OrderStatus.PENDING)
+                .shippingAddress("123 Main Street")
+                .build();
+        order.setCreatedAt(LocalDateTime.now());
+        order.setUpdatedAt(LocalDateTime.now());
+        when(orderRepository.findByIdAndUserId("order-1", "user-1")).thenReturn(Optional.of(order));
+        when(orderStatusService.changeStatus(any(Order.class), eq(OrderStatus.CANCELLED), eq("user-1")))
+                .thenAnswer(inv -> withStatus(inv.getArgument(0), OrderStatus.CANCELLED));
+        when(orderItemRepository.findByOrderId("order-1")).thenReturn(List.of());
+
+        OrderResponse response = orderService.cancelOrder("user-1", "order-1");
+
+        assertThat(response.getOrderStatus()).isEqualTo("CANCELLED");
+        verify(paymentClient, never()).expirePaymentByOrderId(any());
+    }
+
+    @Test
+    void cancelOrder_paymentPending_expiresPaymentBeforeCancellingOrder() {
+        Order order = pendingPaymentOrder();
+        when(orderRepository.findByIdAndUserId("order-1", "user-1")).thenReturn(Optional.of(order));
+        when(orderStatusService.changeStatus(any(Order.class), eq(OrderStatus.CANCELLED), eq("user-1")))
+                .thenAnswer(inv -> withStatus(inv.getArgument(0), OrderStatus.CANCELLED));
+        when(orderItemRepository.findByOrderId("order-1")).thenReturn(List.of());
+        when(paymentClient.expirePaymentByOrderId("order-1")).thenReturn(ApiResponse.success("ok", null));
+
+        OrderResponse response = orderService.cancelOrder("user-1", "order-1");
+
+        assertThat(response.getOrderStatus()).isEqualTo("CANCELLED");
+        verify(paymentClient).expirePaymentByOrderId("order-1");
+    }
+
+    @Test
+    void cancelOrder_paymentExpiryFailure_doesNotCancelOrder() {
+        Order order = pendingPaymentOrder();
+        when(orderRepository.findByIdAndUserId("order-1", "user-1")).thenReturn(Optional.of(order));
+        when(paymentClient.expirePaymentByOrderId("order-1"))
+                .thenThrow(new RuntimeException("payment service unavailable"));
+
+        assertThatThrownBy(() -> orderService.cancelOrder("user-1", "order-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getHttpStatus()).isEqualTo(502))
+                .hasMessageContaining("Không thể hủy thanh toán");
+
+        verify(orderStatusService, never()).changeStatus(any(Order.class), eq(OrderStatus.CANCELLED), any());
+    }
+
+    @Test
+    void cancelOrder_paidStatus_isRejected() {
+        Order order = Order.builder()
+                .id("order-1")
+                .userId("user-1")
+                .totalAmount(new BigDecimal("150000"))
+                .orderStatus(OrderStatus.PAID)
+                .shippingAddress("123 Main Street")
+                .build();
+        when(orderRepository.findByIdAndUserId("order-1", "user-1")).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.cancelOrder("user-1", "order-1"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getHttpStatus()).isEqualTo(409))
+                .hasMessageContaining("Không thể hủy thanh toán");
+
+        verify(orderStatusService, never()).changeStatus(any(Order.class), any(), any());
+        verify(paymentClient, never()).expirePaymentByOrderId(any());
+    }
+
+    @Test
     void createOrder_sameIdempotencyKey_returnsExistingOrderWithoutCreatingNewPayment() {
         CheckoutIdempotency checkout = CheckoutIdempotency.builder()
                 .id("checkout-1")

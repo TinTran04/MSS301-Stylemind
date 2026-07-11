@@ -10,6 +10,7 @@ Stack: ReactJS/Vite. Frontend chỉ gọi API qua Gateway (`VITE_API_BASE_URL`, 
 ├── /forgot-password
 ├── /verify-reset-otp
 ├── /reset-password
+├── /set-password      (alias cho link email admin tạo account)
 ├── /products
 ├── /products/:id
 ├── /cart
@@ -41,6 +42,9 @@ Stack: ReactJS/Vite. Frontend chỉ gọi API qua Gateway (`VITE_API_BASE_URL`, 
 - Xóa địa chỉ trong `/profile` dùng dialog xác nhận trong app theo style dự án; không dùng `window.alert`/`window.confirm`. Khi hủy chỉnh sửa hoặc thêm mới mà form có thay đổi chưa lưu, hiển thị dialog xác nhận bỏ thay đổi thay vì prompt của trình duyệt.
 - Bắt đầu checkout từ cart phải luôn là một session mới của cart hiện tại; không tái sử dụng state xác nhận/thanh toán cũ (`lastOrder`, payment outcome, confirmation view) của order trước.
 - UI payment ghi "Thanh toán qua SePay (VietQR)", không dùng "Simulated Online Payment".
+- Màn SePay đang chờ thanh toán hiển thị nút "Hủy thanh toán"; bấm sẽ mở modal trong app, gọi `PATCH /api/v1/orders/{orderId}/cancel` qua Gateway và không tự mark paid từ frontend.
+- Summary checkout/cart hiển thị đúng nhãn thuế VAT theo tỷ lệ thực tế của hệ thống (hiện tại: `Thuế VAT (8%)`).
+- Link email tạo tài khoản / đặt mật khẩu lần đầu từ admin có thể trỏ về `/reset-password?token=...&email=...`; frontend cũng giữ alias `/set-password` để tương thích route cũ. Trang reset/password setup phải đọc query param đúng và redirect về `/login` sau khi thành công.
 - CUSTOMER không thấy admin menu; chỉ ADMIN vào `/admin/**`.
 - Shop (`/shop`) load category từ `GET /api/v1/categories` (qua gateway), render danh sách phẳng thật gồm cả category con; **không hardcode**. "Tất cả" là option FE để clear filter; chọn category lọc theo `category=<id>`. Lỗi tải category → giữ "Tất cả" + thông báo thân thiện, không crash.
 - Shop (`/shop`) có thêm filter target demographic thật từ field `targetDemographic` của product (enum tiếng Anh `MALE`/`FEMALE`/`UNISEX`): `Tất cả / Nam / Nữ / Unisex`, kết hợp an toàn với category/search/sort; frontend chỉ hiển thị copy tiếng Việt (`product.demographic.js`), giá trị gửi lên API luôn là `MALE`/`FEMALE`/`UNISEX`.

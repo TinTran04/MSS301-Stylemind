@@ -24,7 +24,8 @@ _(không có)_
 - Validate JWT trên mọi request cần auth.
 - Chặn `/api/v1/admin/**` nếu không phải ADMIN.
 - Inject `X-User-Id`, `X-User-Roles` xuống downstream; loại bỏ 2 header này nếu client tự gửi.
-- Cho phép path webhook SePay đi qua mà không cần JWT.
+- Chỉ cho phép đúng `POST /api/v1/payments/webhook/sepay` đi qua mà không cần JWT; payment-service vẫn kiểm tra API key SePay.
+- SePay phải gọi URL HTTPS công khai dạng `https://<public-host>/api/v1/payments/webhook/sepay`; `localhost` chỉ dùng để kiểm tra nội bộ và không thể nhận callback từ SePay. Khi phát triển local, dùng ngrok hoặc Cloudflare Tunnel, không hardcode URL tunnel vào source.
 - Không lộ port service ra ngoài.
 
 ## Dependencies
