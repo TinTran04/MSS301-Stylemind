@@ -28,7 +28,13 @@ public class PaymentReferenceMatcher {
 
         String expectedToken = extractPaymentToken(normalizedExpected);
         String incomingToken = extractPaymentToken(normalizedIncoming);
-        return !expectedToken.isBlank() && expectedToken.equals(incomingToken);
+        if (!expectedToken.isBlank() && expectedToken.equals(incomingToken)) {
+            return true;
+        }
+
+        // SePay may put only the bounded payment token in the `code` field.
+        // Compare the complete normalized field, never a substring.
+        return !expectedToken.isBlank() && expectedToken.equals(normalizedIncoming);
     }
 
     public String normalize(String value) {

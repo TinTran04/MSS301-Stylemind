@@ -1,35 +1,18 @@
 import apiClient from '../../services/apiClient'
 import { ENDPOINTS } from '../../services/endpoints'
-
-const statusOrder = ['pending', 'confirmed', 'processing', 'shipped', 'delivered']
-
-const statusLabels = {
-  pending: 'Đang chờ',
-  payment_pending: 'Chờ thanh toán',
-  paid: 'Đã thanh toán',
-  confirmed: 'Đã xác nhận',
-  processing: 'Đang xử lý',
-  shipped: 'Đang giao',
-  delivered: 'Hoàn tất',
-  cancelled: 'Đã hủy',
-  expired: 'Đã hết hạn',
-  failed: 'Thất bại',
-}
-
-function normalizeStatus(status) {
-  const normalized = String(status || 'pending').toLowerCase()
-  if (normalized === 'fulfilled') return 'delivered'
-  if (normalized === 'cancelled') return 'cancelled'
-  return normalized
-}
+import {
+  formatStatusLabel,
+  normalizeOrderStatus,
+  ORDER_TIMELINE_STEPS,
+} from './orderStatus'
 
 function buildTimeline(order) {
-  const status = normalizeStatus(order.orderStatus)
-  const currentIndex = Math.max(statusOrder.indexOf(status), 0)
+  const status = normalizeOrderStatus(order.orderStatus)
+  const currentIndex = Math.max(ORDER_TIMELINE_STEPS.indexOf(status), 0)
 
-  return statusOrder.map((step, index) => ({
+  return ORDER_TIMELINE_STEPS.map((step, index) => ({
     status: step,
-    label: statusLabels[step] || step,
+    label: formatStatusLabel(step),
     date: index <= currentIndex ? order.updatedAt || order.createdAt : null,
     completed: index <= currentIndex,
   }))
@@ -42,8 +25,8 @@ export function mapOrder(order) {
     ...order,
     id: order.id,
     date: order.createdAt || order.updatedAt,
-    status: normalizeStatus(order.orderStatus),
-    statusLabel: statusLabels[normalizeStatus(order.orderStatus)] || normalizeStatus(order.orderStatus),
+    status: normalizeOrderStatus(order.orderStatus).toLowerCase(),
+    statusLabel: formatStatusLabel(order.orderStatus),
     total: Number(order.totalAmount || 0),
     shippingAddress: order.shippingAddress,
     items: (order.items || []).map((item) => ({
@@ -82,4 +65,9 @@ export async function getOrderById(id) {
 export async function getOrderTracking(id) {
   const order = await getOrderById(id)
   return order ? order.timeline : null
+}
+
+export async function cancelOrder(orderId) {
+  const response = await apiClient.patch(`${ENDPOINTS.ORDERS}/${orderId}/cancel`)
+  return mapOrder(response)
 }

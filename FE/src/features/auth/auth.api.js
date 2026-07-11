@@ -82,3 +82,11 @@ export async function resetPassword(email, resetToken, newPassword) {
     newPassword,
   })
 }
+
+export async function setupPassword(email, token, newPassword) {
+  await apiClient.post(`${ENDPOINTS.AUTH}/password/setup`, {
+    email,
+    token,
+    newPassword,
+  })
+}

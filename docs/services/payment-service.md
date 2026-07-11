@@ -28,11 +28,15 @@ Xử lý thanh toán **COD** và **SePay VietQR** (Open Banking). Nhận **webho
 - SePay là Open Banking (webhook), KHÔNG phải cổng thẻ redirect.
 - Webhook **verify** API key SePay trước khi xử lý.
 - **Idempotent** ở mức event: `payment_webhook_events` có unique key theo `(provider, gateway_transaction_id)`; duplicate delivery trả success nhưng không reprocess.
-- **Đối soát**: khớp **exact normalized transferContent** hoặc bounded payment token `STYLEMIND <token>` + đúng số tiền mới set `PAID`; sai tiền → `FAILED`.
+- **Đối soát**: `transactions.transfer_content` là reference chuẩn, không có `payment_code`; giá trị được lưu và đưa vào QR là `SEVQR STYLEMIND <token>`. Webhook lần lượt kiểm tra các field `code`, `content`, `description` và `referenceCode` bằng exact normalized match hoặc bounded payment token có reference StyleMind + đúng số tiền mới set `PAID`; chỉ `SEVQR` không đủ để match. Sai tiền → `FAILED`. Không dùng `contains(...)`.
+- Nếu không tìm thấy transaction pending, webhook event vẫn được lưu với `processed=false` và `error_message` chẩn đoán `transfer_content` không khớp. Sai số tiền hoặc webhook đến sau expiration/cancellation cũng được lưu `processed=false`; không revive payment/order.
 - Cấm dùng `contains(...)` / `indexOf(...)` để match order reference.
 - Late webhook sau khi payment đã `EXPIRED` chỉ được log event `LATE_AFTER_EXPIRY`, không revive payment/order.
 - Báo lại order-service khi trạng thái thay đổi.
 - Không log secret/API key/chữ ký.
+- URL cấu hình trong SePay Dashboard phải là HTTPS public: `https://<public-host>/api/v1/payments/webhook/sepay`. `localhost` không thể được SePay gọi; local development cần ngrok hoặc Cloudflare Tunnel.
+- Docker Compose yêu cầu `SEPAY_WEBHOOK_API_KEY` phải được set (không để trống); nếu thiếu, compose fail-fast thay vì chạy payment-service với key rỗng.
+- Cấu hình QR dùng `SEPAY_BANK_SHORT_NAME`, `SEPAY_ACCOUNT_NUMBER`, `SEPAY_ACCOUNT_NAME`, `SEPAY_BANK_HUB_PREFIX=SEVQR` và `SEPAY_PAYMENT_CODE_PREFIX=STYLEMIND`; không dùng các biến `VIETQR_*` cũ.
 
 ## Dependencies
 - **Gọi ra:** order-service (báo status change).
@@ -46,6 +50,7 @@ Xử lý thanh toán **COD** và **SePay VietQR** (Open Banking). Nhận **webho
   - `SEPAY_BANK_SHORT_NAME`
   - `SEPAY_ACCOUNT_NUMBER`
   - `SEPAY_ACCOUNT_NAME`
+  - `SEPAY_BANK_HUB_PREFIX`
   - `SEPAY_PAYMENT_CODE_PREFIX`
   - `SEPAY_QR_BASE_URL`
   - `SEPAY_WEBHOOK_AUTH_MODE`

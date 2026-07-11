@@ -36,7 +36,7 @@ public class Transaction extends BaseEntity {
     @Column(name = "transaction_ref", length = 100)
     private String transactionRef;
 
-    // Unique per-order note the customer must transfer with (e.g. "STYLEMIND ORDabc123"),
+    // Unique per-order note the customer must transfer with (e.g. "SEVQR STYLEMIND SMabc123"),
     // used to reconcile an inbound SePay webhook to this transaction. Null for COD.
     @Column(name = "transfer_content", length = 100)
     private String transferContent;

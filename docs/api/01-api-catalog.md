@@ -13,6 +13,7 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 | POST | `/api/v1/auth/forgot-password` | Yêu cầu reset |
 | POST | `/api/v1/auth/verify-reset-otp` | Xác thực OTP/token |
 | POST | `/api/v1/auth/reset-password` | Đặt lại mật khẩu |
+| POST | `/api/v1/auth/password/setup` | Thiết lập mật khẩu lần đầu từ link email admin tạo account |
 
 ## Admin Account (auth-service)
 | Method | Endpoint | Mô tả |
@@ -96,6 +97,7 @@ Product conflict responses dùng error envelope chuẩn:
 | POST | `/api/v1/orders` | Tạo order từ cart; nhận `paymentMethod=cod|sepay`, hỗ trợ header `Idempotency-Key` |
 | GET | `/api/v1/orders` | Danh sách order của customer |
 | GET | `/api/v1/orders/{id}` | Chi tiết order |
+| PATCH | `/api/v1/orders/{id}/cancel` | Hủy order/payment đang chờ (PENDING/PAYMENT_PENDING); kết thúc checkout attempt hiện tại, lần checkout sau dùng Idempotency-Key mới |
 | GET | `/api/v1/admin/orders` | Admin danh sách |
 | GET | `/api/v1/admin/orders/summary` | Dashboard: order + revenue counts |
 | GET | `/api/v1/admin/orders/{id}` | Admin chi tiết |
@@ -109,7 +111,7 @@ Product conflict responses dùng error envelope chuẩn:
 | POST | `/internal/v1/payments/sepay` | Tạo SePay transaction + VietQR |
 | GET | `/internal/v1/payments/orders/{orderId}` | Payment theo order |
 | POST | `/internal/v1/payments/orders/{orderId}/expire` | Expire pending SePay payment khi order timeout |
-| POST | `/api/v1/payments/webhook/sepay` | Webhook SePay (verify + idempotent) |
+| POST | `/api/v1/payments/webhook/sepay` | Webhook SePay (verify + idempotent, đúng path public duy nhất; không JWT) |
 
 ## Notification (notification-service)
 | Method | Endpoint | Mô tả |
@@ -134,4 +136,5 @@ Product conflict responses dùng error envelope chuẩn:
 - Frontend chỉ được checkout qua `POST /api/v1/orders`; **không** gọi `payment-service` trực tiếp và **không** gọi `/internal/v1/**`.
 - `/api/v1/payments/webhook/sepay` là public từ góc nhìn JWT/gateway, nhưng payment-service vẫn bắt buộc xác thực webhook bằng SePay API key.
 - Internal payment/order endpoints yêu cầu `X-Internal-Token`.
-- SePay chỉ mark order paid khi **đúng số tiền** và **đúng transferContent đã normalize/exact-match**; `contains(...)` không được phép dùng để đối soát.
+- SePay chỉ mark order paid khi **đúng số tiền** và **đúng `SEVQR STYLEMIND <reference>` đã normalize/exact-match**; chỉ `SEVQR` không được match và `contains(...)` không được phép dùng để đối soát.
+- SePay Dashboard phải gọi endpoint qua HTTPS public; `localhost` không thể nhận webhook. Khi hủy hoặc hết hạn, order-service expire/cancel payment trước khi đổi order state; webhook đến trễ chỉ ghi event và không revive order.

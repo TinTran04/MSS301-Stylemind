@@ -1,5 +1,6 @@
 package com.stylemind.order.job;
 
+import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.order.entity.Order;
 import com.stylemind.order.entity.OrderStatus;
 import com.stylemind.order.feign.PaymentClient;
@@ -51,6 +52,8 @@ class OrderTimeoutJobTest {
         Order stale = order("order-1", OrderStatus.PAYMENT_PENDING);
         when(orderRepository.findByOrderStatusAndCreatedAtBefore(eq(OrderStatus.PAYMENT_PENDING), any()))
                 .thenReturn(List.of(stale));
+        when(paymentClient.expirePaymentByOrderId("order-1"))
+                .thenReturn(ApiResponse.success("ok", null));
 
         orderTimeoutJob.expireStalePaymentPendingOrders();
 
@@ -83,12 +86,30 @@ class OrderTimeoutJobTest {
         Order ok = order("order-ok", OrderStatus.PAYMENT_PENDING);
         when(orderRepository.findByOrderStatusAndCreatedAtBefore(eq(OrderStatus.PAYMENT_PENDING), any()))
                 .thenReturn(List.of(failing, ok));
+        when(paymentClient.expirePaymentByOrderId("order-fail"))
+                .thenReturn(ApiResponse.success("ok", null));
+        when(paymentClient.expirePaymentByOrderId("order-ok"))
+                .thenReturn(ApiResponse.success("ok", null));
         when(orderStatusService.changeStatus(eq(failing), eq(OrderStatus.EXPIRED), anyString()))
                 .thenThrow(new RuntimeException("db hiccup"));
 
         orderTimeoutJob.expireStalePaymentPendingOrders();
 
         verify(orderStatusService).changeStatus(eq(ok), eq(OrderStatus.EXPIRED), anyString());
+    }
+
+    @Test
+    void expireStalePaymentPendingOrders_paymentExpiryFailureDoesNotExpireOrder() {
+        ReflectionTestUtils.setField(orderTimeoutJob, "paymentTimeoutMinutes", 30L);
+        Order stale = order("order-1", OrderStatus.PAYMENT_PENDING);
+        when(orderRepository.findByOrderStatusAndCreatedAtBefore(eq(OrderStatus.PAYMENT_PENDING), any()))
+                .thenReturn(List.of(stale));
+        when(paymentClient.expirePaymentByOrderId("order-1"))
+                .thenThrow(new RuntimeException("payment service unavailable"));
+
+        orderTimeoutJob.expireStalePaymentPendingOrders();
+
+        verify(orderStatusService, never()).changeStatus(any(Order.class), eq(OrderStatus.EXPIRED), anyString());
     }
 
     private void assertThatActorLooksLikeSystem(String actor) {

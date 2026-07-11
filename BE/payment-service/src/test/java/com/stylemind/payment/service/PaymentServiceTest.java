@@ -47,9 +47,10 @@ class PaymentServiceTest {
     // Mockito unit test - set them manually to mirror application.yml defaults.
     @BeforeEach
     void setUpDefaults() {
-        ReflectionTestUtils.setField(paymentService, "vietQrBankId", "970436");
+        ReflectionTestUtils.setField(paymentService, "vietQrBankId", "970415");
         ReflectionTestUtils.setField(paymentService, "vietQrAccountNo", "0123456789");
         ReflectionTestUtils.setField(paymentService, "vietQrAccountName", "STYLEMIND SANDBOX");
+        ReflectionTestUtils.setField(paymentService, "bankHubTransferPrefix", "SEVQR");
         ReflectionTestUtils.setField(paymentService, "vietQrExpiryMinutes", 15L);
         ReflectionTestUtils.setField(paymentService, "vietQrBaseUrl", "https://img.vietqr.io/image");
         ReflectionTestUtils.setField(paymentService, "paymentCodePrefix", "STYLEMIND");
@@ -76,10 +77,26 @@ class PaymentServiceTest {
                 SepayCheckoutRequest.builder().orderId("order-1").userId("user-1").amount(new BigDecimal("100000")).build());
 
         assertThat(response.getStatus()).isEqualTo("PENDING");
-        assertThat(response.getTransferContent()).startsWith("STYLEMIND SM");
+        assertThat(response.getTransferContent()).startsWith("SEVQR STYLEMIND SM");
         assertThat(response.getQrImageUrl()).startsWith("https://img.vietqr.io/image/");
         assertThat(response.getQrContent()).contains("100000").contains(response.getTransferContent());
+        assertThat(response.getQrImageUrl()).contains("addInfo="
+                + java.net.URLEncoder.encode(response.getTransferContent(), java.nio.charset.StandardCharsets.UTF_8));
+        verify(transactionRepository).save(argThat(transaction ->
+                response.getTransferContent().equals(transaction.getTransferContent())));
         assertThat(response.getExpiresAt()).isAfter(java.time.Instant.now());
+    }
+
+    @Test
+    void createSepayPayment_doesNotDuplicateBankHubPrefix() {
+        ReflectionTestUtils.setField(paymentService, "paymentCodePrefix", "SEVQR STYLEMIND");
+        when(transactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PaymentResponse response = paymentService.createSepayPayment(
+                SepayCheckoutRequest.builder().orderId("order-1").userId("user-1").amount(new BigDecimal("100000")).build());
+
+        assertThat(response.getTransferContent()).startsWith("SEVQR STYLEMIND SM");
+        assertThat(response.getTransferContent()).doesNotContain("SEVQR SEVQR");
     }
 
     @Test
@@ -136,6 +153,23 @@ class PaymentServiceTest {
     }
 
     @Test
+    void webhook_matchingCodeField_marksTransferContentTransactionPaid() {
+        Transaction pending = pendingSepayTransaction("txn-1", "order-1", "STYLEMIND SME61D2372F2", "100000");
+        when(webhookEventRepository.findByProviderAndGatewayTransactionId("SEPAY", "42")).thenReturn(Optional.empty());
+        when(transactionRepository.findByMethodAndStatus("sepay", "PENDING")).thenReturn(List.of(pending));
+        when(transactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(webhookEventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        paymentService.processSepayWebhook("Apikey test-webhook-key",
+                webhookPayloadWithCode(42L, "SME61D2372F2", null, "in", "100000"));
+
+        assertThat(pending.getStatus()).isEqualTo("PAID");
+        assertThat(pending.getGatewayTransactionId()).isEqualTo("42");
+        assertThat(pending.getPaidAt()).isNotNull();
+        verify(orderClient).updatePaymentStatus(eq("order-1"), argThat(r -> "PAID".equals(r.getStatus())));
+    }
+
+    @Test
     void webhook_similarReferenceDoesNotMatchDifferentOrder() {
         Transaction pending = pendingSepayTransaction("txn-1", "order-1", "STYLEMIND ORD123", "100000");
         when(webhookEventRepository.findByProviderAndGatewayTransactionId("SEPAY", "42")).thenReturn(Optional.empty());
@@ -148,7 +182,7 @@ class PaymentServiceTest {
                 webhookPayload(42L, "STYLEMIND ORD1234", "in", "100000"));
 
         assertThat(pending.getStatus()).isEqualTo("PENDING");
-        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("NO_MATCHING_ORDER"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResultAndProcessed("NO_MATCHING_ORDER", false));
         verify(orderClient, never()).updatePaymentStatus(any(), any());
     }
 
@@ -164,7 +198,7 @@ class PaymentServiceTest {
                 webhookPayload(42L, "STYLEMIND SMABC1234", "in", "50000"));
 
         assertThat(pending.getStatus()).isEqualTo("FAILED");
-        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("AMOUNT_MISMATCH"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResultAndProcessed("AMOUNT_MISMATCH", false));
         verify(orderClient).updatePaymentStatus(eq("order-1"),
                 argThat(r -> "FAILED".equals(r.getStatus())));
     }
@@ -209,7 +243,7 @@ class PaymentServiceTest {
         paymentService.processSepayWebhook("Apikey test-webhook-key",
                 webhookPayload(42L, "STYLEMIND SMABC1234", "in", "100000"));
 
-        verify(webhookEventRepository, atLeastOnce()).save(argThatResult("LATE_AFTER_EXPIRY"));
+        verify(webhookEventRepository, atLeastOnce()).save(argThatResultAndProcessed("LATE_AFTER_EXPIRY", false));
         verify(orderClient, never()).updatePaymentStatus(any(), any());
     }
 
@@ -228,10 +262,21 @@ class PaymentServiceTest {
         return argThat(evt -> expectedResult.equals(evt.getResult()));
     }
 
+    private com.stylemind.payment.entity.PaymentWebhookEvent argThatResultAndProcessed(
+            String expectedResult, boolean expectedProcessed) {
+        return argThat(evt -> expectedResult.equals(evt.getResult())
+                && Boolean.valueOf(expectedProcessed).equals(evt.getProcessed()));
+    }
+
     private SepayWebhookPayload webhookPayload(Long id, String content, String transferType, String amount) {
+        return webhookPayloadWithCode(id, null, content, transferType, amount);
+    }
+
+    private SepayWebhookPayload webhookPayloadWithCode(Long id, String code, String content, String transferType, String amount) {
         return SepayWebhookPayload.builder()
                 .id(id)
                 .gateway("MBBank")
+                .code(code)
                 .content(content)
                 .transferType(transferType)
                 .transferAmount(new BigDecimal(amount))

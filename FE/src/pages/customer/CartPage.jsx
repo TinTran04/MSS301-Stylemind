@@ -3,13 +3,14 @@ import { ShoppingBag, ArrowRight, Sparkles } from 'lucide-react'
 import CartItem from '../../components/customer/CartItem'
 import { useCart } from '../../hooks/useCart'
 import { formatCurrency } from '../../utils/formatCurrency'
+import { TAX_LABEL, TAX_RATE } from '../../features/cart/cart.utils'
 
 export default function CartPage() {
   const { items, subtotal, loading, error } = useCart()
   const navigate = useNavigate()
 
   const shipping = subtotal > 200 ? 0 : 15
-  const tax = Math.round(subtotal * 0.08 * 100) / 100
+  const tax = Math.round(subtotal * TAX_RATE * 100) / 100
   const total = subtotal + shipping + tax
 
   const handleCheckout = () => {
@@ -61,7 +62,7 @@ export default function CartPage() {
                   <span className="text-primary">{shipping === 0 ? 'Miễn phí' : formatCurrency(shipping)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-on-surface-variant">Thuế</span>
+                  <span className="text-on-surface-variant">{TAX_LABEL}</span>
                   <span className="text-primary">{formatCurrency(tax)}</span>
                 </div>
                 <div className="border-t border-outline-variant/20 pt-3 flex justify-between">

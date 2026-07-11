@@ -71,7 +71,8 @@ spring:
         - id: sepay-webhook
           uri: ${PAYMENT_SERVICE_URL:http://localhost:8088}
           predicates:
-            - Path=/api/v1/payments/webhook/**
+            - Path=/api/v1/payments/webhook/sepay
+            - Method=POST
         - id: notification-service
           uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
           predicates:

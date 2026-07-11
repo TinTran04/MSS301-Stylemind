@@ -17,6 +17,7 @@
 | POST | `/api/v1/orders` | Tạo order từ cart (orchestration) |
 | GET | `/api/v1/orders` | Danh sách order của customer |
 | GET | `/api/v1/orders/{id}` | Chi tiết order của customer |
+| PATCH | `/api/v1/orders/{id}/cancel` | Hủy order/payment đang chờ (PENDING/PAYMENT_PENDING) |
 
 ## API — Admin (role ADMIN)
 | Method | Endpoint | Mô tả |
@@ -37,8 +38,9 @@
 - COD → CONFIRMED ngay; SePay → PAYMENT_PENDING đến khi webhook PAID.
 - Webhook SePay chỉ đổi `PAYMENT_PENDING -> PAID`; không tự đẩy sang `PROCESSING`.
 - Checkout thành công → clear cart; notification fail KHÔNG rollback order.
+- Customer có thể hủy order đang chờ thanh toán qua `PATCH /api/v1/orders/{id}/cancel`; nếu order đang `PAYMENT_PENDING`, order-service phải gọi payment-service expire payment thành công trước rồi mới chuyển order sang `CANCELLED`, tránh trạng thái order hủy nhưng payment vẫn `PENDING`.
 - SePay quá hạn → EXPIRED/CANCELLED (timeout job).
-- Timeout job đổi order sang `EXPIRED` rồi gọi `payment-service` expire transaction SePay tương ứng.
+- Timeout job expire transaction SePay trước rồi mới đổi order sang `EXPIRED`; nếu payment-service lỗi, job giữ order `PAYMENT_PENDING` để retry lần sau.
 - Customer chỉ xem order của mình; admin xem tất cả.
 - MỌI đổi trạng thái đi qua `OrderStatusService.changeStatus()`.
 - `POST /api/v1/orders` hỗ trợ `Idempotency-Key`; cùng key đang xử lý trả `409`, cùng key đã thành công trả lại order cũ thay vì tạo order/payment mới.

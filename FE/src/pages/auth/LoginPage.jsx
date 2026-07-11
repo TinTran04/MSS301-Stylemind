@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import useAuthStore from '../../features/auth/auth.store'
 import { loginUser } from '../../features/auth/auth.api'
+import { getEmailValidationMessage, normalizeEmailInput } from '../../features/auth/auth.validation'
 
 function messageForError(err, fallback) {
   if (err?.status === 401) return 'Email hoặc mật khẩu không đúng.'
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const location = useLocation()
   const login = useAuthStore((s) => s.login)
   const loading = useAuthStore((s) => s.loading)
   const setLoading = useAuthStore((s) => s.setLoading)
@@ -24,10 +26,21 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+
+    const emailError = getEmailValidationMessage(email)
+    if (emailError) {
+      setError(emailError)
+      return
+    }
+    if (!password.trim()) {
+      setError('Mật khẩu là bắt buộc.')
+      return
+    }
+
     setLoading(true)
 
     try {
-      const session = await loginUser(email, password)
+      const session = await loginUser(normalizeEmailInput(email), password)
       login(session)
       navigate(session.user?.role === 'admin' ? '/admin' : '/')
     } catch (err) {
@@ -64,7 +77,13 @@ export default function LoginPage() {
             <p className="text-on-surface-variant mt-2">Đăng nhập để tiếp tục hành trình phong cách</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {location.state?.flashMessage && (
+            <div role="status" className="mb-6 rounded-lg border border-tertiary-container/30 bg-tertiary-container/20 px-4 py-3 text-sm text-primary">
+              {location.state.flashMessage}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate>
             <div>
               <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">
                 Email

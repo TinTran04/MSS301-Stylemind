@@ -24,6 +24,7 @@ Sở hữu **identity**: đăng ký, đăng nhập, quên/đặt lại mật kh�
 | POST | `/api/v1/auth/forgot-password` | Yêu cầu reset (message chung) |
 | POST | `/api/v1/auth/verify-reset-otp` | Xác thực OTP/token |
 | POST | `/api/v1/auth/reset-password` | Đặt lại mật khẩu |
+| POST | `/api/v1/auth/password/setup` | Thiết lập mật khẩu lần đầu từ link email admin tạo account |
 
 ## API — Admin (role ADMIN)
 | Method | Endpoint | Mô tả |
@@ -42,6 +43,7 @@ _(không có)_
 - Password hash (BCrypt); login sai trả message chung; disabled user không login.
 - **Register OTP:** `register` không tạo account ngay — chỉ tạo `pending_registrations` + gửi OTP 6 số (chỉ lưu hash, có expiry, giới hạn số lần thử, resend cooldown). Account `users` ACTIVE chỉ được tạo khi `register/verify-otp` đúng OTP; sau đó user login như thường. Email trùng → `EMAIL_ALREADY_EXISTS`. Không phá vỡ forgot-password OTP (tách bảng, tách config).
 - forgot-password không tiết lộ email tồn tại; OTP/token có hạn, dùng một lần, chỉ lưu hash.
+- Admin-created account / password setup link cũng là one-time-use: sau khi thiết lập mật khẩu thành công, `passwordSetupRequired=false`, `passwordSetupTokenHash=null`, `passwordSetupTokenExpiresAt=null`, và user login bình thường.
 - Không trả password/OTP/reset token trong response hay log (OTP chỉ nằm trong `htmlContent` của email, `content` redact `[PROTECTED]`).
 - **Self-protection:** admin không tự disable/delete/hạ role chính mình; không disable/delete/hạ **admin cuối cùng** còn ACTIVE → **409**.
 - So sánh `targetUserId` với admin id lấy từ JWT/gateway header.

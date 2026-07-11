@@ -25,6 +25,7 @@ import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -55,6 +56,9 @@ public class PaymentService {
     @Value("${app.vietqr.account-name:STYLEMIND SANDBOX}")
     private String vietQrAccountName;
 
+    @Value("${app.vietqr.required-transfer-prefix:SEVQR}")
+    private String bankHubTransferPrefix;
+
     @Value("${app.vietqr.expiry-minutes:15}")
     private long vietQrExpiryMinutes;
 
@@ -64,9 +68,9 @@ public class PaymentService {
     @Value("${app.sepay.payment-code-prefix:STYLEMIND}")
     private String paymentCodePrefix;
 
-    // SePay's static per-integration webhook API key - never hardcode a real value;
-    // this default is a dev/sandbox placeholder only (see BE/.env.example).
-    @Value("${app.sepay.webhook-api-key:sepay-sandbox-webhook-key-2026}")
+    // SePay's static per-integration webhook API key must be supplied by the
+    // environment. Never commit a fallback secret.
+    @Value("${app.sepay.webhook-api-key}")
     private String sepayWebhookApiKey;
 
     public PaymentResponse createCodPayment(CodCheckoutRequest request) {
@@ -104,13 +108,14 @@ public class PaymentService {
 
         transaction = transactionRepository.save(transaction);
 
+        String persistedTransferContent = transaction.getTransferContent();
         return PaymentResponse.builder()
                 .transactionId(transaction.getId())
                 .status(transaction.getStatus())
                 .amount(transaction.getAmount())
-                .transferContent(transferContent)
-                .qrContent(buildQrContent(transaction.getAmount(), transferContent))
-                .qrImageUrl(buildQrImageUrl(transaction.getAmount(), transferContent))
+                .transferContent(persistedTransferContent)
+                .qrContent(buildQrContent(transaction.getAmount(), persistedTransferContent))
+                .qrImageUrl(buildQrImageUrl(transaction.getAmount(), persistedTransferContent))
                 .expiresAt(expiresAt.atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .build();
     }
@@ -132,6 +137,9 @@ public class PaymentService {
             logWebhookEvent(gatewayTransactionId(payload), null, rawTransferContent(payload), payload.getTransferAmount(), "INVALID_SIGNATURE", false, null);
             throw new BusinessException("WEBHOOK_UNAUTHORIZED", "Invalid webhook credentials", 401);
         }
+
+        log.info("Authenticated SePay webhook accepted for gatewayTxnId={} fieldCount={}",
+                payload.getId(), rawTransferContents(payload).size());
 
         String gatewayTransactionId = gatewayTransactionId(payload);
         if (gatewayTransactionId == null) {
@@ -155,29 +163,32 @@ public class PaymentService {
             return;
         }
 
-        String incomingTransferContent = rawTransferContent(payload);
-        Transaction match = findPendingSepayTransactionByContent(incomingTransferContent);
+        List<String> incomingTransferContents = rawTransferContents(payload);
+        String incomingTransferContent = String.join(" | ", incomingTransferContents);
+        Transaction match = findPendingSepayTransactionByContent(incomingTransferContents);
         if (match == null) {
-            Transaction expiredMatch = findExpiredSepayTransactionByContent(incomingTransferContent);
+            Transaction expiredMatch = findExpiredSepayTransactionByContent(incomingTransferContents);
             if (expiredMatch != null) {
-                finalizeWebhookEvent(webhookEvent, expiredMatch.getId(), "LATE_AFTER_EXPIRY", true,
+                finalizeWebhookEvent(webhookEvent, expiredMatch.getId(), "LATE_AFTER_EXPIRY", false,
                         "Webhook arrived after payment/order expiration");
                 log.warn("Late SePay webhook arrived for expired payment orderId={} gatewayTxnId={}",
                         expiredMatch.getOrderId(), gatewayTransactionId);
                 return;
             }
-            finalizeWebhookEvent(webhookEvent, null, "NO_MATCHING_ORDER", true, null);
+            finalizeWebhookEvent(webhookEvent, null, "NO_MATCHING_ORDER", false,
+                    "No pending SePay transaction matched transfer_content");
             log.warn("SePay webhook matched no pending order (gatewayTxnId={})", gatewayTransactionId);
             return;
         }
 
-        boolean amountMatches = match.getAmount().compareTo(payload.getTransferAmount()) == 0;
+        boolean amountMatches = payload.getTransferAmount() != null
+                && match.getAmount().compareTo(payload.getTransferAmount()) == 0;
 
         if (!amountMatches) {
             match.setStatus(STATUS_FAILED);
             match.setGatewayTransactionId(gatewayTransactionId);
             transactionRepository.save(match);
-            finalizeWebhookEvent(webhookEvent, match.getId(), "AMOUNT_MISMATCH", true, "Transfer amount does not match expected amount");
+            finalizeWebhookEvent(webhookEvent, match.getId(), "AMOUNT_MISMATCH", false, "Transfer amount does not match expected amount");
             notifyOrderBestEffort(match.getOrderId(), "FAILED");
             return;
         }
@@ -232,19 +243,41 @@ public class PaymentService {
     }
 
     private String buildTransferContent(String paymentToken) {
-        return paymentCodePrefix + " " + paymentToken;
+        String normalizedBankPrefix = normalizeTransferPart(bankHubTransferPrefix);
+        String normalizedPaymentPrefix = normalizeTransferPart(paymentCodePrefix);
+        String normalizedPaymentToken = normalizeTransferPart(paymentToken);
+
+        // Keep the Bank Hub marker separate from the StyleMind reference prefix.
+        // If deployment configuration repeats the marker in the app prefix, strip
+        // only that duplicate leading marker rather than generating SEVQR SEVQR.
+        if (!normalizedBankPrefix.isEmpty() && normalizedPaymentPrefix.equals(normalizedBankPrefix)) {
+            normalizedPaymentPrefix = "";
+        } else if (!normalizedBankPrefix.isEmpty()
+                && normalizedPaymentPrefix.startsWith(normalizedBankPrefix + " ")) {
+            normalizedPaymentPrefix = normalizedPaymentPrefix.substring(normalizedBankPrefix.length()).trim();
+        }
+
+        return java.util.stream.Stream.of(normalizedBankPrefix, normalizedPaymentPrefix, normalizedPaymentToken)
+                .filter(part -> !part.isEmpty())
+                .collect(Collectors.joining(" "));
     }
 
-    private Transaction findPendingSepayTransactionByContent(String rawContent) {
+    private String normalizeTransferPart(String value) {
+        return value == null ? "" : value.trim().replaceAll("\\s+", " ");
+    }
+
+    private Transaction findPendingSepayTransactionByContent(List<String> rawContents) {
         return transactionRepository.findByMethodAndStatus(METHOD_SEPAY, STATUS_PENDING).stream()
-                .filter(t -> paymentReferenceMatcher.matches(t.getTransferContent(), rawContent))
+                .filter(t -> rawContents.stream()
+                        .anyMatch(rawContent -> paymentReferenceMatcher.matches(t.getTransferContent(), rawContent)))
                 .findFirst()
                 .orElse(null);
     }
 
-    private Transaction findExpiredSepayTransactionByContent(String rawContent) {
+    private Transaction findExpiredSepayTransactionByContent(List<String> rawContents) {
         return transactionRepository.findByMethodAndStatusIn(METHOD_SEPAY, List.of(STATUS_EXPIRED, STATUS_FAILED, "CANCELLED")).stream()
-                .filter(t -> paymentReferenceMatcher.matches(t.getTransferContent(), rawContent))
+                .filter(t -> rawContents.stream()
+                        .anyMatch(rawContent -> paymentReferenceMatcher.matches(t.getTransferContent(), rawContent)))
                 .findFirst()
                 .orElse(null);
     }
@@ -254,19 +287,22 @@ public class PaymentService {
     }
 
     private String rawTransferContent(SepayWebhookPayload payload) {
+        String joined = String.join(" | ", rawTransferContents(payload));
+        return joined.length() <= 200 ? joined : joined.substring(0, 200);
+    }
+
+    private List<String> rawTransferContents(SepayWebhookPayload payload) {
         if (payload == null) {
-            return "";
+            return List.of();
         }
-        if (payload.getContent() != null && !payload.getContent().isBlank()) {
-            return payload.getContent();
-        }
-        if (payload.getDescription() != null && !payload.getDescription().isBlank()) {
-            return payload.getDescription();
-        }
-        if (payload.getReferenceCode() != null && !payload.getReferenceCode().isBlank()) {
-            return payload.getReferenceCode();
-        }
-        return "";
+        return java.util.stream.Stream.of(
+                        payload.getCode(),
+                        payload.getContent(),
+                        payload.getDescription(),
+                        payload.getReferenceCode())
+                .filter(value -> value != null && !value.isBlank())
+                .distinct()
+                .toList();
     }
 
     // Constant-time comparison (MessageDigest.isEqual) so webhook auth doesn't leak

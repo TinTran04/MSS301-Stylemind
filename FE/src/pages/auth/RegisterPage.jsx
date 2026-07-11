@@ -6,8 +6,7 @@ import {
   resendRegisterOtp,
   verifyRegisterOtp,
 } from '../../features/auth/auth.api'
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { getEmailValidationMessage, normalizeEmailInput } from '../../features/auth/auth.validation'
 const RESEND_COOLDOWN_SECONDS = 60
 
 function messageForError(err, fallback) {
@@ -48,8 +47,8 @@ export default function RegisterPage() {
   }, [cooldown])
 
   const validateForm = () => {
-    if (!formData.email.trim()) return 'Email là bắt buộc.'
-    if (!EMAIL_PATTERN.test(formData.email.trim())) return 'Vui lòng nhập email hợp lệ.'
+    const emailError = getEmailValidationMessage(formData.email)
+    if (emailError) return emailError
     if (!formData.password) return 'Mật khẩu là bắt buộc.'
     if (formData.password.length < 6) return 'Mật khẩu phải có ít nhất 6 ký tự.'
     if (!formData.confirmPassword) return 'Vui lòng xác nhận mật khẩu.'
@@ -68,7 +67,7 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
-      await registerUser({ email: formData.email.trim(), password: formData.password })
+      await registerUser({ email: normalizeEmailInput(formData.email), password: formData.password })
       setStep('otp')
       setOtp('')
       setCooldown(RESEND_COOLDOWN_SECONDS)
@@ -84,7 +83,7 @@ export default function RegisterPage() {
     setError('')
     setLoading(true)
     try {
-      await verifyRegisterOtp(formData.email.trim(), otp)
+      await verifyRegisterOtp(normalizeEmailInput(formData.email), otp)
       setSuccess('Tài khoản của bạn đã sẵn sàng. Đang chuyển bạn đến trang đăng nhập…')
       setTimeout(() => navigate('/login'), 1500)
     } catch (err) {
@@ -99,7 +98,7 @@ export default function RegisterPage() {
     setError('')
     setLoading(true)
     try {
-      await resendRegisterOtp(formData.email.trim())
+      await resendRegisterOtp(normalizeEmailInput(formData.email))
       setCooldown(RESEND_COOLDOWN_SECONDS)
     } catch (err) {
       setError(messageForError(err, 'Không thể gửi lại mã.'))

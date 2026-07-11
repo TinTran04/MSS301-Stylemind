@@ -326,7 +326,9 @@ class AuthServiceTest {
         assertThat(response.getPasswordSetupRequired()).isTrue();
         verify(notificationInternalClient).sendEmail(argThat(payload ->
                 "invite@example.com".equals(payload.getRecipientEmail())
-                        && "USER_INVITE".equals(payload.getType())));
+                        && "USER_INVITE".equals(payload.getType())
+                        && payload.getContent().contains("/reset-password?token=")
+                        && payload.getContent().contains("email=invite%40example.com")));
     }
 
     @Test
@@ -335,9 +337,12 @@ class AuthServiceTest {
         user.setPasswordSetupRequired(true);
         user.setPasswordSetupTokenHash("hashed-setup-token");
         user.setPasswordSetupTokenExpiresAt(LocalDateTime.now().plusHours(1));
+        user.setPasswordResetTokenHash("hashed-reset-token");
+        user.setPasswordResetTokenExpiresAt(LocalDateTime.now().plusHours(1));
         when(userRepository.findByEmail("setup@example.com")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("setup-token", "hashed-setup-token")).thenReturn(true);
         when(passwordEncoder.encode("new-password")).thenReturn("encoded-password");
+        when(userRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         authService.setupPassword(PasswordSetupRequest.builder()
                 .email("setup@example.com")
@@ -347,7 +352,46 @@ class AuthServiceTest {
 
         assertThat(user.getPasswordSetupRequired()).isFalse();
         assertThat(user.getPasswordSetupTokenHash()).isNull();
+        assertThat(user.getPasswordSetupTokenExpiresAt()).isNull();
+        assertThat(user.getPasswordResetTokenHash()).isNull();
+        assertThat(user.getPasswordResetTokenExpiresAt()).isNull();
         assertThat(user.getPasswordHash()).isEqualTo("encoded-password");
+        verify(userRepository).saveAndFlush(user);
+    }
+
+    @Test
+    void setupPassword_successAllowsLoginAndRejectsReuse() {
+        User user = activeUser("invite-login@example.com");
+        user.setPasswordSetupRequired(true);
+        user.setPasswordSetupTokenHash("hashed-setup-token");
+        user.setPasswordSetupTokenExpiresAt(LocalDateTime.now().plusHours(1));
+        when(userRepository.findByEmail("invite-login@example.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("setup-token", "hashed-setup-token")).thenReturn(true);
+        when(passwordEncoder.encode("new-password")).thenReturn("encoded-password");
+        when(jwtUtil.generateAccessToken(any(), any(), any())).thenReturn("jwt-after-setup");
+        when(userRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        authService.setupPassword(PasswordSetupRequest.builder()
+                .email("invite-login@example.com")
+                .token("setup-token")
+                .newPassword("new-password")
+                .build());
+
+        var loginResponse = authService.login(loginReq("invite-login@example.com", "new-password"));
+
+        assertThat(loginResponse.getToken()).isEqualTo("jwt-after-setup");
+        assertThat(user.getPasswordSetupRequired()).isFalse();
+        assertThat(user.getPasswordSetupTokenHash()).isNull();
+        assertThat(user.getPasswordSetupTokenExpiresAt()).isNull();
+
+        assertThatThrownBy(() -> authService.setupPassword(PasswordSetupRequest.builder()
+                .email("invite-login@example.com")
+                .token("setup-token")
+                .newPassword("another-password")
+                .build()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("không hợp lệ hoặc đã hết hạn");
+        verify(userRepository).saveAndFlush(user);
     }
 
     @Test

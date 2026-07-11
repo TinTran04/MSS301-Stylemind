@@ -26,21 +26,19 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private final JwtUtil jwtUtil;
 
-    private static final List<String> PUBLIC_PATHS = List.of(
+    private static final List<String> PUBLIC_EXACT_PATHS = List.of(
             "/api/v1/auth/login",
             "/api/v1/auth/register",
             // Pre-login password recovery: the user has no JWT yet, so these must be
             // public at the gateway (auth-service SecurityConfig already permits them).
+            // Admin-created account setup uses the same unauthenticated browser flow
+            // and must also pass without a JWT.
+            "/api/v1/auth/password/setup",
             "/api/v1/auth/forgot-password",
             "/api/v1/auth/verify-reset-otp",
             "/api/v1/auth/reset-password",
             "/actuator/health",
             "/actuator/info",
-            "/api/v1/products",
-            "/api/v1/categories",
-            "/api/v1/cart",
-            "/v3/api-docs",
-            "/swagger-ui",
             // SePay's own servers call this directly - no user JWT exists for that
             // request. Authenticity is instead verified inside payment-service via
             // the webhook's Authorization/API-key header (see PaymentService).
@@ -114,10 +112,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isPublicPath(String path) {
-        if (path.startsWith("/api/v1/products") || path.startsWith("/api/v1/categories") || path.startsWith("/api/v1/cart")) {
+        if (path.startsWith("/api/v1/products") || path.startsWith("/api/v1/categories")
+                || path.startsWith("/api/v1/cart") || path.startsWith("/v3/api-docs")
+                || path.startsWith("/swagger-ui")) {
             return true;
         }
-        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+        return PUBLIC_EXACT_PATHS.stream().anyMatch(path::equals);
     }
 
     private Mono<Void> unauthorizedResponse(ServerHttpResponse response, String message) {

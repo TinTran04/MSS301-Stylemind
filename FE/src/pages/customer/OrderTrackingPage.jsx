@@ -1,32 +1,21 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Package, Download, Truck } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import { getOrders } from '../../features/orders/order.api'
 import { formatDate } from '../../utils/formatDate'
 import { formatCurrency } from '../../utils/formatCurrency'
+import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/orderStatus'
 
 const statusTabs = [
   { key: 'All', label: 'Tất cả' },
   { key: 'Processing', label: 'Đang xử lý' },
   { key: 'Shipped', label: 'Đang giao' },
-  { key: 'Delivered', label: 'Hoàn tất' },
+  { key: 'Completed', label: 'Hoàn tất' },
 ]
 
-const statusLabels = {
-  pending: 'Đang chờ',
-  payment_pending: 'Chờ thanh toán',
-  paid: 'Đã thanh toán',
-  confirmed: 'Đã xác nhận',
-  processing: 'Đang xử lý',
-  shipped: 'Đang giao',
-  delivered: 'Hoàn tất',
-  cancelled: 'Đã hủy',
-  expired: 'Đã hết hạn',
-  failed: 'Thất bại',
-}
-
 const badgeVariants = {
-  delivered: 'success',
+  completed: 'success',
   shipped: 'warning',
   processing: 'secondary',
   confirmed: 'secondary',
@@ -44,6 +33,7 @@ export default function OrderTrackingPage() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const location = useLocation()
 
   useEffect(() => {
     getOrders()
@@ -57,11 +47,17 @@ export default function OrderTrackingPage() {
 
   const filteredOrders = selectedTab === 'All'
     ? orders
-    : orders.filter((o) => o.status === selectedTab.toLowerCase())
+    : orders.filter((o) => normalizeOrderStatus(o.status).toLowerCase() === selectedTab.toLowerCase())
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 md:px-16 py-8">
       <h1 className="font-headline-md text-primary mb-8">Đơn hàng của tôi</h1>
+
+      {location.state?.flashMessage && (
+        <div role="status" className="mb-6 rounded-lg border border-tertiary-container/30 bg-tertiary-container/20 px-4 py-3 text-sm text-primary">
+          {location.state.flashMessage}
+        </div>
+      )}
 
       {loading && <div className="py-20 text-center text-on-surface-variant">Đang tải đơn hàng...</div>}
       {error && (
@@ -111,8 +107,8 @@ export default function OrderTrackingPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-primary">{order.id}</span>
-                  <Badge variant={badgeVariants[order.status] || 'default'}>
-                    {order.statusLabel || statusLabels[order.status] || order.status}
+                  <Badge variant={badgeVariants[normalizeOrderStatus(order.status).toLowerCase()] || 'default'}>
+                    {formatStatusLabel(order.status)}
                   </Badge>
                 </div>
                 <p className="text-xs text-on-surface-variant">{formatDate(order.date)}</p>
@@ -157,7 +153,7 @@ export default function OrderTrackingPage() {
                         }`}>
                           {step.completed ? '✓' : idx + 1}
                         </div>
-                        <span className="mt-2 text-[10px] text-on-surface-variant whitespace-nowrap">{step.label}</span>
+                      <span className="mt-2 text-[10px] text-on-surface-variant whitespace-nowrap">{step.label}</span>
                       </div>
                   ))}
                 </div>

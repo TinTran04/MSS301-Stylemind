@@ -18,6 +18,7 @@ public class SepayWebhookPayload {
     private String gateway;
     private String transactionDate;
     private String accountNumber;
+    private String code;
     private String content;
     private String transferType; // "in" | "out"
     private BigDecimal transferAmount;
@@ -33,6 +34,8 @@ public class SepayWebhookPayload {
     public void setTransactionDate(String transactionDate) { this.transactionDate = transactionDate; }
     public String getAccountNumber() { return accountNumber; }
     public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
+    public String getCode() { return code; }
+    public void setCode(String code) { this.code = code; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
     public String getTransferType() { return transferType; }
