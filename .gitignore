@@ -15,6 +15,14 @@ BE/**/.env
 *.env
 !*.env.example
 
+# SECURITY: Certificates Directory
+# STRICT: Exclude entire certs directory to prevent any key leakage
+# This prevents backups, temporary files, or renamed keys from being committed
+.docker/certs/*
+
+# EXCEPTION: Preserve directory structure via .gitkeep
+!.docker/certs/.gitkeep
+
 # IDE
 .idea/
 .vscode/

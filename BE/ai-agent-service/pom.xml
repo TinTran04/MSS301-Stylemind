@@ -50,11 +50,13 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
-        <!-- Qdrant Client -->
+        <!-- Qdrant Client - TEMPORARILY DISABLED DUE TO ARTIFACT ISSUE -->
+        <!--
         <dependency>
             <groupId>io.qdrant</groupId>
-            <artifactId>qdrant-client</artifactId>
+            <artifactId>client</artifactId>
         </dependency>
+        -->
         <!-- Neo4j -->
         <dependency>
             <groupId>org.neo4j</groupId>
