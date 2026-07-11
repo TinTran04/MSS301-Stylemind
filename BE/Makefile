@@ -14,7 +14,7 @@ full-up:
 	docker compose -f docker-compose.full.yml up -d --build
 
 full-down:
-	docker compose -f docker-compose.full.yml down
+	docker compose -f docker-compose.full.yml down --remove-orphans
 
 # View logs for full docker compose
 logs:

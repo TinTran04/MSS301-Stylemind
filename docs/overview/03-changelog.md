@@ -39,5 +39,6 @@
 | 34 | SePay webhook dùng đúng `transactions.transfer_content` làm payment reference; bổ sung đọc field `code` cùng `content`/`description`/`referenceCode`, hỗ trợ code chỉ chứa bounded token, và lưu `error_message` khi không tìm thấy transaction khớp. Không thêm `payment_code`. | payment-service, docs |
 | 35 | Khóa route webhook SePay đúng path `/api/v1/payments/webhook/sepay`, ghi log an toàn khi nhận webhook, đánh dấu event mismatch/late là `processed=false`, yêu cầu HTTPS public cho SePay Dashboard, và đồng bộ expire payment trước khi hủy/hết hạn order để tránh `CANCELLED` + `PENDING`. | api-gateway, common-lib, order-service, payment-service, docs |
 | 36 | VietinBank Bank Hub yêu cầu QR transfer content giữ prefix `SEVQR`; payment-service nay lưu và hiển thị cùng một giá trị `SEVQR STYLEMIND <reference>`, dùng cấu hình `SEPAY_BANK_HUB_PREFIX` tách khỏi prefix ứng dụng, và bỏ fallback webhook secret trong YAML. | payment-service, docker, docs |
+| 37 | Bổ sung hướng dẫn test SePay local qua ngrok, README riêng cho Windows cùng script Docker Compose không cần GNU Make, và audit init-script/JPA. Fresh init scripts giờ đồng bộ nullability audit fields, boolean bắt buộc và enum order state; patch không phá dữ liệu hỗ trợ volume cũ. | docs, scripts, init-scripts |
 
 Chi tiết kỹ thuật của mục 4–8 nằm trong thư mục `architecture/` và `decisions/`.

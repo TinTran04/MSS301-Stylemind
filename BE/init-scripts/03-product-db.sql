@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS categories (
     name VARCHAR(100) NOT NULL,
     parent_id BIGINT REFERENCES categories(id),
     slug VARCHAR(150) UNIQUE NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Products (base product information). target_demographic is the English
@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS products (
     target_demographic VARCHAR(20) NOT NULL DEFAULT 'UNISEX'
         CHECK (target_demographic IN ('MALE', 'FEMALE', 'UNISEX')),
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Product - Category is many-to-many: one product can belong to multiple
@@ -42,8 +42,8 @@ CREATE TABLE IF NOT EXISTS product_audit_log (
     action VARCHAR(50) NOT NULL,
     product_id VARCHAR(50) NOT NULL,
     detail VARCHAR(500),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_product_audit_log_product_id ON product_audit_log(product_id);
@@ -59,8 +59,8 @@ CREATE TABLE IF NOT EXISTS product_variants (
     price_override DECIMAL(12, 2),
     stock_quantity INT NOT NULL DEFAULT 0,
     active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Product Images
@@ -69,9 +69,9 @@ CREATE TABLE IF NOT EXISTS product_images (
     product_id VARCHAR(50) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     image_url VARCHAR(500) NOT NULL,
     image_public_id VARCHAR(255),
-    is_primary BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes

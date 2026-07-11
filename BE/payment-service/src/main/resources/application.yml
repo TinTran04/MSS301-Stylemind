@@ -39,9 +39,9 @@ order:
 app:
   vietqr:
     # Local dev still uses init-scripts for schema and env-backed config for SePay/VietQR.
-    bank-id: ${SEPAY_BANK_SHORT_NAME:970415}
-    account-no: ${SEPAY_ACCOUNT_NUMBER:101876751836}
-    account-name: ${SEPAY_ACCOUNT_NAME:NGUYEN MINH KHOI}
+    bank-id: ${SEPAY_BANK_SHORT_NAME}
+    account-no: ${SEPAY_ACCOUNT_NUMBER}
+    account-name: ${SEPAY_ACCOUNT_NAME}
     required-transfer-prefix: ${SEPAY_BANK_HUB_PREFIX:SEVQR}
     expiry-minutes: ${SEPAY_PAYMENT_EXPIRE_MINUTES:15}
     qr-base-url: ${SEPAY_QR_BASE_URL:https://img.vietqr.io/image}
@@ -52,9 +52,8 @@ app:
     webhook-auth-mode: ${SEPAY_WEBHOOK_AUTH_MODE:API_KEY}
     # SePay sends "Authorization: Apikey <this value>" on every webhook call -
     # this is how we verify the webhook is genuinely from SePay (§SEC-06). The
-    # default below is a dev-only placeholder; production MUST set a real secret
-    # via env var, never commit one.
-    webhook-api-key: ${SEPAY_WEBHOOK_API_KEY:GZRG6C8WW7ALNAHQM1DYRIGOW0HZRQKM2VFUZBTEMUX9VSPJUTCSLVQYLKNRZOGQ}
+    # This value is mandatory at runtime and must never have a committed fallback.
+    webhook-api-key: ${SEPAY_WEBHOOK_API_KEY}
 
 jwt:
   secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
