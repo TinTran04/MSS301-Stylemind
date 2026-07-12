@@ -130,7 +130,6 @@
         <module>payment-service</module>
         <module>ai-agent-service</module>
         <module>notification-service</module>
-        <module>ai-agent-service</module>
     </modules>
 
     <build>

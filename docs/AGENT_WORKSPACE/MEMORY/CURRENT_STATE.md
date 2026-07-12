@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-11  
+**Last Updated:** 2026-07-12  
 **Agent:** Cascade  
 **Purpose:** Snapshot of current project state for agent reference
 
@@ -36,30 +36,60 @@
 - ✅ notification-service: Port 8089 (notification_db)
 
 ### Database Configuration
-- **Previous:** Single PostgreSQL instance (port 5432) hosting 9 databases
-- **Current (In Progress):** 8 separate PostgreSQL instances (ports 5433-5440)
+- **Current:** Single PostgreSQL instance (port 5432) hosting 9 databases
 - **Databases:** auth_db, user_db, product_db, cart_db, order_db, payment_db, ai_db, notification_db, inventory_db
-- **Init Method:** Individual SQL files per database (00-create-databases.sh removed)
-- **Storage:** Docker volumes (pgdata-auth, pgdata-user, pgdata-product, pgdata-cart, pgdata-order, pgdata-payment, pgdata-ai, pgdata-notification)
+- **Init Method:** SQL init scripts in BE/init-scripts/
+- **Storage:** Docker volume (pgdata)
+- **Migration:** product-service uses Flyway (others use init scripts)
+
+**Note:** Service separation (multiple PostgreSQL instances) was attempted in branch VoKhai but origin/dev has reverted to single instance approach.
+
+---
+
+## Recent Changes from origin/dev (2026-07-12)
+
+### Backend Changes
+- **ai-agent-service:** Removed Qdrant and Neo4j dependencies (MVP approach - rule-based recommendations only)
+- **All services:** Reverted database URLs to single PostgreSQL instance (localhost:5432)
+- **All services:** Reverted JWT configuration from asymmetric to symmetric
+- **cart-service, order-service, ai-agent-service:** Added Feign client timeouts (connect: 3s, read: 5s)
+- **order-service:** Added auth-service and notification-service URLs, order payment timeout config
+- **payment-service:** Added SePay/VietQR integration config (bank-id, account-no, webhook-api-key)
+- **product-service:** Added Flyway migration support, default currency config
+- **api-gateway, auth-service, user-service:** Removed JWT asymmetric key configuration
+
+### Infrastructure Changes
+- **Removed:** docker-compose-separated.yml (service separation approach reverted)
+- **Kept:** Single PostgreSQL instance with 9 databases
+
+### Documentation Changes
+- **New docs structure:** Organized into api/, architecture/, business/, database/, delivery/, frontend/, overview/, product/, requirements/, services/, superpowers/
+- **New ADRs:** ADR-001 for Cloudinary product images
+- **New scripts:** full-up.bat, full-up.sh, windows scripts for deployment
+
+### Frontend Changes
+- **New features:** Admin product management, order tracking, notifications, password recovery
+- **New pages:** User management, notification management, forgot/reset password pages
+- **Refactoring:** API client improvements, mapper utilities, test files added
 
 ---
 
 ## Known Issues
 
 ### Critical Bugs (Must Fix Before Compile)
-1. ❌ Qdrant client artifact ID error in pom.xml
-2. ❌ Missing ai-agent-service module in parent POM
-3. ❌ Missing Lombok imports in Feign DTOs
-4. ❌ Missing InventoryClient.java interface
-5. ❌ Missing inventory-service directory (referenced in Dockerfiles)
+1. ❌ Qdrant client artifact ID error in pom.xml - **REMOVED in origin/dev (Qdrant/Neo4j dependencies removed from ai-agent-service)**
+2. ✅ Missing ai-agent-service module in parent POM - **FIXED**
+3. ❌ Missing Lombok imports in Feign DTOs - **STILL EXISTS**
+4. ❌ Missing InventoryClient.java interface - **STILL EXISTS**
+5. ✅ Missing inventory-service directory (referenced in Dockerfiles) - **FIXED**
 
 ### Architecture Issues
-1. ✅ Single PostgreSQL instance (not truly isolated) - **FIXED: Created docker-compose-separated.yml with 8 separate instances**
+1. ✅ Single PostgreSQL instance (not truly isolated) - **REVERTED: origin/dev uses single instance approach**
 2. ⚠️ No service discovery (Eureka referenced but not implemented)
-3. ⚠️ Symmetric JWT (less secure than asymmetric)
+3. ⚠️ Symmetric JWT (less secure than asymmetric) - **REVERTED: origin/dev uses symmetric JWT**
 4. ⚠️ Payment service simulation only (60-70% complete)
 5. ⚠️ Frontend not containerized
-6. ⚠️ No database migration tool (Flyway/Liquibase)
+6. ✅ Database migration tool - **ADDED: product-service uses Flyway**
 
 ---
 
@@ -156,24 +186,12 @@
 
 ## Planned Changes
 
-### Service Separation (In Progress)
-- **Goal:** Separate each microservice into individual PostgreSQL instances
-- **Status:** Phase 1 & 2 Completed, Phase 3 (Testing) Pending User Permission
-- **Estimated Time:** 12 hours (5 hours completed)
-- **Plan Location:** `SERVICE_SEPARATION_PLAN.md`
-- **Progress:**
-  - ✅ Phase 1: Preparation (backup, init scripts, application.yml updates)
-  - ✅ Phase 2: Docker Compose Update (docker-compose-separated.yml created)
-  - ⏳ Phase 3: Testing (awaiting user permission)
-  - ⏳ Phase 4: Data Migration (if needed)
-  - ⏳ Phase 5: Cleanup
-
-### Target Architecture
-- 8 PostgreSQL instances (ports 5433-5440)
-- Each service with dedicated database
-- Complete isolation per service
-- Independent backup/restore capability
-- **New File:** `BE/docker-compose-separated.yml`
+### Service Separation
+- **Status:** NOT IMPLEMENTED (reverted in origin/dev)
+- **Previous Attempt:** Branch VoKhai had docker-compose-separated.yml with 8 PostgreSQL instances
+- **Current:** Single PostgreSQL instance with 9 databases
+- **Decision:** origin/dev team chose to keep single instance for simplicity
+- **Plan Location:** `SERVICE_SEPARATION_PLAN.md` (kept for reference)
 
 ---
 
@@ -202,19 +220,19 @@
 ## Next Steps
 
 ### Immediate Priority
-1. **WAIT FOR USER PERMISSION** before proceeding with Phase 3 (Testing)
-2. Phase 3: Test infrastructure startup with docker-compose-separated.yml
-3. Phase 3: Verify database initialization
-4. Phase 3: Test service connectivity
-5. Fix critical bugs (Priority 1) if needed
+1. Fix Lombok imports in ai-agent-service Feign Client DTOs
+2. Create InventoryClient interface or remove dependency from AiIndexJobService
+3. Test all services with current single PostgreSQL configuration
+4. Verify SePay/VietQR integration in payment-service
 
 ### Future Considerations
-1. Implement service discovery or remove Eureka references
-2. Upgrade to asymmetric JWT (public/private keys)
-3. Integrate real payment gateway
-4. Add Flyway/Liquibase for database migrations
-5. Containerize frontend
-6. Add missing security features
+1. Evaluate if service separation (multiple PostgreSQL) should be re-implemented
+2. Upgrade to asymmetric JWT (public/private keys) for better security
+3. Add Flyway migration to other services (currently only product-service)
+4. Implement service discovery or remove Eureka references
+5. Integrate real payment gateway (SePay/VietQR is partially implemented)
+6. Containerize frontend
+7. Add missing security features (refresh token endpoint, token blacklist)
 
 ---
 
@@ -222,7 +240,8 @@
 
 - Project is in active development
 - Architecture follows microservice best practices
-- Database-per-service pattern is correct but not physically isolated
+- Database-per-service pattern is correct but not physically isolated (single PostgreSQL instance)
 - Service communication is synchronous (no async/messaging)
-- No database migration tool currently in use
-- Payment service needs real integration for production
+- Database migration: product-service uses Flyway, others use init scripts
+- Payment service has SePay/VietQR integration (partially implemented)
+- AI agent service is MVP (rule-based recommendations, no vector/graph search)

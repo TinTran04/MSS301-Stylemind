@@ -19,7 +19,7 @@ spring:
       max-lifetime: 1800000
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
@@ -48,20 +48,6 @@ jwt:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
-# JWT Asymmetric Key Configuration (Consumer)
-jwt:
-  # Public Key Path ONLY - REQUIRED for token verification
-  # NO DEFAULT VALUE - Must be set via environment variable
-  public-key-path: ${JWT_PUBLIC_KEY_PATH}
-  
-  # Algorithm Configuration (must match issuer)
-  algorithm: ${JWT_ALGORITHM:RSA}
-  key-size: ${JWT_KEY_SIZE:2048}
-  
-  # Token Expiration (for validation checks)
-  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
-
 management:
   endpoints:
     web:
@@ -70,6 +56,9 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    mail:
+      enabled: false
 
 logging:
   level:

@@ -20,7 +20,7 @@ RUN mvn clean install -pl common-lib -am -DskipTests -Dspring-boot.repackage.ski
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-COPY --from=builder /app/product-service/target/*.jar app.jar
+COPY --from=builder /app/product-service/target/product-service-*.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
 ENV SPRING_DATASOURCE_URL=jdbc:postgresql://host.docker.internal:5432/product_db

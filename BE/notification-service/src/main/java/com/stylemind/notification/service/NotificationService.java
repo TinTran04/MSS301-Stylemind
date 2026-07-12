@@ -5,9 +5,9 @@ import com.stylemind.notification.entity.NotificationLog;
 import com.stylemind.notification.repository.NotificationLogRepository;
 import com.stylemind.common.constant.ErrorCode;
 import com.stylemind.common.exception.BusinessException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.mail.MailException;
@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 @Transactional
 public class NotificationService {
@@ -45,6 +44,13 @@ public class NotificationService {
 
     @Value("${app.mail.log-fallback:true}")
     private boolean logFallback;
+
+    @Autowired
+    public NotificationService(NotificationLogRepository notificationLogRepository,
+                              @Autowired(required = false) JavaMailSender mailSender) {
+        this.notificationLogRepository = notificationLogRepository;
+        this.mailSender = mailSender;
+    }
 
     public NotificationResponse createNotification(NotificationRequest request) {
         NotificationLog entry = NotificationLog.builder()
@@ -134,7 +140,7 @@ public class NotificationService {
     }
 
     private NotificationLog sendEmail(NotificationLog entry, String htmlContent) {
-        if (!mailEnabled) {
+        if (!mailEnabled || mailSender == null) {
             if (logFallback) {
                 log.info("MAIL_DISABLED fallback for {}: {}", entry.getRecipientEmail(), entry.getContent());
             }

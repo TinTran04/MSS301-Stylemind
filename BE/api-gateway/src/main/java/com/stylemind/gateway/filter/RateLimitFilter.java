@@ -1,7 +1,7 @@
 package com.stylemind.gateway.filter;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -16,11 +16,15 @@ import java.time.Duration;
 import java.util.Map;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class RateLimitFilter implements GlobalFilter, Ordered {
 
     private final ReactiveRedisTemplate<String, String> redisTemplate;
+
+    @Autowired
+    public RateLimitFilter(@Autowired(required = false) ReactiveRedisTemplate<String, String> redisTemplate) {
+        this.redisTemplate = redisTemplate;
+    }
 
     private record Rule(String bucket, int maxRequests, Duration window, boolean keyByUser, String errorCode, String message) {}
 
@@ -37,6 +41,11 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        // If Redis is not available, skip rate limiting (fail open)
+        if (redisTemplate == null) {
+            return chain.filter(exchange);
+        }
+
         String path = exchange.getRequest().getPath().value();
         Rule rule = RULES.get(path);
         if (rule == null) {

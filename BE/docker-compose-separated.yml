@@ -26,7 +26,7 @@ services:
     networks:
       - stylemind-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -249,12 +249,7 @@ services:
       - .env
     environment:
       SERVER_PORT: 3000
-      # JWT Asymmetric Key Configuration (Public Key Only)
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:RSA}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE:2048}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+      JWT_SECRET: ${JWT_SECRET}
       AUTH_SERVICE_URL: http://auth-service:8081
       PRODUCT_SERVICE_URL: http://product-service:8083
       USER_SERVICE_URL: http://user-service:8082
@@ -263,6 +258,8 @@ services:
       AI_SERVICE_URL: http://ai-agent-service:8085
       PAYMENT_SERVICE_URL: http://payment-service:8088
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      REDIS_HOST: stylemind-redis
+      REDIS_PORT: 6379
     volumes:
       - ../.docker/certs:/app/certs:ro
     networks:
@@ -282,13 +279,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/auth_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      # JWT Asymmetric Key Configuration (Private Key Access)
-      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH}
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:RSA}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE:2048}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+      JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: 8081
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
       SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
@@ -317,12 +308,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/user_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      # JWT Asymmetric Key Configuration (Public Key Only)
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:RSA}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE:2048}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+      JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: 8082
       AUTH_SERVICE_URL: http://auth-service:8081
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
@@ -348,12 +334,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-product:5432/product_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      # JWT Asymmetric Key Configuration (Public Key Only)
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:RSA}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE:2048}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+      JWT_SECRET: ${JWT_SECRET}
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: admin
       S3_SECRET_KEY: password
@@ -385,12 +366,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-cart:5432/cart_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      # JWT Asymmetric Key Configuration (Public Key Only)
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:RSA}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE:2048}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+      JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: 8086
       AUTH_SERVICE_URL: http://auth-service:8081
       PRODUCT_SERVICE_URL: http://product-service:8083
@@ -418,12 +394,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/order_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      # JWT Asymmetric Key Configuration (Public Key Only)
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:RSA}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE:2048}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+      JWT_SECRET: ${JWT_SECRET}
       PAYMENT_SERVICE_URL: http://payment-service:8088
       CART_SERVICE_URL: http://cart-service:8086
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
@@ -451,15 +422,21 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/payment_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      # JWT Asymmetric Key Configuration (Public Key Only)
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:RSA}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE:2048}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+      JWT_SECRET: ${JWT_SECRET}
       INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
       SERVER_PORT: 8088
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SEPAY_BANK_SHORT_NAME: VCB
+      SEPAY_ACCOUNT_NUMBER: 1234567890
+      SEPAY_ACCOUNT_NAME: TEST_ACCOUNT
+      SEPAY_BANK_HUB_PREFIX: SEVQR
+      SEPAY_PAYMENT_EXPIRE_MINUTES: 15
+      SEPAY_QR_BASE_URL: https://img.vietqr.io/image
+      SEPAY_ENABLED: false
+      SEPAY_MODE: test
+      SEPAY_PAYMENT_CODE_PREFIX: STYLEMIND
+      SEPAY_WEBHOOK_AUTH_MODE: API_KEY
+      SEPAY_WEBHOOK_API_KEY: test-key
     volumes:
       - ../.docker/certs:/app/certs:ro
     depends_on:
@@ -482,14 +459,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-notification:5432/notification_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      # JWT Asymmetric Key Configuration (Public Key Only)
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:RSA}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE:2048}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+      JWT_SECRET: ${JWT_SECRET}
       SERVER_PORT: 8089
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      MAIL_ENABLED: false
+      SPRING_AUTOCONFIGURE_EXCLUDE: org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
+      MANAGEMENT_HEALTH_MAIL_ENABLED: false
     volumes:
       - ../.docker/certs:/app/certs:ro
     depends_on:
@@ -515,12 +490,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-ai:5432/ai_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      # JWT Asymmetric Key Configuration (Public Key Only)
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM:RSA}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE:2048}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+      JWT_SECRET: ${JWT_SECRET}
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
       NEO4J_URI: bolt://neo4j:7687
@@ -536,8 +506,6 @@ services:
       - ../.docker/certs:/app/certs:ro
     depends_on:
       postgres-ai:
-        condition: service_healthy
-      qdrant:
         condition: service_healthy
       neo4j:
         condition: service_healthy

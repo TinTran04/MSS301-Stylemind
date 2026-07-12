@@ -20,7 +20,7 @@ RUN mvn clean install -pl common-lib -am -DskipTests -Dspring-boot.repackage.ski
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-COPY --from=builder /app/api-gateway/target/*.jar app.jar
+COPY --from=builder /app/api-gateway/target/api-gateway-*.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
 EXPOSE 3001

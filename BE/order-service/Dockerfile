@@ -21,7 +21,7 @@ RUN mvn clean install -pl common-lib,cart-service -am -DskipTests -Dspring-boot.
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-COPY --from=builder /app/order-service/target/*.jar app.jar
+COPY --from=builder /app/order-service/target/order-service-*.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
 EXPOSE 8087
