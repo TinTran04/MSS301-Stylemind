@@ -2,6 +2,7 @@ AUTH_SERVICE_URL: http://auth-service:8081
 USER_SERVICE_URL: http://user-service:8082
 PRODUCT_SERVICE_URL: http://product-service:8083
 AI_SERVICE_URL: http://ai-agent-service:8085
+AI_CHAT_SERVICE_URL: http://host.docker.internal:8000
 CART_SERVICE_URL: http://cart-service:8086
 ORDER_SERVICE_URL: http://order-service:8087
 PAYMENT_SERVICE_URL: http://payment-service:8088

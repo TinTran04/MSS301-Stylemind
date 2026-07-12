@@ -1,96 +1,166 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send, Sparkles, ShoppingBag, AlertTriangle } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Link } from 'react-router-dom'
+import { Send, Sparkles, AlertTriangle, LogIn } from 'lucide-react'
 import ChatBubble from '../../components/ai/ChatBubble'
-import ProductBlock from '../../components/ai/ProductBlock'
+import OutfitPlanBlock from '../../components/ai/OutfitPlanBlock'
 import PromptSuggestion from '../../components/ai/PromptSuggestion'
-import useCartStore from '../../features/cart/cart.store'
-import { getProductById } from '../../features/products/product.api'
-import { sendChatMessage, getChatHistory } from '../../features/ai-stylist/aiStylist.api'
-
-function toDisplayMessage(chatResponse) {
-  return {
-    id: chatResponse.messageId,
-    conversationId: chatResponse.conversationId,
-    role: chatResponse.senderType === 'AI' ? 'ai' : 'user',
-    content: chatResponse.messageText,
-    timestamp: chatResponse.createdAt || new Date().toISOString(),
-    products: chatResponse.recommendedProducts || [],
-    bundleId: chatResponse.bundleId || null,
-  }
-}
+import SessionSidebar from '../../components/ai/SessionSidebar'
+import useAuthStore from '../../features/auth/auth.store'
+import {
+  listSessions,
+  createSession,
+  deleteSession,
+  getSessionMessages,
+  sendChatMessage,
+} from '../../features/ai-stylist/aiStylist.api'
+import { toDisplayMessage } from '../../features/ai-stylist/aiStylist.utils'
 
 export default function AIStylistChatPage() {
+  const user = useAuthStore((s) => s.user)
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+
+  const [sessions, setSessions] = useState([])
+  const [loadingSessions, setLoadingSessions] = useState(true)
+  const [activeSessionId, setActiveSessionId] = useState(null)
   const [messages, setMessages] = useState([])
-  const [conversationId, setConversationId] = useState(null)
+  const [loadingMessages, setLoadingMessages] = useState(false)
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
-  const [loadingHistory, setLoadingHistory] = useState(true)
-  const [historyError, setHistoryError] = useState('')
-  const [sendError, setSendError] = useState('')
-  const [addingBundleId, setAddingBundleId] = useState(null)
-  const addItem = useCartStore((s) => s.addItem)
+  const [error, setError] = useState('')
   const chatEndRef = useRef(null)
 
   useEffect(() => {
-    getChatHistory()
-      .then((history) => {
-        const mapped = history.map(toDisplayMessage)
-        setMessages(mapped)
-        if (mapped.length > 0) {
-          setConversationId(mapped[mapped.length - 1].conversationId)
+    if (!user?.id) {
+      setLoadingSessions(false)
+      return
+    }
+    listSessions(user.id)
+      .then((list) => {
+        setSessions(list)
+        if (list.length > 0) {
+          selectSession(list[0].id)
         }
       })
-      .catch(() => setHistoryError('Không thể tải lịch sử trò chuyện.'))
-      .finally(() => setLoadingHistory(false))
-  }, [])
+      .catch(() => setError('Không thể tải danh sách trò chuyện.'))
+      .finally(() => setLoadingSessions(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isTyping])
 
-  const handleSend = async (text) => {
-    const prompt = text || input.trim()
-    if (!prompt) return
-
-    const userMsg = {
-      id: `local-${Date.now()}`,
-      role: 'user',
-      content: prompt,
-      timestamp: new Date().toISOString(),
-      products: [],
+  const selectSession = useCallback(async (sessionId) => {
+    setActiveSessionId(sessionId)
+    setMessages([])
+    setError('')
+    setLoadingMessages(true)
+    try {
+      const history = await getSessionMessages(sessionId)
+      setMessages(history.map(toDisplayMessage))
+    } catch {
+      setError('Không thể tải lịch sử trò chuyện.')
+    } finally {
+      setLoadingMessages(false)
     }
-    setMessages((prev) => [...prev, userMsg])
+  }, [])
+
+  const handleNewChat = () => {
+    // Session is created lazily on the first message, so empty sessions never pile up.
+    setActiveSessionId(null)
+    setMessages([])
+    setError('')
+  }
+
+  const handleDeleteSession = async (sessionId) => {
+    try {
+      await deleteSession(sessionId)
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId))
+      if (sessionId === activeSessionId) {
+        handleNewChat()
+      }
+    } catch {
+      setError('Không thể xóa cuộc trò chuyện.')
+    }
+  }
+
+  const handleSend = async (text) => {
+    const prompt = (text || input).trim()
+    if (!prompt || isTyping || !user?.id) return
+
     setInput('')
+    setError('')
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `local-${Date.now()}`,
+        role: 'user',
+        content: prompt,
+        timestamp: new Date().toISOString(),
+      },
+    ])
     setIsTyping(true)
-    setSendError('')
 
     try {
-      const response = await sendChatMessage(prompt, conversationId)
-      setConversationId(response.conversationId)
-      setMessages((prev) => [...prev, toDisplayMessage(response)])
-    } catch (err) {
-      setSendError('Stylist AI hiện chưa sẵn sàng. Vui lòng thử lại sau.')
+      let sessionId = activeSessionId
+      if (!sessionId) {
+        const session = await createSession(user.id)
+        sessionId = session.id
+        setActiveSessionId(sessionId)
+        setSessions((prev) => [session, ...prev])
+      }
+
+      const response = await sendChatMessage(sessionId, prompt)
+      setMessages((prev) => [...prev, toDisplayMessage(response.message)])
+
+      // Backend fills the title from the first message and bumps updated_at;
+      // reflect that in the sidebar without refetching.
+      setSessions((prev) => {
+        const updated = prev.map((s) =>
+          s.id === sessionId
+            ? { ...s, title: s.title || prompt.slice(0, 60), updated_at: new Date().toISOString() }
+            : s
+        )
+        return updated.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+      })
+    } catch {
+      setError('Stylist AI hiện chưa sẵn sàng. Vui lòng thử lại sau.')
     } finally {
       setIsTyping(false)
     }
   }
 
-  const handleAddFullOutfit = async (products, bundleId) => {
-    setAddingBundleId(bundleId)
-    try {
-      for (const prod of products) {
-        const fullProduct = await getProductById(prod.productId)
-        if (fullProduct) {
-          await addItem(fullProduct, 1, undefined, undefined, { isAiRecommended: true, sourceBundleId: bundleId })
-        }
-      }
-    } finally {
-      setAddingBundleId(null)
-    }
+  if (!isAuthenticated || !user?.id) {
+    return (
+      <div className="flex h-[calc(100vh-5rem)] items-center justify-center ai-bg-shimmer">
+        <div className="glass-panel rounded-2xl p-8 max-w-sm text-center">
+          <Sparkles size={32} className="text-tertiary mx-auto mb-4" />
+          <h3 className="text-base font-medium text-primary mb-2">Stylist AI</h3>
+          <p className="text-sm text-on-surface-variant mb-6">
+            Đăng nhập để trò chuyện với Stylist AI và lưu lại các cuộc tư vấn của bạn.
+          </p>
+          <Link
+            to="/login"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
+          >
+            <LogIn size={14} /> Đăng nhập
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="flex h-[calc(100vh-5rem)] overflow-hidden">
+      <SessionSidebar
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        loading={loadingSessions}
+        onSelect={selectSession}
+        onNewChat={handleNewChat}
+        onDelete={handleDeleteSession}
+      />
+
       <div className="flex-1 flex flex-col ai-bg-shimmer relative">
         <div className="h-16 glass-header flex items-center justify-between px-6 shrink-0">
           <div className="flex items-center gap-3">
@@ -107,49 +177,30 @@ export default function AIStylistChatPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 space-y-6">
-          {loadingHistory && (
-            <div className="py-12 text-center text-sm text-on-surface-variant">Đang tải lịch sử trò chuyện...</div>
-          )}
-
-          {historyError && (
-            <div role="alert" className="mx-auto max-w-md rounded-xl border border-error/20 bg-error-container/30 p-4 text-sm text-error text-center">
-              {historyError}
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 pb-24 space-y-6">
+          {loadingMessages && (
+            <div className="py-12 text-center text-sm text-on-surface-variant">
+              Đang tải lịch sử trò chuyện...
             </div>
           )}
 
-          {!loadingHistory && !historyError && messages.map((msg) => (
+          {!loadingMessages && messages.map((msg) => (
             <div key={msg.id}>
               <ChatBubble message={msg} isAI={msg.role === 'ai'} />
-              {msg.products && msg.products.length > 0 && (
-                <div className={`mt-3 ${msg.role === 'ai' ? 'ml-11' : 'mr-11'}`}>
-                  <div className="grid grid-cols-2 gap-3 max-w-[500px]">
-                    {msg.products.map((prod) => (
-                      <ProductBlock key={prod.productId} product={prod} bundleId={msg.bundleId} />
-                    ))}
-                  </div>
-                  {msg.role === 'ai' && msg.bundleId && (
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        onClick={() => handleAddFullOutfit(msg.products, msg.bundleId)}
-                        disabled={addingBundleId === msg.bundleId}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary rounded-lg text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                      >
-                        <ShoppingBag size={12} /> {addingBundleId === msg.bundleId ? 'Đang thêm...' : 'Thêm trọn set'}
-                      </button>
-                    </div>
-                  )}
+              {msg.outfitPlan && (
+                <div className="mt-3 ml-11">
+                  <OutfitPlanBlock plan={msg.outfitPlan} messageId={msg.id} />
                 </div>
               )}
             </div>
           ))}
 
           {isTyping && (
-            <div className="flex items-center gap-3 ml-11">
+            <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                 <Sparkles size={14} className="text-on-primary" />
               </div>
-              <div className="bg-surface-container-low rounded-2xl px-4 py-3 flex gap-1.5">
+              <div className="bg-surface-container-lowest border border-outline-variant/40 soft-shadow rounded-2xl px-4 py-3 flex gap-1.5">
                 <span className="w-2 h-2 bg-on-surface-variant/40 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
                 <span className="w-2 h-2 bg-on-surface-variant/40 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
                 <span className="w-2 h-2 bg-on-surface-variant/40 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
@@ -157,13 +208,13 @@ export default function AIStylistChatPage() {
             </div>
           )}
 
-          {sendError && (
+          {error && (
             <div role="alert" className="mx-auto max-w-md rounded-xl border border-error/20 bg-error-container/30 p-4 text-sm text-error text-center flex items-center gap-2 justify-center">
-              <AlertTriangle size={14} /> {sendError}
+              <AlertTriangle size={14} /> {error}
             </div>
           )}
 
-          {!loadingHistory && !historyError && messages.length === 0 && (
+          {!loadingMessages && !isTyping && messages.length === 0 && !error && (
             <div className="flex flex-col items-center justify-center py-12">
               <Sparkles size={32} className="text-tertiary mb-4" />
               <p className="text-on-surface-variant text-center mb-6 max-w-sm">
