@@ -7,37 +7,38 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.security.KeyFactory;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 
 @Component
 @Slf4j
 public class JwtUtil {
 
-    // Must match common-lib JwtUtil so a token minted by auth-service validates at the gateway.
-    private static final String DEFAULT_SECRET = "super-secure-stylemind-secret-key-signature-2026-xyz";
-    private static final int MIN_HS256_SECRET_BYTES = 32;
+    private final PublicKey publicKey;
 
-    private final SecretKey secretKey;
-
-    public JwtUtil(@Value("${jwt.secret:${JWT_SECRET:" + DEFAULT_SECRET + "}}") String secret) {
-        String resolvedSecret = resolveSecret(secret);
-        this.secretKey = Keys.hmacShaKeyFor(resolvedSecret.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private String resolveSecret(String secret) {
-        if (secret == null || secret.isBlank()) {
-            log.warn("JWT secret is blank; using local development default. Set JWT_SECRET for shared environments.");
-            return DEFAULT_SECRET;
+    public JwtUtil(@Value("${jwt.public-key-path}") String publicKeyPath) {
+        try {
+            String publicKeyContent = new String(Files.readAllBytes(Paths.get(publicKeyPath)));
+            publicKeyContent = publicKeyContent
+                .replace("-----BEGIN PUBLIC KEY-----", "")
+                .replace("-----END PUBLIC KEY-----", "")
+                .replaceAll("\\s", "");
+            
+            byte[] keyBytes = Base64.getDecoder().decode(publicKeyContent);
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            this.publicKey = keyFactory.generatePublic(spec);
+            
+            log.info("Successfully loaded RSA public key from: {}", publicKeyPath);
+        } catch (Exception e) {
+            log.error("Failed to load RSA public key from: {}", publicKeyPath, e);
+            throw new RuntimeException("Failed to load RSA public key", e);
         }
-
-        if (secret.getBytes(StandardCharsets.UTF_8).length < MIN_HS256_SECRET_BYTES) {
-            log.warn("JWT secret is shorter than {} bytes; using local development default. Set a longer JWT_SECRET.",
-                    MIN_HS256_SECRET_BYTES);
-            return DEFAULT_SECRET;
-        }
-
-        return secret;
     }
 
     public String extractUserId(String token) {
@@ -54,7 +55,7 @@ public class JwtUtil {
 
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
-                .verifyWith(secretKey)
+                .verifyWith(publicKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
