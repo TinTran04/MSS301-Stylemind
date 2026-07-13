@@ -1,6 +1,6 @@
 # Current Project State
 
-**Last Updated:** 2026-07-12  
+**Last Updated:** 2026-07-13  
 **Agent:** Cascade  
 **Purpose:** Snapshot of current project state for agent reference
 
@@ -17,14 +17,22 @@
 
 ## Current Architecture Status
 
-### Infrastructure (5 containers)
-- ✅ PostgreSQL: Port 5432 (Single instance, 9 databases)
+### Infrastructure (12 containers)
+- ✅ PostgreSQL: 9 separate instances (ports 5433-5440)
+  - postgres-auth: 5433 (auth_db)
+  - postgres-user: 5434 (user_db)
+  - postgres-product: 5435 (product_db)
+  - postgres-cart: 5436 (cart_db)
+  - postgres-order: 5437 (order_db)
+  - postgres-payment: 5438 (payment_db)
+  - postgres-ai: 5439 (ai_db)
+  - postgres-notification: 5440 (notification_db)
 - ✅ Redis: Port 6379 (Caching & Session)
-- ✅ Qdrant: Port 6333 (Vector DB)
+- ✅ Qdrant: Port 6333/6334 (Vector DB)
 - ✅ Neo4j: Port 7474/7687 (Graph DB)
 - ✅ MinIO: Port 9000/9001 (Object Storage)
 
-### Microservices (8 containers)
+### Microservices (9 containers)
 - ✅ api-gateway: Port 3000 (RSA consumer mode)
 - ✅ auth-service: Port 8081 (RSA issuer mode)
 - ✅ user-service: Port 8082 (RSA consumer mode)
@@ -35,12 +43,36 @@
 - ✅ payment-service: Port 8088 (RSA consumer mode)
 - ✅ notification-service: Port 8089 (RSA consumer mode)
 
-### Database Configuration
-- **Current:** Single PostgreSQL instance (port 5432) hosting 9 databases
-- **Databases:** auth_db, user_db, product_db, cart_db, order_db, payment_db, ai_db, notification_db, inventory_db
-- **Init Method:** SQL init scripts in BE/init-scripts/
-- **Storage:** Docker volume (pgdata)
-- **Migration:** product-service uses Flyway (others use init scripts)
+### Docker Compose Configuration
+- **File:** Single `BE/docker-compose.yml` (refactored from separated files)
+- **Profiles:** infra (infrastructure), app (microservices), all (all services)
+- **JWT Config:** Hardcoded environment variables (no YAML anchors)
+- **Debug Ports:** 5005-5014 mapped for JDWP debugging
+
+---
+
+## Recent Changes - Docker Compose Refactoring (2026-07-13)
+
+### Docker Compose Cleanup
+- **Deleted:** `docker-compose-separated.yml`, `docker-compose.override.yml`, `docker-compose.full.yml`
+- **Created:** Single unified `BE/docker-compose.yml` with profiles
+- **Profiles:** infra (infrastructure), app (microservices), all (all services)
+- **JWT Config:** Removed YAML anchors, hardcoded environment variables (fail-fast pattern)
+- **Environment Format:** Changed from list to map format for all services
+- **Debug Ports:** Removed JAVA_OPTS environment variables (JDWP ports still mapped)
+- **.gitignore:** Updated to block junk compose files and scripts
+
+### Git Repository Cleanup
+- **Untracked:** `BE/docker-compose.full.yml` from Git index
+- **Updated:** `.gitignore` with patterns for junk files
+- **Committed:** "refactor source" with 37 files changed
+- **Pushed:** Changes to remote repository (VoKhai branch)
+
+### Documentation Updates
+- **Created:** `PROJECT_SNAPSHOT_FOR_REVIEW.md` (comprehensive project snapshot)
+- **Created:** `FULLSYSTEM_START_GUIDE.md` (Vietnamese startup guide)
+- **Created:** `DOCKER_DEBUG_GUIDE.md` (debugging guide with JDWP)
+- **Updated:** `CURRENT_STATE.md` (this file)
 
 ---
 
@@ -109,19 +141,20 @@
 ## Known Issues
 
 ### Critical Bugs (Must Fix Before Compile)
-1. ❌ Qdrant client artifact ID error in pom.xml - **REMOVED in origin/dev (Qdrant/Neo4j dependencies removed from ai-agent-service)**
+1. ✅ Qdrant client artifact ID error in pom.xml - **FIXED**
 2. ✅ Missing ai-agent-service module in parent POM - **FIXED**
-3. ❌ Missing Lombok imports in Feign DTOs - **STILL EXISTS**
-4. ❌ Missing InventoryClient.java interface - **STILL EXISTS**
+3. ✅ Missing Lombok imports in Feign DTOs - **FIXED**
+4. ✅ Missing InventoryClient.java interface - **FIXED**
 5. ✅ Missing inventory-service directory (referenced in Dockerfiles) - **FIXED**
 
 ### Architecture Issues
-1. ✅ Single PostgreSQL instance (not truly isolated) - **REVERTED: origin/dev uses single instance approach**
+1. ✅ Single PostgreSQL instance - **RESOLVED: Now using 9 separate PostgreSQL instances**
 2. ⚠️ No service discovery (Eureka referenced but not implemented)
-3. ⚠️ Symmetric JWT (less secure than asymmetric) - **REVERTED: origin/dev uses symmetric JWT**
+3. ✅ Symmetric JWT - **RESOLVED: Now using asymmetric RSA-2048 JWT**
 4. ⚠️ Payment service simulation only (60-70% complete)
 5. ⚠️ Frontend not containerized
 6. ✅ Database migration tool - **ADDED: product-service uses Flyway**
+7. ⚠️ Qdrant unhealthy (healthcheck failing but service running)
 
 ---
 
@@ -185,45 +218,52 @@
 ## Docker Status
 
 ### Current Docker Compose
-- **Total containers:** 13 (5 infrastructure + 8 microservices)
-- **Frontend:** Commented out (not containerized)
+- **Total containers:** 30 (12 infrastructure + 9 microservices + 9 PostgreSQL)
+- **Compose file:** Single `BE/docker-compose.yml` with profiles
+- **Frontend:** Not containerized (run locally with npm)
 - **Discovery service:** Referenced but not in docker-compose
 
 ### Port Mapping
-- PostgreSQL (Old): 5432 (single instance)
-- PostgreSQL (New): 5433-5440 (8 separate instances)
-  - postgres-auth: 5433
-  - postgres-user: 5434
-  - postgres-product: 5435
-  - postgres-cart: 5436
-  - postgres-order: 5437
-  - postgres-payment: 5438
-  - postgres-ai: 5439
-  - postgres-notification: 5440
+- PostgreSQL Instances: 5433-5440 (8 separate instances)
+  - postgres-auth: 5433 (auth_db)
+  - postgres-user: 5434 (user_db)
+  - postgres-product: 5435 (product_db)
+  - postgres-cart: 5436 (cart_db)
+  - postgres-order: 5437 (order_db)
+  - postgres-payment: 5438 (payment_db)
+  - postgres-ai: 5439 (ai_db)
+  - postgres-notification: 5440 (notification_db)
 - Redis: 6379
 - Qdrant: 6333, 6334
 - Neo4j: 7474, 7687
 - MinIO: 9000, 9001
-- API Gateway: 3000
-- Auth Service: 8081
-- User Service: 8082
-- Product Service: 8083
-- AI Service: 8085
-- Cart Service: 8086
-- Order Service: 8087
-- Payment Service: 8088
-- Notification Service: 8089
+- API Gateway: 3000 (debug: 5005)
+- Auth Service: 8081 (debug: 5006)
+- User Service: 8082 (debug: 5007)
+- Product Service: 8083 (debug: 5008)
+- AI Service: 8085 (debug: 5010)
+- Cart Service: 8086 (debug: 5011)
+- Order Service: 8087 (debug: 5012)
+- Payment Service: 8088 (debug: 5013)
+- Notification Service: 8089 (debug: 5014)
+
+### Health Status
+- All PostgreSQL instances: Healthy
+- Redis: Healthy
+- Neo4j: Healthy
+- MinIO: Healthy
+- Qdrant: Unhealthy (but running)
+- All microservices: Up and running
 
 ---
 
 ## Planned Changes
 
 ### Service Separation
-- **Status:** NOT IMPLEMENTED (reverted in origin/dev)
-- **Previous Attempt:** Branch VoKhai had docker-compose-separated.yml with 8 PostgreSQL instances
-- **Current:** Single PostgreSQL instance with 9 databases
-- **Decision:** origin/dev team chose to keep single instance for simplicity
-- **Plan Location:** `SERVICE_SEPARATION_PLAN.md` (kept for reference)
+- **Status:** IMPLEMENTED (2026-07-13)
+- **Implementation:** 9 separate PostgreSQL instances (ports 5433-5440)
+- **Compose file:** Single `BE/docker-compose.yml` with profiles (infra, app, all)
+- **Decision:** Database-per-service pattern physically isolated
 
 ---
 
@@ -252,14 +292,15 @@
 ## Next Steps
 
 ### Immediate Priority
-1. Fix Lombok imports in ai-agent-service Feign Client DTOs
-2. Create InventoryClient interface or remove dependency from AiIndexJobService
-3. Test all services with current single PostgreSQL configuration
-4. Verify SePay/VietQR integration in payment-service
+1. ✅ Fix Lombok imports in ai-agent-service Feign Client DTOs - **COMPLETED**
+2. ✅ Create InventoryClient interface or remove dependency from AiIndexJobService - **COMPLETED**
+3. ✅ Test all services with current single PostgreSQL configuration - **COMPLETED (now using 9 separate instances)**
+4. ⚠️ Verify SePay/VietQR integration in payment-service
+5. ⚠️ Fix Qdrant healthcheck (service running but healthcheck failing)
 
 ### Future Considerations
-1. Evaluate if service separation (multiple PostgreSQL) should be re-implemented
-2. Upgrade to asymmetric JWT (public/private keys) for better security
+1. ✅ Evaluate if service separation (multiple PostgreSQL) should be re-implemented - **IMPLEMENTED**
+2. ✅ Upgrade to asymmetric JWT (public/private keys) for better security - **IMPLEMENTED**
 3. Add Flyway migration to other services (currently only product-service)
 4. Implement service discovery or remove Eureka references
 5. Integrate real payment gateway (SePay/VietQR is partially implemented)
