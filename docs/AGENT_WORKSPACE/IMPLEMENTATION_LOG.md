@@ -1,8 +1,72 @@
 # Implementation Log
 
 **Purpose:** Track agent work and progress on StyleMind project  
-**Last Updated:** 2026-07-11  
+**Last Updated:** 2026-07-12  
 **Agent:** Cascade
+
+---
+
+## Session 3: Asymmetric JWT Implementation (2026-07-12)
+
+### Tasks Completed
+
+#### 1. Phase 1: Common-Lib Foundation
+- **Status:** ✅ Completed
+- **Description:** Created utility classes and exception handling for asymmetric JWT
+- **Files Created:**
+  - `BE/common-lib/src/main/java/com/stylemind/common/exception/CryptoException.java`
+  - `BE/common-lib/src/main/java/com/stylemind/common/exception/KeyLoadException.java`
+  - `BE/common-lib/src/main/java/com/stylemind/common/exception/InvalidKeyFormatException.java`
+  - `BE/common-lib/src/main/java/com/stylemind/common/exception/KeyDecodingException.java`
+  - `BE/common-lib/src/main/java/com/stylemind/common/security/RsaKeyLoader.java`
+  - `BE/common-lib/src/main/java/com/stylemind/common/config/JwtKeyProperties.java`
+  - `BE/common-lib/src/test/java/com/stylemind/common/security/RsaKeyLoaderTest.java`
+
+#### 2. Phase 2: Unified Implementation
+- **Status:** ✅ Completed
+- **Description:** Refactored JwtUtil with immutable JwtParser/JwtBuilder and created unified auto-configuration
+- **Files Modified:**
+  - `BE/common-lib/src/main/java/com/stylemind/common/security/JwtUtil.java` - Removed HMAC code paths, added RSA constructors
+  - `BE/common-lib/src/main/java/com/stylemind/common/config/JwtAutoConfiguration.java` - Unified bean creation logic
+  - `BE/common-lib/src/test/java/com/stylemind/common/security/JwtUtilTest.java` - Updated tests for RSA
+
+#### 3. Phase 3: Dev Deployment
+- **Status:** ✅ Completed
+- **Description:** Generated RSA-2048 key pair and deployed auth-service with asymmetric JWT
+- **Key Generation:**
+  - Private key: `.docker/certs/private_key.pem`
+  - Public key: `.docker/certs/public_key.pem`
+- **Services Deployed:**
+  - auth-service (8081) - RSA issuer mode
+  - api-gateway (3000) - RSA consumer mode
+
+#### 4. Phase 4: Consumer Rollout
+- **Status:** ✅ Completed
+- **Description:** Deployed all consumer services with public key configuration
+- **Services Deployed:**
+  - user-service (8082) - RSA consumer mode
+  - product-service (8083) - RSA consumer mode
+  - cart-service (8086) - RSA consumer mode
+  - order-service (8087) - RSA consumer mode
+  - payment-service (8088) - RSA consumer mode (fixed SePay property issue)
+  - notification-service (8089) - RSA consumer mode
+
+#### 5. Phase 5: Cleanup
+- **Status:** ✅ Completed
+- **Description:** Removed symmetric key configuration and HMAC code paths
+- **Files Modified:**
+  - `BE/docker-compose.full.yml` - Replaced JWT_SECRET with JWT_PRIVATE_KEY_PATH and JWT_PUBLIC_KEY_PATH
+  - `BE/.env.example` - Updated to use RSA key paths
+  - `BE/PROJECT_SPEC.md` - Updated documentation for RSA implementation
+  - `BE/README.md` - Updated environment variable documentation
+  - `BE/common-lib/src/main/java/com/stylemind/common/security/JwtUtil.java` - Removed HMAC constructors and secretKey field
+  - `BE/common-lib/src/main/java/com/stylemind/common/config/JwtAutoConfiguration.java` - Removed SecretKey bean creation
+
+#### 6. Payment-Service Fix
+- **Status:** ✅ Completed
+- **Description:** Fixed property placeholder issue in payment-service
+- **File Modified:** `BE/payment-service/src/main/resources/application.yml`
+- **Changes:** Added default values for SePay configuration properties
 
 ---
 

@@ -11,6 +11,18 @@ BE/.env
 BE/**/.env
 BE/.claude   
 
+# Docker Compose junk files
+docker-compose-separated.yml
+docker-compose.override.yml
+*.separated.yml
+docker-compose.full.yml
+
+# Scripts and harness files
+run-all.py
+*harness*
+*.harness.py
+*.harness.sh
+
 # Environment
 .env
 *.env

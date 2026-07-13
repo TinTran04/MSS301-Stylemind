@@ -26,11 +26,25 @@ spring:
   sql:
     init:
       mode: never
+  neo4j:
+    uri: ${NEO4J_URI}
+    authentication:
+      username: ${NEO4J_USERNAME}
+      password: ${NEO4J_PASSWORD}
 
+# JWT Asymmetric Key Configuration (Consumer)
 jwt:
-  secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
+  # Public Key Path ONLY - REQUIRED for token verification
+  # NO DEFAULT VALUE - Must be set via environment variable
+  public-key-path: ${JWT_PUBLIC_KEY_PATH}
+  
+  # Algorithm Configuration (must match issuer)
+  algorithm: ${JWT_ALGORITHM:RSA}
+  key-size: ${JWT_KEY_SIZE:2048}
+  
+  # Token Expiration (for validation checks)
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:86400000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
 
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}

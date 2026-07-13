@@ -37,11 +37,9 @@ spring:
 jwt:
   # JWT Asymmetric Key Configuration (Issuer)
   # Private Key Path - REQUIRED for signing tokens
-  # NO DEFAULT VALUE - Must be set via environment variable
   private-key-path: ${JWT_PRIVATE_KEY_PATH}
   
   # Public Key Path - REQUIRED for verification (if needed internally)
-  # NO DEFAULT VALUE - Must be set via environment variable
   public-key-path: ${JWT_PUBLIC_KEY_PATH}
   
   # Algorithm Configuration

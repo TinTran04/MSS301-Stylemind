@@ -39,10 +39,19 @@ spring:
       max-file-size: 10MB
       max-request-size: 50MB
 
+# JWT Asymmetric Key Configuration (Consumer)
 jwt:
-  secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
-  access-token-expiration: 3600000
-  refresh-token-expiration: 604800000
+  # Public Key Path ONLY - REQUIRED for token verification
+  # NO DEFAULT VALUE - Must be set via environment variable
+  public-key-path: ${JWT_PUBLIC_KEY_PATH}
+  
+  # Algorithm Configuration (must match issuer)
+  algorithm: ${JWT_ALGORITHM:RSA}
+  key-size: ${JWT_KEY_SIZE:2048}
+  
+  # Token Expiration (for validation checks)
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
 
 cloudinary:
   cloud-name: ${CLOUDINARY_CLOUD_NAME:}

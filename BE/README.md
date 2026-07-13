@@ -96,7 +96,8 @@ Key variables (see `.env.example` and `PROJECT_SPEC.md` §8):
 
 | Variable | Used by | Meaning |
 |----------|---------|---------|
-| `JWT_SECRET` | all services | HS256 signing key; **must be identical** everywhere |
+| `JWT_PRIVATE_KEY_PATH` | auth-service | RSA-2048 private key for token signing |
+| `JWT_PUBLIC_KEY_PATH` | all services | RSA-2048 public key for token verification |
 | `X_INTERNAL_TOKEN` | Feign service-to-service calls | guards `/internal/v1/**` |
 | `SEPAY_WEBHOOK_API_KEY` | payment-service | SePay sends `Authorization: Apikey <this>`; webhooks rejected if it doesn't match |
 | `LLM_API_KEY` | ai-agent-service | external LLM key |

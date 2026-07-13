@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.security.*;
 import java.util.Collections;
 
 import io.jsonwebtoken.ExpiredJwtException;
@@ -13,10 +14,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JwtUtilTest {
 
-    private static final String VALID_SECRET = "super-secure-stylemind-secret-key-signature-2026-xyz";
+    private KeyPair generateRsaKeyPair() throws NoSuchAlgorithmException {
+        KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+        keyGen.initialize(2048);
+        return keyGen.generateKeyPair();
+    }
 
-    private JwtUtil jwtUtil(String secret) {
-        return new JwtUtil(secret, 3_600_000L, 604_800_000L);
+    private JwtUtil jwtUtilIssuer() throws NoSuchAlgorithmException {
+        KeyPair keyPair = generateRsaKeyPair();
+        return new JwtUtil(keyPair.getPrivate(), keyPair.getPublic(), 3_600_000L, 604_800_000L);
+    }
+
+    private JwtUtil jwtUtilConsumer(PublicKey publicKey) {
+        return new JwtUtil(publicKey, 3_600_000L, 604_800_000L);
     }
 
     private UserDetails userDetails(String email) {
@@ -24,47 +34,40 @@ class JwtUtilTest {
     }
 
     @Test
-    void generateAndValidateToken() {
-        JwtUtil util = jwtUtil(VALID_SECRET);
+    void generateAndValidateToken() throws Exception {
+        JwtUtil issuer = jwtUtilIssuer();
+        KeyPair keyPair = generateRsaKeyPair();
+        JwtUtil consumer = jwtUtilConsumer(keyPair.getPublic());
+        
         UserDetails ud = userDetails("alice@example.com");
+        String token = issuer.generateAccessToken(ud, "user-1", "CUSTOMER");
 
-        String token = util.generateAccessToken(ud, "user-1", "CUSTOMER");
-
-        assertThat(util.extractUsername(token)).isEqualTo("alice@example.com");
-        assertThat(util.extractUserId(token)).isEqualTo("user-1");
-        assertThat(util.extractRole(token)).isEqualTo("CUSTOMER");
-        assertThat(util.validateToken(token, ud)).isTrue();
+        assertThat(consumer.extractUsername(token)).isEqualTo("alice@example.com");
+        assertThat(consumer.extractUserId(token)).isEqualTo("user-1");
+        assertThat(consumer.extractRole(token)).isEqualTo("CUSTOMER");
+        assertThat(consumer.validateToken(token, ud)).isTrue();
     }
 
     @Test
-    void usesDefaultSecretWhenBlank() {
-        // Should not throw — falls back to hardcoded default
-        JwtUtil util = jwtUtil("");
-        UserDetails ud = userDetails("b@b.com");
-        String token = util.generateAccessToken(ud, "u2", "ADMIN");
-        assertThat(util.validateToken(token, ud)).isTrue();
-    }
-
-    @Test
-    void usesDefaultSecretWhenTooShort() {
-        JwtUtil util = jwtUtil("short");
-        UserDetails ud = userDetails("c@c.com");
-        String token = util.generateAccessToken(ud, "u3", "CUSTOMER");
-        assertThat(util.validateToken(token, ud)).isTrue();
-    }
-
-    @Test
-    void tokenIsExpiredAfterNegativeExpiry() {
-        JwtUtil util = new JwtUtil(VALID_SECRET, -1L, -1L);
+    void tokenIsExpiredAfterNegativeExpiry() throws Exception {
+        JwtUtil issuer = new JwtUtil(generateRsaKeyPair().getPrivate(), generateRsaKeyPair().getPublic(), -1L, -1L);
         UserDetails ud = userDetails("d@d.com");
-        String token = util.generateAccessToken(ud, "u4", "CUSTOMER");
-        // JJWT throws ExpiredJwtException when parsing an already-expired token;
-        // isTokenExpired internally calls extractExpiration which parses the token.
-        assertThatThrownBy(() -> util.isTokenExpired(token))
-                .isInstanceOf(io.jsonwebtoken.ExpiredJwtException.class);
-        // validateToken wraps the parse; it must also propagate the exception
-        // (callers in JwtAuthenticationFilter already catch Exception broadly)
-        assertThatThrownBy(() -> util.validateToken(token, ud))
-                .isInstanceOf(io.jsonwebtoken.ExpiredJwtException.class);
+        String token = issuer.generateAccessToken(ud, "u4", "CUSTOMER");
+        
+        assertThatThrownBy(() -> issuer.isTokenExpired(token))
+                .isInstanceOf(ExpiredJwtException.class);
+        assertThatThrownBy(() -> issuer.validateToken(token, ud))
+                .isInstanceOf(ExpiredJwtException.class);
+    }
+
+    @Test
+    void consumerModeCannotSign() throws Exception {
+        KeyPair keyPair = generateRsaKeyPair();
+        JwtUtil consumer = jwtUtilConsumer(keyPair.getPublic());
+        UserDetails ud = userDetails("e@e.com");
+        
+        assertThatThrownBy(() -> consumer.generateAccessToken(ud, "u5", "CUSTOMER"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not configured for signing");
     }
 }

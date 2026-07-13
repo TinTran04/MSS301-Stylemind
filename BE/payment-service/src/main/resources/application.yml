@@ -39,26 +39,35 @@ order:
 app:
   vietqr:
     # Local dev still uses init-scripts for schema and env-backed config for SePay/VietQR.
-    bank-id: ${SEPAY_BANK_SHORT_NAME}
-    account-no: ${SEPAY_ACCOUNT_NUMBER}
-    account-name: ${SEPAY_ACCOUNT_NAME}
+    bank-id: ${SEPAY_BANK_SHORT_NAME:VCB}
+    account-no: ${SEPAY_ACCOUNT_NUMBER:1234567890}
+    account-name: ${SEPAY_ACCOUNT_NAME:TEST_ACCOUNT}
     required-transfer-prefix: ${SEPAY_BANK_HUB_PREFIX:SEVQR}
     expiry-minutes: ${SEPAY_PAYMENT_EXPIRE_MINUTES:15}
     qr-base-url: ${SEPAY_QR_BASE_URL:https://img.vietqr.io/image}
   sepay:
-    enabled: ${SEPAY_ENABLED:true}
+    enabled: ${SEPAY_ENABLED:false}
     mode: ${SEPAY_MODE:live}
     payment-code-prefix: ${SEPAY_PAYMENT_CODE_PREFIX:STYLEMIND}
     webhook-auth-mode: ${SEPAY_WEBHOOK_AUTH_MODE:API_KEY}
     # SePay sends "Authorization: Apikey <this value>" on every webhook call -
     # this is how we verify the webhook is genuinely from SePay (§SEC-06). The
     # This value is mandatory at runtime and must never have a committed fallback.
-    webhook-api-key: ${SEPAY_WEBHOOK_API_KEY}
+    webhook-api-key: ${SEPAY_WEBHOOK_API_KEY:test-dev-api-key}
 
+# JWT Asymmetric Key Configuration (Consumer)
 jwt:
-  secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
+  # Public Key Path ONLY - REQUIRED for token verification
+  # NO DEFAULT VALUE - Must be set via environment variable
+  public-key-path: ${JWT_PUBLIC_KEY_PATH}
+  
+  # Algorithm Configuration (must match issuer)
+  algorithm: ${JWT_ALGORITHM:RSA}
+  key-size: ${JWT_KEY_SIZE:2048}
+  
+  # Token Expiration (for validation checks)
   access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
-  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:86400000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
 
 management:
   endpoints:

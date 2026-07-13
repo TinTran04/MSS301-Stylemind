@@ -1,6 +1,6 @@
 services:
   # ----------------------------------------------------
-  # 1. Infrastructure: Databases & Message Broker
+  # 1. Infrastructure Services (Profile: infra, all)
   # ----------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -14,6 +14,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -30,6 +34,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   neo4j:
     image: neo4j:5-community
@@ -50,6 +58,10 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
+    profiles:
+      - infra
+      - app
+      - all
 
   minio:
     image: minio/minio:latest
@@ -70,9 +82,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   # ----------------------------------------------------
-  # 2. Service-specific PostgreSQL instances
+  # 2. PostgreSQL Databases (Profile: infra, all)
   # ----------------------------------------------------
   postgres-auth:
     image: postgres:15-alpine
@@ -93,6 +109,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   postgres-user:
     image: postgres:15-alpine
@@ -113,6 +133,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   postgres-product:
     image: postgres:15-alpine
@@ -133,6 +157,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   postgres-cart:
     image: postgres:15-alpine
@@ -153,6 +181,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   postgres-order:
     image: postgres:15-alpine
@@ -173,6 +205,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   postgres-payment:
     image: postgres:15-alpine
@@ -193,6 +229,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   postgres-ai:
     image: postgres:15-alpine
@@ -213,6 +253,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   postgres-notification:
     image: postgres:15-alpine
@@ -233,9 +277,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   # ----------------------------------------------------
-  # 3. API Gateway & Auth Service
+  # 4. API Gateway (Profile: app, all)
   # ----------------------------------------------------
   api-gateway:
     build:
@@ -245,11 +293,14 @@ services:
     container_name: stylemind-gateway
     ports:
       - "3000:3000"
-    env_file:
-      - .env
+      - "5005:5005"
     environment:
       SERVER_PORT: 3000
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_PUBLIC_KEY_PATH: /app/certs/public_key.pem
+      JWT_ALGORITHM: RSA
+      JWT_KEY_SIZE: 2048
+      JWT_ACCESS_TOKEN_EXPIRATION: 3600000
+      JWT_REFRESH_TOKEN_EXPIRATION: 604800000
       AUTH_SERVICE_URL: http://auth-service:8081
       PRODUCT_SERVICE_URL: http://product-service:8083
       USER_SERVICE_URL: http://user-service:8082
@@ -261,10 +312,16 @@ services:
       REDIS_HOST: stylemind-redis
       REDIS_PORT: 6379
     volumes:
-      - ../.docker/certs:/app/certs:ro
+      - ./.docker/certs:/app/certs:ro
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
+  # ----------------------------------------------------
+  # 5. Auth Service (Profile: app, all)
+  # ----------------------------------------------------
   auth-service:
     build:
       context: .
@@ -273,26 +330,33 @@ services:
     container_name: auth-service
     ports:
       - "8081:8081"
-    env_file:
-      - .env
+      - "5006:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/auth_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_PRIVATE_KEY_PATH: /app/certs/private_key.pem
+      JWT_PUBLIC_KEY_PATH: /app/certs/public_key.pem
+      JWT_ALGORITHM: RSA
+      JWT_KEY_SIZE: 2048
+      JWT_ACCESS_TOKEN_EXPIRATION: 3600000
+      JWT_REFRESH_TOKEN_EXPIRATION: 604800000
       SERVER_PORT: 8081
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
       SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
     volumes:
-      - ../.docker/certs:/app/certs:ro
+      - ./.docker/certs:/app/certs:ro
     depends_on:
       postgres-auth:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   # ----------------------------------------------------
-  # 4. Business Services
+  # 6. Business Services (Profile: app, all)
   # ----------------------------------------------------
   user-service:
     build:
@@ -302,23 +366,29 @@ services:
     container_name: user-service
     ports:
       - "8082:8082"
-    env_file:
-      - .env
+      - "5007:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/user_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_PUBLIC_KEY_PATH: /app/certs/public_key.pem
+      JWT_ALGORITHM: RSA
+      JWT_KEY_SIZE: 2048
+      JWT_ACCESS_TOKEN_EXPIRATION: 3600000
+      JWT_REFRESH_TOKEN_EXPIRATION: 604800000
       SERVER_PORT: 8082
       AUTH_SERVICE_URL: http://auth-service:8081
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     volumes:
-      - ../.docker/certs:/app/certs:ro
+      - ./.docker/certs:/app/certs:ro
     depends_on:
       postgres-user:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   product-service:
     build:
@@ -328,22 +398,25 @@ services:
     container_name: product-service
     ports:
       - "8083:8083"
-    env_file:
-      - .env
+      - "5008:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-product:5432/product_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_PUBLIC_KEY_PATH: /app/certs/public_key.pem
+      JWT_ALGORITHM: RSA
+      JWT_KEY_SIZE: 2048
+      JWT_ACCESS_TOKEN_EXPIRATION: 3600000
+      JWT_REFRESH_TOKEN_EXPIRATION: 604800000
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: admin
       S3_SECRET_KEY: password
       S3_BUCKET: stylemind-products
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
+      INTERNAL_TOKEN: sm-secret-internal-service-token-key-2026
       SERVER_PORT: 8083
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     volumes:
-      - ../.docker/certs:/app/certs:ro
+      - ./.docker/certs:/app/certs:ro
     depends_on:
       postgres-product:
         condition: service_healthy
@@ -351,6 +424,9 @@ services:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   cart-service:
     build:
@@ -360,25 +436,31 @@ services:
     container_name: cart-service
     ports:
       - "8086:8086"
-    env_file:
-      - .env
+      - "5011:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-cart:5432/cart_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_PUBLIC_KEY_PATH: /app/certs/public_key.pem
+      JWT_ALGORITHM: RSA
+      JWT_KEY_SIZE: 2048
+      JWT_ACCESS_TOKEN_EXPIRATION: 3600000
+      JWT_REFRESH_TOKEN_EXPIRATION: 604800000
       SERVER_PORT: 8086
       AUTH_SERVICE_URL: http://auth-service:8081
       PRODUCT_SERVICE_URL: http://product-service:8083
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
+      INTERNAL_TOKEN: sm-secret-internal-service-token-key-2026
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     volumes:
-      - ../.docker/certs:/app/certs:ro
+      - ./.docker/certs:/app/certs:ro
     depends_on:
       postgres-cart:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   order-service:
     build:
@@ -388,25 +470,31 @@ services:
     container_name: order-service
     ports:
       - "8087:8087"
-    env_file:
-      - .env
+      - "5012:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/order_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_PUBLIC_KEY_PATH: /app/certs/public_key.pem
+      JWT_ALGORITHM: RSA
+      JWT_KEY_SIZE: 2048
+      JWT_ACCESS_TOKEN_EXPIRATION: 3600000
+      JWT_REFRESH_TOKEN_EXPIRATION: 604800000
       PAYMENT_SERVICE_URL: http://payment-service:8088
-      CART_SERVICE_URL: http://cart-service:8086
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      SERVER_PORT: 8087
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      CART_SERVICE_URL: http://cart-service:8086
+      INTERNAL_TOKEN: sm-secret-internal-service-token-key-2026
+      SERVER_PORT: 8087
     volumes:
-      - ../.docker/certs:/app/certs:ro
+      - ./.docker/certs:/app/certs:ro
     depends_on:
       postgres-order:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   payment-service:
     build:
@@ -416,14 +504,17 @@ services:
     container_name: payment-service
     ports:
       - "8088:8088"
-    env_file:
-      - .env
+      - "5013:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/payment_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
+      JWT_PUBLIC_KEY_PATH: /app/certs/public_key.pem
+      JWT_ALGORITHM: RSA
+      JWT_KEY_SIZE: 2048
+      JWT_ACCESS_TOKEN_EXPIRATION: 3600000
+      JWT_REFRESH_TOKEN_EXPIRATION: 604800000
+      INTERNAL_TOKEN: sm-secret-internal-service-token-key-2026
       SERVER_PORT: 8088
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
       SEPAY_BANK_SHORT_NAME: VCB
@@ -438,12 +529,15 @@ services:
       SEPAY_WEBHOOK_AUTH_MODE: API_KEY
       SEPAY_WEBHOOK_API_KEY: test-key
     volumes:
-      - ../.docker/certs:/app/certs:ro
+      - ./.docker/certs:/app/certs:ro
     depends_on:
       postgres-payment:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   notification-service:
     build:
@@ -453,28 +547,34 @@ services:
     container_name: notification-service
     ports:
       - "8089:8089"
-    env_file:
-      - .env
+      - "5014:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-notification:5432/notification_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_PUBLIC_KEY_PATH: /app/certs/public_key.pem
+      JWT_ALGORITHM: RSA
+      JWT_KEY_SIZE: 2048
+      JWT_ACCESS_TOKEN_EXPIRATION: 3600000
+      JWT_REFRESH_TOKEN_EXPIRATION: 604800000
       SERVER_PORT: 8089
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
       MAIL_ENABLED: false
       SPRING_AUTOCONFIGURE_EXCLUDE: org.springframework.boot.autoconfigure.mail.MailSenderAutoConfiguration
       MANAGEMENT_HEALTH_MAIL_ENABLED: false
     volumes:
-      - ../.docker/certs:/app/certs:ro
+      - ./.docker/certs:/app/certs:ro
     depends_on:
       postgres-notification:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   # ----------------------------------------------------
-  # 5. AI Services
+  # 7. AI Agent Service (Profile: app, all)
   # ----------------------------------------------------
   ai-agent-service:
     build:
@@ -484,26 +584,29 @@ services:
     container_name: ai-agent-service
     ports:
       - "8085:8085"
-    env_file:
-      - .env
+      - "5010:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-ai:5432/ai_db
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_PUBLIC_KEY_PATH: /app/certs/public_key.pem
+      JWT_ALGORITHM: RSA
+      JWT_KEY_SIZE: 2048
+      JWT_ACCESS_TOKEN_EXPIRATION: 3600000
+      JWT_REFRESH_TOKEN_EXPIRATION: 604800000
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: password
-      LLM_API_KEY: ${LLM_API_KEY}
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
+      LLM_API_KEY: your-llm-api-key-here
+      INTERNAL_TOKEN: sm-secret-internal-service-token-key-2026
       PRODUCT_SERVICE_URL: http://product-service:8083
       ORDER_SERVICE_URL: http://order-service:8087
       SERVER_PORT: 8085
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     volumes:
-      - ../.docker/certs:/app/certs:ro
+      - ./.docker/certs:/app/certs:ro
     depends_on:
       postgres-ai:
         condition: service_healthy
@@ -511,6 +614,9 @@ services:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
 networks:
   stylemind-network:

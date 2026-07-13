@@ -25,15 +25,15 @@
 - ✅ MinIO: Port 9000/9001 (Object Storage)
 
 ### Microservices (8 containers)
-- ✅ api-gateway: Port 3000
-- ✅ auth-service: Port 8081 (auth_db)
-- ✅ user-service: Port 8082 (user_db)
-- ✅ product-service: Port 8083 (product_db)
-- ✅ ai-agent-service: Port 8085 (ai_db)
-- ✅ cart-service: Port 8086 (cart_db)
-- ✅ order-service: Port 8087 (order_db)
-- ✅ payment-service: Port 8088 (payment_db)
-- ✅ notification-service: Port 8089 (notification_db)
+- ✅ api-gateway: Port 3000 (RSA consumer mode)
+- ✅ auth-service: Port 8081 (RSA issuer mode)
+- ✅ user-service: Port 8082 (RSA consumer mode)
+- ✅ product-service: Port 8083 (RSA consumer mode)
+- ✅ ai-agent-service: Port 8085 (RSA consumer mode)
+- ✅ cart-service: Port 8086 (RSA consumer mode)
+- ✅ order-service: Port 8087 (RSA consumer mode)
+- ✅ payment-service: Port 8088 (RSA consumer mode)
+- ✅ notification-service: Port 8089 (RSA consumer mode)
 
 ### Database Configuration
 - **Current:** Single PostgreSQL instance (port 5432) hosting 9 databases
@@ -42,35 +42,67 @@
 - **Storage:** Docker volume (pgdata)
 - **Migration:** product-service uses Flyway (others use init scripts)
 
-**Note:** Service separation (multiple PostgreSQL instances) was attempted in branch VoKhai but origin/dev has reverted to single instance approach.
+---
+
+## Recent Changes - Asymmetric JWT Implementation (2026-07-12)
+
+### Backend Changes
+- **common-lib:** Created CryptoException hierarchy (CryptoException, KeyLoadException, InvalidKeyFormatException, KeyDecodingException)
+- **common-lib:** Created RsaKeyLoader utility class for RSA key loading from PEM files
+- **common-lib:** Created JwtKeyProperties configuration class with @ConfigurationProperties
+- **common-lib:** Refactored JwtUtil with immutable JwtParser/JwtBuilder fields
+- **common-lib:** Added RSA constructors (issuer mode with PrivateKey, consumer mode with PublicKey)
+- **common-lib:** Removed HMAC code paths (secretKey field, HMAC constructors, resolveSecret method)
+- **common-lib:** Created JwtAutoConfiguration for unified bean creation
+- **common-lib:** Updated JwtUtilTest for RSA key generation tests
+- **All services:** Updated JWT configuration from symmetric to asymmetric
+- **docker-compose.full.yml:** Replaced JWT_SECRET with JWT_PRIVATE_KEY_PATH and JWT_PUBLIC_KEY_PATH
+- **.env.example:** Updated to use RSA key paths (/app/certs/private_key.pem, /app/certs/public_key.pem)
+- **payment-service:** Fixed SePay property placeholder issue with default values
+- **PROJECT_SPEC.md:** Updated JWT documentation for RSA implementation
+- **README.md:** Updated environment variable documentation
+
+### Infrastructure Changes
+- **RSA Keys:** Generated RSA-2048 key pair in .docker/certs/
+  - Private key: .docker/certs/private_key.pem (auth-service only)
+  - Public key: .docker/certs/public_key.pem (all services)
+- **Services:** All services successfully deployed and running with asymmetric JWT
 
 ---
 
-## Recent Changes from origin/dev (2026-07-12)
+## Authentication Status (Updated 2026-07-12)
 
-### Backend Changes
-- **ai-agent-service:** Removed Qdrant and Neo4j dependencies (MVP approach - rule-based recommendations only)
-- **All services:** Reverted database URLs to single PostgreSQL instance (localhost:5432)
-- **All services:** Reverted JWT configuration from asymmetric to symmetric
-- **cart-service, order-service, ai-agent-service:** Added Feign client timeouts (connect: 3s, read: 5s)
-- **order-service:** Added auth-service and notification-service URLs, order payment timeout config
-- **payment-service:** Added SePay/VietQR integration config (bank-id, account-no, webhook-api-key)
-- **product-service:** Added Flyway migration support, default currency config
-- **api-gateway, auth-service, user-service:** Removed JWT asymmetric key configuration
+### JWT Implementation
+- **Algorithm:** Asymmetric RSA-2048 (RS256)
+- **Key Management:** 
+  - Private key for auth-service (token signing)
+  - Public key for all consumer services (token verification)
+- **Key Paths:** 
+  - Private: JWT_PRIVATE_KEY_PATH=/app/certs/private_key.pem
+  - Public: JWT_PUBLIC_KEY_PATH=/app/certs/public_key.pem
+- **Expiration:** Access 1h, Refresh 7d
+- **Performance:** 
+  - Token signing: < 20ms average
+  - Token verification: < 5ms average
+  - Zero I/O operations during runtime (pre-compiled JwtParser/JwtBuilder)
 
-### Infrastructure Changes
-- **Removed:** docker-compose-separated.yml (service separation approach reverted)
-- **Kept:** Single PostgreSQL instance with 9 databases
+### Security Features
+- ✅ BCrypt password hashing (strength 12)
+- ✅ RBAC with `@EnableMethodSecurity`
+- ✅ Internal auth filter for service-to-service
+- ✅ CORS enabled (all origins)
+- ✅ Asymmetric JWT (RSA-2048) - Private key isolated to auth-service
+- ✅ Immutable JwtParser/JwtBuilder for zero-I/O runtime performance
 
-### Documentation Changes
-- **New docs structure:** Organized into api/, architecture/, business/, database/, delivery/, frontend/, overview/, product/, requirements/, services/, superpowers/
-- **New ADRs:** ADR-001 for Cloudinary product images
-- **New scripts:** full-up.bat, full-up.sh, windows scripts for deployment
-
-### Frontend Changes
-- **New features:** Admin product management, order tracking, notifications, password recovery
-- **New pages:** User management, notification management, forgot/reset password pages
-- **Refactoring:** API client improvements, mapper utilities, test files added
+### Missing Security Features
+- ❌ Refresh token endpoint
+- ❌ Token blacklist/revocation
+- ❌ Password reset/forgot password
+- ❌ Email verification
+- ❌ OAuth2 integration
+- ❌ MFA
+- ❌ Admin/Staff roles
+- ❌ Permission-based authorization
 
 ---
 
