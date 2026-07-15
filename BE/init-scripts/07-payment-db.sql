@@ -44,3 +44,16 @@ CREATE INDEX IF NOT EXISTS idx_webhook_events_gateway_txn_id ON payment_webhook_
 CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_webhook_events_provider_gateway_txn
     ON payment_webhook_events(provider, gateway_transaction_id)
     WHERE gateway_transaction_id IS NOT NULL;
+
+-- Seed Data for Transactions
+INSERT INTO transactions (id, order_id, user_id, amount, method, status, transaction_ref, gateway_transaction_id, paid_at)
+VALUES
+    ('txn_001', 'order_001', 'usr_customer', 687000.00, 'SEPAY_QR', 'COMPLETED', 'STYLEMIND-001', 'SEPAY-TXN-001', NOW() - INTERVAL '2 days'),
+    ('txn_002', 'order_002', 'usr_customer', 1299000.00, 'SEPAY_QR', 'PENDING', 'STYLEMIND-002', 'SEPAY-TXN-002', NULL),
+    ('txn_003', 'order_003', 'usr_admin', 229000.00, 'SEPAY_QR', 'COMPLETED', 'STYLEMIND-003', 'SEPAY-TXN-003', NOW() - INTERVAL '5 days'),
+    ('txn_004', 'order_004', 'usr_001', 458000.00, 'SEPAY_QR', 'COMPLETED', 'STYLEMIND-004', 'SEPAY-TXN-004', NOW() - INTERVAL '3 days'),
+    ('txn_005', 'order_005', 'usr_002', 359000.00, 'SEPAY_QR', 'PENDING', 'STYLEMIND-005', 'SEPAY-TXN-005', NULL),
+    ('txn_006', 'order_006', 'usr_003', 849000.00, 'SEPAY_QR', 'COMPLETED', 'STYLEMIND-006', 'SEPAY-TXN-006', NOW() - INTERVAL '1 day'),
+    ('txn_007', 'order_007', 'usr_004', 1149000.00, 'SEPAY_QR', 'FAILED', 'STYLEMIND-007', 'SEPAY-TXN-007', NULL),
+    ('txn_008', 'order_008', 'usr_005', 539000.00, 'SEPAY_QR', 'COMPLETED', 'STYLEMIND-008', 'SEPAY-TXN-008', NOW() - INTERVAL '6 hours')
+ON CONFLICT (gateway_transaction_id) DO UPDATE SET order_id = EXCLUDED.order_id, user_id = EXCLUDED.user_id, amount = EXCLUDED.amount, method = EXCLUDED.method, status = EXCLUDED.status, transaction_ref = EXCLUDED.transaction_ref, paid_at = EXCLUDED.paid_at;

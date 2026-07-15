@@ -150,6 +150,7 @@ services:
     volumes:
       - pgdata-product:/var/lib/postgresql/data
       - ./init-scripts/03-product-db.sql:/docker-entrypoint-initdb.d/03-product-db.sql
+      - ./init-scripts/04-product-seed-normalized-from-3-datasets.sql:/docker-entrypoint-initdb.d/04-product-seed-normalized-from-3-datasets.sql
     networks:
       - stylemind-network
     healthcheck:
@@ -308,6 +309,7 @@ services:
       ORDER_SERVICE_URL: ${ORDER_SERVICE_URL}
       AI_SERVICE_URL: ${AI_SERVICE_URL}
       PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
       REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: ${REDIS_PORT}

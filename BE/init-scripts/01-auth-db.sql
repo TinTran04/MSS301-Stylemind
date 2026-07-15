@@ -61,6 +61,77 @@ VALUES (
                                provider = EXCLUDED.provider,
                                role = EXCLUDED.role;
 
+-- Additional test users for seed data
+-- email: nguyenvan.an@example.com / password: User@123
+INSERT INTO users (id, email, password_hash, provider, role)
+VALUES (
+           'usr_001',
+           'nguyenvan.an@example.com',
+           crypt('User@123', gen_salt('bf', 12)),
+           'LOCAL',
+           'CUSTOMER'
+       )
+    ON CONFLICT (email) DO UPDATE
+                               SET password_hash = EXCLUDED.password_hash,
+                               provider = EXCLUDED.provider,
+                               role = EXCLUDED.role;
+
+-- email: tranbinh@example.com / password: User@123
+INSERT INTO users (id, email, password_hash, provider, role)
+VALUES (
+           'usr_002',
+           'tranbinh@example.com',
+           crypt('User@123', gen_salt('bf', 12)),
+           'LOCAL',
+           'CUSTOMER'
+       )
+    ON CONFLICT (email) DO UPDATE
+                               SET password_hash = EXCLUDED.password_hash,
+                               provider = EXCLUDED.provider,
+                               role = EXCLUDED.role;
+
+-- email: khanchi@example.com / password: User@123
+INSERT INTO users (id, email, password_hash, provider, role)
+VALUES (
+           'usr_003',
+           'khanchi@example.com',
+           crypt('User@123', gen_salt('bf', 12)),
+           'LOCAL',
+           'CUSTOMER'
+       )
+    ON CONFLICT (email) DO UPDATE
+                               SET password_hash = EXCLUDED.password_hash,
+                               provider = EXCLUDED.provider,
+                               role = EXCLUDED.role;
+
+-- email: tiendung@example.com / password: User@123
+INSERT INTO users (id, email, password_hash, provider, role)
+VALUES (
+           'usr_004',
+           'tiendung@example.com',
+           crypt('User@123', gen_salt('bf', 12)),
+           'LOCAL',
+           'CUSTOMER'
+       )
+    ON CONFLICT (email) DO UPDATE
+                               SET password_hash = EXCLUDED.password_hash,
+                               provider = EXCLUDED.provider,
+                               role = EXCLUDED.role;
+
+-- email: myem@example.com / password: User@123
+INSERT INTO users (id, email, password_hash, provider, role)
+VALUES (
+           'usr_005',
+           'myem@example.com',
+           crypt('User@123', gen_salt('bf', 12)),
+           'LOCAL',
+           'CUSTOMER'
+       )
+    ON CONFLICT (email) DO UPDATE
+                               SET password_hash = EXCLUDED.password_hash,
+                               provider = EXCLUDED.provider,
+                               role = EXCLUDED.role;
+
 -- Create index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id);
