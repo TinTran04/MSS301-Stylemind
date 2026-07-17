@@ -1,1 +1,10 @@
-SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/ai_db
+SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5430/ai_db
+
+spring:
+  config:
+    import:
+      - "optional:file:../.env.local[.properties]"
+      - "optional:file:.env.local[.properties]"
+      - "optional:file:../../.env.local[.properties]"
+      - "optional:file:BE/.env.local[.properties]"
+      - "optional:file:../BE/.env.local[.properties]"

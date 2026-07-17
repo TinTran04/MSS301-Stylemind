@@ -1,18 +1,12 @@
-SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/product_db
+SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5435/product_db
 CLOUDINARY_FOLDER: stylemind/products
 
 spring:
   config:
     import:
-      # Local dev only (IntelliJ doesn't source .env like docker compose does).
-      # Covers running with working directory = BE/product-service or = BE.
-      # "optional:" means missing file is not an error; "[.properties]" is a
-      # format hint since .env has no recognized extension. Values here never
-      # override real OS env vars / system properties (those are resolved
-      # before spring.config.import contributions, per Spring Boot's config
-      # data property source ordering).
-      - "optional:file:../.env[.properties]"
-      - "optional:file:.env[.properties]"
-      - "optional:file:../../.env[.properties]"
-      - "optional:file:BE/.env[.properties]"
-      - "optional:file:../BE/.env[.properties]"
+      # Local dev only - use .env.local for local development
+      - "optional:file:../.env.local[.properties]"
+      - "optional:file:.env.local[.properties]"
+      - "optional:file:../../.env.local[.properties]"
+      - "optional:file:BE/.env.local[.properties]"
+      - "optional:file:../BE/.env.local[.properties]"

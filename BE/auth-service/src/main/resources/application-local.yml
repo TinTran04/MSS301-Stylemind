@@ -1,2 +1,2 @@
-SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/auth_db
+SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5433/auth_db
 NOTIFICATION_SERVICE_URL: http://localhost:8089

@@ -7,3 +7,12 @@ ORDER_SERVICE_URL: http://localhost:8087
 PAYMENT_SERVICE_URL: http://localhost:8088
 NOTIFICATION_SERVICE_URL: http://localhost:8089
 REDIS_HOST: localhost
+
+spring:
+  config:
+    import:
+      - "optional:file:../.env.local[.properties]"
+      - "optional:file:.env.local[.properties]"
+      - "optional:file:../../.env.local[.properties]"
+      - "optional:file:BE/.env.local[.properties]"
+      - "optional:file:../BE/.env.local[.properties]"

@@ -1,1 +1,1 @@
-SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/user_db
+SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5434/user_db
