@@ -30,6 +30,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final List<String> PUBLIC_EXACT_PATHS = List.of(
             "/api/v1/auth/login",
             "/api/v1/auth/register",
+            "/api/v1/auth/register/verify-otp",
+            "/api/v1/auth/register/resend-otp",
             // Pre-login password recovery: the user has no JWT yet, so these must be
             // public at the gateway (auth-service SecurityConfig already permits them).
             // Admin-created account setup uses the same unauthenticated browser flow

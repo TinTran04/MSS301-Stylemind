@@ -36,19 +36,18 @@ public class CartService {
     }
 
     public CartResponse getCart(String userId, String guestSessionId) {
-        String cartId = getCartId(userId, guestSessionId);
-        ShoppingCart cart = cartRepository.findById(cartId).orElse(null);
+        ShoppingCart cart = findCart(userId, guestSessionId);
 
         if (cart == null) {
             return CartResponse.builder()
-                    .cartId(cartId)
+                    .cartId(getCartId(userId, guestSessionId))
                     .items(List.of())
                     .totalAmount(BigDecimal.ZERO)
                     .totalQuantity(0)
                     .build();
         }
 
-        List<CartItem> items = cartItemRepository.findByCartId(cartId);
+        List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
         return buildCartResponse(cart, items);
     }
 
@@ -59,13 +58,8 @@ public class CartService {
 
         validateVariant(request.getVariantId());
 
-        String cartId = getCartId(userId, guestSessionId);
-
-        ShoppingCart cart = cartRepository.findById(cartId)
-                .orElseGet(() -> cartRepository.save(ShoppingCart.builder()
-                        .id(cartId)
-                        .userId(userId)
-                        .build()));
+        ShoppingCart cart = getOrCreateCart(userId, guestSessionId);
+        String cartId = cart.getId();
 
         CartItem existing = cartItemRepository.findByCartIdAndVariantId(cartId, request.getVariantId()).orElse(null);
 
@@ -90,7 +84,7 @@ public class CartService {
     }
 
     public CartResponse updateQuantity(String userId, String guestSessionId, String itemId, Integer quantity) {
-        String cartId = getCartId(userId, guestSessionId);
+        String cartId = resolveCartId(userId, guestSessionId);
 
         CartItem item = cartItemRepository.findById(itemId)
                 .orElseThrow(() -> new BusinessException("CART_ITEM_NOT_FOUND", "Không tìm thấy sản phẩm trong giỏ", 404));
@@ -110,7 +104,7 @@ public class CartService {
     }
 
     public void removeItem(String userId, String guestSessionId, String itemId) {
-        String cartId = getCartId(userId, guestSessionId);
+        String cartId = resolveCartId(userId, guestSessionId);
 
         CartItem item = cartItemRepository.findById(itemId)
                 .orElseThrow(() -> new BusinessException("CART_ITEM_NOT_FOUND", "Không tìm thấy sản phẩm trong giỏ", 404));
@@ -124,7 +118,6 @@ public class CartService {
 
     public CartResponse mergeCart(String userId, CartMergeRequest request) {
         String guestCartId = "guest_" + request.getGuestSessionId();
-        String userCartId = userId;
 
         ShoppingCart guestCart = cartRepository.findById(guestCartId).orElse(null);
         if (guestCart == null) {
@@ -133,19 +126,18 @@ public class CartService {
 
         log.info("Merging guest cart into user cart: userId={}, guestCartPresent=true", userId);
 
-        ShoppingCart userCart = cartRepository.findById(userCartId).orElse(null);
+        ShoppingCart userCart = cartRepository.findByUserId(userId).orElse(null);
         if (userCart == null) {
+            userCart = getOrCreateCart(userId, null);
             List<CartItem> guestOnlyItems = cartItemRepository.findByCartId(guestCartId);
-            cartRepository.delete(guestCart);
-            cartRepository.save(ShoppingCart.builder()
-                    .id(userCartId)
-                    .userId(userId)
-                    .build());
+            String userCartId = userCart.getId();
             guestOnlyItems.forEach(item -> item.setCartId(userCartId));
             cartItemRepository.saveAll(guestOnlyItems);
+            cartRepository.delete(guestCart);
             return getCart(userId, null);
         }
 
+        String userCartId = userCart.getId();
         List<CartItem> guestItems = cartItemRepository.findByCartId(guestCartId);
         log.info("Guest cart merge details: userId={}, guestCartId={}, guestItemCount={}", userId, guestCartId, guestItems.size());
         for (CartItem guestItem : guestItems) {
@@ -166,13 +158,47 @@ public class CartService {
     }
 
     public void clearCart(String userId, String guestSessionId) {
-        String cartId = getCartId(userId, guestSessionId);
+        String cartId = resolveCartId(userId, guestSessionId);
 
         List<CartItem> items = cartItemRepository.findByCartId(cartId);
         if (!items.isEmpty()) {
             cartItemRepository.deleteAll(items);
         }
-        cartRepository.findById(cartId).ifPresent(cartRepository::delete);
+        ShoppingCart cart = findCart(userId, guestSessionId);
+        if (cart != null) {
+            cartRepository.delete(cart);
+        }
+    }
+
+    private ShoppingCart findCart(String userId, String guestSessionId) {
+        if (userId != null) {
+            return cartRepository.findByUserId(userId).orElse(null);
+        }
+        return cartRepository.findById(getCartId(null, guestSessionId)).orElse(null);
+    }
+
+    private ShoppingCart getOrCreateCart(String userId, String guestSessionId) {
+        ShoppingCart existing = findCart(userId, guestSessionId);
+        if (existing != null) {
+            return existing;
+        }
+
+        if (userId == null) {
+            String guestCartId = getCartId(null, guestSessionId);
+            return cartRepository.save(ShoppingCart.builder()
+                    .id(guestCartId)
+                    .build());
+        }
+
+        String newCartId = StringUtil.generateUniqueId();
+        cartRepository.insertIfAbsent(newCartId, userId);
+        return cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalStateException("Cart creation did not produce a cart for user"));
+    }
+
+    private String resolveCartId(String userId, String guestSessionId) {
+        ShoppingCart cart = findCart(userId, guestSessionId);
+        return cart != null ? cart.getId() : getCartId(userId, guestSessionId);
     }
 
     private void validateVariant(String variantId) {

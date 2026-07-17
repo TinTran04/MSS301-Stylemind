@@ -46,10 +46,77 @@ class CartServiceTest {
     // ─── addItem ─────────────────────────────────────────────────────────────
 
     @Test
+    void addItem_existingUserCart_reusesCartByUserId_notUserIdAsCartId() {
+        ShoppingCart existingCart = cart("cart_customer", "usr_customer");
+        when(productClient.getVariantSnapshot("var-A")).thenReturn(activeVariant("var-A"));
+        when(cartRepository.findByUserId("usr_customer")).thenReturn(Optional.of(existingCart));
+        when(cartItemRepository.findByCartIdAndVariantId("cart_customer", "var-A")).thenReturn(Optional.empty());
+        when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(cartItemRepository.findByCartId("cart_customer")).thenReturn(List.of());
+
+        CartItemRequest req = new CartItemRequest();
+        req.setVariantId("var-A");
+        req.setQuantity(1);
+
+        cartService.addItem("usr_customer", null, req);
+
+        verify(cartRepository, never()).save(any(ShoppingCart.class));
+        verify(cartItemRepository).save(argThat(item ->
+                "cart_customer".equals(item.getCartId())
+                        && "var-A".equals(item.getVariantId())));
+    }
+
+    @Test
+    void addItem_firstUserCart_handlesConcurrentInsertByReloadingWinner() {
+        ShoppingCart createdCart = cart("cart-winner", "usr-new");
+        when(productClient.getVariantSnapshot("var-A")).thenReturn(activeVariant("var-A"));
+        when(cartRepository.findByUserId("usr-new"))
+                .thenReturn(Optional.empty(), Optional.of(createdCart));
+        when(cartRepository.insertIfAbsent(any(), org.mockito.ArgumentMatchers.eq("usr-new")))
+                .thenReturn(0);
+        when(cartItemRepository.findByCartIdAndVariantId("cart-winner", "var-A")).thenReturn(Optional.empty());
+        when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(cartItemRepository.findByCartId("cart-winner")).thenReturn(List.of());
+
+        CartItemRequest req = new CartItemRequest();
+        req.setVariantId("var-A");
+        req.setQuantity(1);
+
+        cartService.addItem("usr-new", null, req);
+
+        verify(cartRepository).insertIfAbsent(any(), org.mockito.ArgumentMatchers.eq("usr-new"));
+        verify(cartRepository, never()).save(any(ShoppingCart.class));
+        verify(cartItemRepository).save(argThat(item -> "cart-winner".equals(item.getCartId())));
+    }
+
+    @Test
+    void addItem_newUser_createsExactlyOneCartThroughIdempotentInsert() {
+        ShoppingCart createdCart = cart("cart-new", "usr-new");
+        when(productClient.getVariantSnapshot("var-A")).thenReturn(activeVariant("var-A"));
+        when(cartRepository.findByUserId("usr-new"))
+                .thenReturn(Optional.empty(), Optional.of(createdCart));
+        when(cartRepository.insertIfAbsent(any(), org.mockito.ArgumentMatchers.eq("usr-new")))
+                .thenReturn(1);
+        when(cartItemRepository.findByCartIdAndVariantId("cart-new", "var-A")).thenReturn(Optional.empty());
+        when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(cartItemRepository.findByCartId("cart-new")).thenReturn(List.of());
+
+        CartItemRequest req = new CartItemRequest();
+        req.setVariantId("var-A");
+        req.setQuantity(1);
+
+        cartService.addItem("usr-new", null, req);
+
+        verify(cartRepository).insertIfAbsent(any(), org.mockito.ArgumentMatchers.eq("usr-new"));
+        verify(cartRepository, never()).save(any(ShoppingCart.class));
+        verify(cartItemRepository).save(argThat(item -> "cart-new".equals(item.getCartId())));
+    }
+
+    @Test
     void addItem_newItem_savesItem() {
         ShoppingCart cart = cart("user-1");
         when(productClient.getVariantSnapshot("var-A")).thenReturn(activeVariant("var-A"));
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart));
         when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-A")).thenReturn(Optional.empty());
         when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of());
@@ -68,7 +135,7 @@ class CartServiceTest {
         ShoppingCart cart = cart("user-1");
         CartItem existing = cartItem("item-1", "user-1", "var-A", 3);
         when(productClient.getVariantSnapshot("var-A")).thenReturn(activeVariant("var-A"));
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart));
         when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-A")).thenReturn(Optional.of(existing));
         when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(existing));
@@ -134,7 +201,7 @@ class CartServiceTest {
     @Test
     void getCart_enrichesItem_withProductNameSizeColorMaterialFromSnapshot() {
         CartItem item = cartItem("item-1", "user-1", "var-A", 2);
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart("user-1")));
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
         when(productClient.getVariantSnapshot("var-A")).thenReturn(
                 displayVariant("var-A", "p-1", "Silk Shirt", "M", "Black", "Silk", new BigDecimal("379000"), "http://img/1.png"));
@@ -153,7 +220,7 @@ class CartServiceTest {
     @Test
     void getCart_unitPriceFromSnapshot_andTotalAmountMultipliesByQuantity() {
         CartItem item = cartItem("item-1", "user-1", "var-A", 3);
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart("user-1")));
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
         when(productClient.getVariantSnapshot("var-A")).thenReturn(
                 displayVariant("var-A", "p-1", "Silk Shirt", "M", "Black", "Silk", new BigDecimal("100000"), null));
@@ -167,7 +234,7 @@ class CartServiceTest {
     @Test
     void getCart_variantSnapshotMissing_marksItemUnavailable_withZeroContributionToTotal() {
         CartItem item = cartItem("item-1", "user-1", "var-gone", 1);
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart("user-1")));
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
         when(productClient.getVariantSnapshot("var-gone")).thenReturn(ApiResponse.error("VARIANT_NOT_FOUND", "Not found"));
 
@@ -183,7 +250,7 @@ class CartServiceTest {
     @Test
     void getCart_variantInactive_marksItemUnavailable() {
         CartItem item = cartItem("item-1", "user-1", "var-A", 1);
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart("user-1")));
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
         when(productClient.getVariantSnapshot("var-A")).thenReturn(inactiveVariant("var-A"));
 
@@ -195,7 +262,7 @@ class CartServiceTest {
     @Test
     void getCart_productClientThrows_marksItemUnavailable_doesNotCrash() {
         CartItem item = cartItem("item-1", "user-1", "var-A", 1);
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart("user-1")));
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(item));
         when(productClient.getVariantSnapshot("var-A")).thenThrow(new RuntimeException("network error"));
 
@@ -237,7 +304,7 @@ class CartServiceTest {
         ShoppingCart cart = cart("user-1");
 
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(i1, i2));
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart));
 
         cartService.clearCart("user-1", null);
 
@@ -248,7 +315,7 @@ class CartServiceTest {
     @Test
     void clearCart_emptyCart_noDeleteCalled() {
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of());
-        when(cartRepository.findById("user-1")).thenReturn(Optional.empty());
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.empty());
 
         cartService.clearCart("user-1", null);
 
@@ -261,7 +328,7 @@ class CartServiceTest {
     @Test
     void mergeCart_noGuestCart_returnsUserCart() {
         when(cartRepository.findById("guest_sess-1")).thenReturn(Optional.empty());
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart("user-1")));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart("user-1")));
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of());
 
         CartMergeRequest req = new CartMergeRequest();
@@ -279,11 +346,14 @@ class CartServiceTest {
         CartItem guestItem = cartItem("g-item-1", "guest_sess-1", "var-A", 2);
 
         when(cartRepository.findById("guest_sess-1")).thenReturn(Optional.of(guestCart));
-        when(cartRepository.findById("user-1")).thenReturn(Optional.empty());
+        ShoppingCart userCart = cart("cart-user-1", "user-1");
+        when(cartRepository.findByUserId("user-1"))
+                .thenReturn(Optional.empty(), Optional.empty(), Optional.of(userCart));
+        when(cartRepository.insertIfAbsent(any(), org.mockito.ArgumentMatchers.eq("user-1"))).thenReturn(1);
         when(cartItemRepository.findByCartId("guest_sess-1")).thenReturn(List.of(guestItem));
         when(cartItemRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
         when(cartRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of(guestItem));
+        when(cartItemRepository.findByCartId("cart-user-1")).thenReturn(List.of(guestItem));
 
         CartMergeRequest req = new CartMergeRequest();
         req.setGuestSessionId("sess-1");
@@ -291,7 +361,7 @@ class CartServiceTest {
         cartService.mergeCart("user-1", req);
 
         // The guest item's cartId must be repointed to the user's cart, not left dangling
-        assertThat(guestItem.getCartId()).isEqualTo("user-1");
+        assertThat(guestItem.getCartId()).isEqualTo("cart-user-1");
         verify(cartItemRepository).saveAll(List.of(guestItem));
         verify(cartRepository).delete(guestCart);
     }
@@ -304,7 +374,7 @@ class CartServiceTest {
         CartItem userItem = cartItem("u-item-1", "user-1", "var-A", 3);
 
         when(cartRepository.findById("guest_sess-1")).thenReturn(Optional.of(guestCart));
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(userCart));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(userCart));
         when(cartItemRepository.findByCartId("guest_sess-1")).thenReturn(List.of(guestItem));
         when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-A")).thenReturn(Optional.of(userItem));
         when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -328,7 +398,7 @@ class CartServiceTest {
         CartItem userItem = cartItem("u-item-1", "user-1", "var-A", 3);
 
         when(cartRepository.findById("guest_sess-1")).thenReturn(Optional.of(guestCart));
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(userCart));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(userCart));
         when(cartItemRepository.findByCartId("guest_sess-1")).thenReturn(List.of(guestItem));
         // No existing item for var-B in the user's cart -> should be copied over, not merged.
         when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-B")).thenReturn(Optional.empty());
@@ -360,7 +430,7 @@ class CartServiceTest {
         CartItem userItem = cartItem("u-item-1", "user-1", "var-A", 3);
 
         when(cartRepository.findById("guest_sess-1")).thenReturn(Optional.of(guestCart));
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(userCart));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(userCart));
         when(cartItemRepository.findByCartId("guest_sess-1")).thenReturn(List.of(guestDuplicate, guestDistinct));
         when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-A")).thenReturn(Optional.of(userItem));
         when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-B")).thenReturn(Optional.empty());
@@ -422,7 +492,7 @@ class CartServiceTest {
         snapshot.setActive(true);
         snapshot.setStockQuantity(5);
         when(productClient.getVariantSnapshot("var-A")).thenReturn(ApiResponse.success(snapshot));
-        when(cartRepository.findById("user-1")).thenReturn(Optional.of(cart));
+        when(cartRepository.findByUserId("user-1")).thenReturn(Optional.of(cart));
         when(cartItemRepository.findByCartIdAndVariantId("user-1", "var-A")).thenReturn(Optional.empty());
         when(cartItemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(cartItemRepository.findByCartId("user-1")).thenReturn(List.of());
@@ -478,9 +548,13 @@ class CartServiceTest {
     }
 
     private ShoppingCart cart(String id) {
+        return cart(id, id);
+    }
+
+    private ShoppingCart cart(String id, String userId) {
         ShoppingCart c = new ShoppingCart();
         c.setId(id);
-        c.setUserId(id);
+        c.setUserId(userId);
         return c;
     }
 

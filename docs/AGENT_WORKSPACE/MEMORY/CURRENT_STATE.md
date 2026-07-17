@@ -1,5 +1,37 @@
 # Current Project State
 
+## 2026-07-17 Gateway registration OTP boundary
+
+- Registration verification and resend are pre-authentication endpoints and are now allowlisted by exact path in `JwtAuthenticationFilter`.
+- Protected Auth endpoints remain subject to the custom Gateway JWT filter; the broad `anyExchange().permitAll()` rule does not replace that filter.
+- The Cart `/api/v1/cart` prefix bypass remains a separate `NEEDS VERIFICATION` security finding and was not changed in this task.
+
+### Registration OTP status
+
+- Registration OTP email delivery is operational through the Auth to Notification path.
+- `POST /api/v1/auth/register/verify-otp` must pass through API Gateway without a Bearer token because the user has not completed registration and does not yet have an access token.
+- Auth Service remains responsible for OTP validation and only creates or activates the account after successful verification, according to the current registration flow.
+- An invalid, expired, or replaced OTP may correctly return HTTP 400 with `REGISTER_OTP_INVALID`.
+- HTTP 401 with `AUTH_TOKEN_INVALID` indicates Gateway authentication failure, not an OTP mismatch.
+- The Gateway fix is source- and test-verified, and a live invalid-OTP probe returned Auth's HTTP 400 response through Gateway. A fresh successful account-creation flow was not executed during this verification pass.
+
+## 2026-07-17 Runtime Bug Verification
+
+Two independent runtime issues were traced and fixed without resetting Docker volumes:
+
+- **Cart ownership:** authenticated cart operations now resolve a cart with `findByUserId(userId)`, then use the returned cart ID for items, updates, merges, reads, and clearing. This preserves the one-cart-per-user constraint and correctly handles the seeded `cart_customer` / `usr_customer` state.
+- **Concurrent first cart:** first-cart creation uses a PostgreSQL `ON CONFLICT (user_id) DO NOTHING` insert and reloads the winning row, so concurrent requests cannot create a second cart.
+- **Auth to Notification URL:** Docker now passes `NOTIFICATION_SERVICE_URL=http://notification-service:8089` through Compose. IDE/local runs retain the `http://localhost:8089` default.
+- **Internal notification authentication:** Auth receives `INTERNAL_TOKEN` from the documented `X_INTERNAL_TOKEN` value, while Notification receives the same value through its existing `X_INTERNAL_TOKEN` placeholder. The `/internal/v1/notifications/email` endpoint remains protected by `X-Internal-Token`.
+
+Focused verification completed:
+
+- `mvn -pl cart-service test`: 27 tests passed.
+- `mvn -pl auth-service test`: 46 tests passed.
+- `docker compose --env-file .env config`: passed.
+
+No cart data was deleted, no unique constraint was removed, and no Docker volume reset was run.
+
 **Last Updated:** 2026-07-13  
 **Agent:** Cascade  
 **Purpose:** Snapshot of current project state for agent reference
