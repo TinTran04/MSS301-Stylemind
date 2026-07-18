@@ -1,5 +1,13 @@
 # Implementation Log
 
+## 2026-07-19 - Payment to Order callback URL propagation
+
+- Confirmed the payment callback failure was caused by `payment-service` not receiving `ORDER_SERVICE_URL` in its Compose environment. Its Feign client and YAML fallback also resolved to `http://localhost:8087` when the variable was absent.
+- Added `ORDER_SERVICE_URL: ${ORDER_SERVICE_URL}` to the `payment-service` environment block, changed `OrderClient` to `${ORDER_SERVICE_URL}`, and removed the payment YAML loopback fallback.
+- Added a focused regression assertion that isolates the `payment-service` Compose block and requires the explicit Order Service mapping.
+- Verification: the focused URL/Compose suite passed 3 tests; `mvn -pl payment-service -DskipTests compile` passed; resolved Compose reported `payment-service.ORDER_SERVICE_URL=http://order-service:8087`; the recreated payment container reported the same value; Docker DNS resolved `order-service`; payment health returned HTTP 200.
+- The full payment test suite remains blocked by the existing Java 21/Mockito inline Byte Buddy self-attach failure in 14 tests. No controlled SePay webhook replay was run, so callback status transitions were not claimed.
+
 ## 2026-07-17 - Gateway registration OTP authentication boundary
 
 - Traced the 401 to `JwtAuthenticationFilter.PUBLIC_EXACT_PATHS`; Gateway `SecurityConfig.anyExchange().permitAll()` was not the failing layer.

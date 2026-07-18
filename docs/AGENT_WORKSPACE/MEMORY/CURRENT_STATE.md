@@ -1,5 +1,12 @@
 # Current Project State
 
+## 2026-07-19 Payment callback URL propagation
+
+- Payment Service now consumes the explicit `ORDER_SERVICE_URL` environment variable for its Order Service Feign client.
+- Docker Compose injects `ORDER_SERVICE_URL` under the `payment-service` environment block; the value resolves to `http://order-service:8087`.
+- The payment container was recreated without dependencies, database changes, or volume changes. Runtime verification reported the expected environment value, Docker DNS resolved `order-service`, and `GET http://localhost:8088/actuator/health` returned HTTP 200.
+- This verifies configuration, service startup, and Docker connectivity. A controlled SePay webhook replay was not run, so the end-to-end Payment `PAID` and Order `PAID` transition remains runtime-pending.
+
 ## 2026-07-17 Gateway registration OTP boundary
 
 - Registration verification and resend are pre-authentication endpoints and are now allowlisted by exact path in `JwtAuthenticationFilter`.

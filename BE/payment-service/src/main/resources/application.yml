@@ -32,10 +32,6 @@ spring:
 internal:
   token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
-order:
-  service:
-    url: ${ORDER_SERVICE_URL:http://localhost:8087}
-
 app:
   vietqr:
     # Local dev still uses init-scripts for schema and env-backed config for SePay/VietQR.
