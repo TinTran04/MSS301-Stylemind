@@ -112,6 +112,7 @@ services:
       CART_SERVICE_URL: http://cart-service:8086
       ORDER_SERVICE_URL: http://order-service:8087
       AI_SERVICE_URL: http://ai-agent-service:8085
+      AI_CHAT_SERVICE_URL: http://host.docker.internal:8000
       PAYMENT_SERVICE_URL: http://payment-service:8088
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
     depends_on:

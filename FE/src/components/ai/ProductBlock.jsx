@@ -33,7 +33,7 @@ export default function ProductBlock({ product, bundleId }) {
   }
 
   return (
-    <div className="bg-surface-container-lowest rounded-[24px] overflow-hidden product-card-shadow soft-shadow transition-all duration-300 hover:soft-shadow-hover">
+    <div className="h-full flex flex-col bg-surface-container-lowest rounded-[24px] overflow-hidden product-card-shadow soft-shadow transition-all duration-300 hover:soft-shadow-hover">
       <div className="relative">
         <img
           src={product.imageUrl || 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=800&fit=crop'}
@@ -47,14 +47,14 @@ export default function ProductBlock({ product, bundleId }) {
           </div>
         )}
       </div>
-      <div className="p-4">
+      <div className="p-4 flex flex-col flex-1">
         <h4 className="text-sm font-medium text-primary">{product.name}</h4>
         {product.reason && <p className="text-xs text-on-surface-variant mt-0.5">{product.reason}</p>}
-        <div className="flex items-center justify-between mt-3">
+        <div className="flex items-center justify-between mt-auto pt-3">
           <span className="text-sm font-semibold text-primary">{formatCurrency(product.basePrice)}</span>
           <button
             onClick={handleAddToCart}
-            disabled={adding || added}
+            disabled={adding || added || !product.productId}
             aria-label="Thêm vào giỏ hàng"
             title="Thêm vào giỏ hàng"
             className="p-2 rounded-full bg-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
