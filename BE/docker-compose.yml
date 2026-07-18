@@ -30,7 +30,7 @@ services:
     networks:
       - stylemind-network
     healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/ || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -493,6 +493,7 @@ services:
       PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
       CART_SERVICE_URL: ${CART_SERVICE_URL}
+      PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN}
       SERVER_PORT: ${SERVER_PORT_ORDER}
     volumes:
