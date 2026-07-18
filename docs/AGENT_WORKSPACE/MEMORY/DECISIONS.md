@@ -1,5 +1,17 @@
 # Architecture Decisions
 
+## 2026-07-17: Preserve one cart per authenticated user
+
+**Decision:** Keep the database unique constraint on `shopping_carts.user_id` and make cart access resolve by `user_id`, not by assuming the user ID is also the cart primary key.
+
+**Rationale:** Existing data proves those identifiers can differ (`cart_customer` / `usr_customer`). First-cart creation uses an idempotent PostgreSQL upsert and reloads the winner to handle concurrent requests safely.
+
+## 2026-07-17: Configure Auth-to-Notification routing per runtime
+
+**Decision:** Keep `NOTIFICATION_SERVICE_URL` configuration-driven. Local IDE runs use `http://localhost:8089`; Docker runs use `http://notification-service:8089`.
+
+**Rationale:** `localhost` has different meaning inside a container. Internal authentication remains protected; Compose maps the same configured token into the exact environment bindings currently consumed by Auth and Notification rather than weakening the filter or embedding a secret.
+
 **Last Updated:** 2026-07-12  
 **Agent:** Cascade  
 **Purpose:** Record architectural decisions and rationale

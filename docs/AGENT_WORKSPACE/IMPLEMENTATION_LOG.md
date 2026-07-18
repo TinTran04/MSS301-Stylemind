@@ -1,5 +1,23 @@
 # Implementation Log
 
+## 2026-07-17 - Gateway registration OTP authentication boundary
+
+- Traced the 401 to `JwtAuthenticationFilter.PUBLIC_EXACT_PATHS`; Gateway `SecurityConfig.anyExchange().permitAll()` was not the failing layer.
+- Added exact public paths for registration OTP verification and resend: `/api/v1/auth/register/verify-otp` and `/api/v1/auth/register/resend-otp`.
+- Added filter behavior tests for pre-auth registration/login paths, protected Auth requests without JWT, and invalid JWT rejection.
+- Kept the existing Cart prefix bypass unchanged and recorded it as a separate `NEEDS VERIFICATION` security finding.
+- Verification: `mvn -pl api-gateway test` passed 10 tests; Gateway was rebuilt with `docker compose --profile all up -d --build --force-recreate api-gateway`; the invalid-OTP request through Gateway returned HTTP 400 `REGISTER_OTP_INVALID` and Auth logs confirmed receipt; unauthenticated `/api/v1/auth/me` remained HTTP 401.
+- The successful account-creation flow was not claimed because a fresh valid OTP was unavailable.
+
+## 2026-07-17 - Cart and Auth notification runtime fixes
+
+- Traced authenticated cart creation to `findById(userId)`, which missed seeded carts whose primary key differs from `user_id`.
+- Added cart get-or-create resolution by `findByUserId`, preserved actual cart IDs across item operations, and added conflict-safe first-cart insertion.
+- Traced Auth registration delivery to the Feign URL fallback `http://localhost:8089` inside the Auth container.
+- Added Docker propagation for the notification hostname and aligned internal-token environment bindings without exposing values.
+- Added focused cart and Auth contract/regression coverage.
+- Verification: `cart-service` 26 tests passed, `auth-service` 46 tests passed, and Compose config validation passed.
+
 **Purpose:** Track agent work and progress on StyleMind project  
 **Last Updated:** 2026-07-12  
 **Agent:** Cascade

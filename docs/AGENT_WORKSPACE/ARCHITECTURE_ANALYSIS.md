@@ -4,6 +4,32 @@
 **Agent:** Cascade  
 **Purpose:** Comprehensive analysis of current architecture for agent reference
 
+## 2026-07-17 Current registration OTP request flow
+
+The registration verification path is a staged request flow:
+
+```text
+Frontend
+  -> API Gateway
+  -> JwtAuthenticationFilter
+  -> auth-service route
+  -> Auth Service OTP controller
+  -> OTP validation
+  -> account creation or activation
+```
+
+The Gateway route and the Gateway authentication filter are separate stages. A request can match the `auth-service` route (`/api/v1/auth/**` to `http://auth-service:8081`) and still be rejected by a custom `GlobalFilter` before `NettyRoutingFilter` forwards it.
+
+`SecurityConfig` currently uses `.anyExchange().permitAll()`, but that rule does not automatically bypass `JwtAuthenticationFilter`. Pre-authentication endpoints must therefore be represented in the custom Gateway exact public-path list as well as in Auth Service security rules.
+
+The verified public registration paths are:
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/register/verify-otp`
+- `POST /api/v1/auth/register/resend-otp`
+
+Gateway does not validate OTP values. Auth Service performs business-level OTP validation. A missing or invalid JWT on verify-OTP should not produce Gateway 401; an invalid or expired OTP may produce Auth Service HTTP 400 with `REGISTER_OTP_INVALID`.
+
 ---
 
 ## 1. System Overview

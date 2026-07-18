@@ -1,5 +1,35 @@
 # Source Code Issues - StyleMind Backend
 
+## 2026-07-17 Gateway Registration OTP Public Path
+
+### Registration OTP 401
+
+**Root cause:** `JwtAuthenticationFilter` runs as a custom Gateway `GlobalFilter` before routing. Its exact public-path list did not include `/api/v1/auth/register/verify-otp`, so a registration request without a Bearer token was rejected with HTTP 401 before Auth Service could validate the OTP. `SecurityConfig.anyExchange().permitAll()` does not bypass this custom filter.
+
+**Fix:** Added the exact pre-authentication paths `/api/v1/auth/register/verify-otp` and `/api/v1/auth/register/resend-otp` to `PUBLIC_EXACT_PATHS`. No wildcard Auth allowlist was introduced.
+
+**Verification:** Filter regression tests cover verify-OTP, resend-OTP, register, and login without JWT, plus protected Auth requests without a token and with an invalid token. The protected cases remain rejected.
+
+### Cart public-path concern (separate follow-up)
+
+`JwtAuthenticationFilter.isPublicPath` still treats `/api/v1/cart` as public using a prefix match. This was intentionally not changed while fixing registration OTP. Confirm whether Cart Service independently authenticates user operations and whether Gateway should protect cart routes in a separate security task.
+
+## 2026-07-17 Verified Fixes
+
+### Cart duplicate insert
+
+**Root cause:** `CartService` used `shoppingCartRepository.findById(userId)` for authenticated users. The database stores a cart ID separately from the user ID (`cart_customer` versus `usr_customer`), so the lookup missed the existing row and attempted a second insert against the intentional unique constraint on `shopping_carts.user_id`.
+
+**Fix:** Authenticated flows now use `findByUserId`, retain the actual cart ID for item operations, and create a first cart with `ON CONFLICT (user_id) DO NOTHING` followed by a reload. The unique constraint remains unchanged.
+
+### Registration OTP notification connection
+
+**Root cause:** The Auth Feign client uses `notification.service.url`, whose local default is `http://localhost:8089`. The Docker `auth-service` container did not receive `NOTIFICATION_SERVICE_URL`, so it used localhost inside the Auth container instead of Docker DNS.
+
+**Fix:** Compose passes `NOTIFICATION_SERVICE_URL` to Auth. Compose also passes one shared internal token value to Auth's `INTERNAL_TOKEN` binding and Notification's existing `X_INTERNAL_TOKEN` binding. Internal endpoint security remains enabled.
+
+**Verification:** Cart and Auth focused test suites pass; Compose configuration resolves successfully. Auth, Notification, and Cart containers were rebuilt and restarted without volume deletion. Auth resolves `notification-service` over Docker DNS, and an authenticated empty internal request reaches Notification validation with HTTP 400.
+
 **Generated:** 2026-07-12 (Updated after origin/dev merge)  
 **Scope:** All critical bugs and architectural issues identified during service separation testing and origin/dev review
 
@@ -263,11 +293,11 @@ environment:
 
 **Issue:** JWT_SECRET only 200 bits, minimum required is 256 bits
 ```
-# Original (200 bits):
-JWT_SECRET=stylemind-test-jwt-secret
+# Original (200 bits; redacted):
+JWT_SECRET=<redacted-example>
 
 # Updated (>= 256 bits):
-JWT_SECRET=super-secure-stylemind-secret-key-signature-2026-xyz-1234567890
+JWT_SECRET=<redacted-example>
 ```
 
 **Status:** **FIXED** - Updated to longer secret in VoKhai branch

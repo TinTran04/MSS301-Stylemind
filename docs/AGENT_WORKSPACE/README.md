@@ -18,6 +18,8 @@ This workspace contains all documentation needed for agents to understand the St
 AGENT_WORKSPACE/
 ├── README.md                    # This file - workspace overview
 ├── ARCHITECTURE_ANALYSIS.md    # Comprehensive architecture analysis
+├── JWT_AUTHENTICATION.md        # Current Gateway/Auth public-path guidance
+├── KNOWN_ISSUES.md              # Verified incidents and follow-up findings
 ├── SERVICE_SEPARATION_PLAN.md   # Plan for service database separation
 ├── IMPLEMENTATION_LOG.md        # Agent work tracking and progress
 └── MEMORY/
@@ -67,6 +69,11 @@ If working on database separation, read `SERVICE_SEPARATION_PLAN.md` for:
 - Phase-by-phase approach
 - Testing checklist
 - Rollback procedures
+
+### 6. Before changing Gateway authentication
+Read `JWT_AUTHENTICATION.md` and `KNOWN_ISSUES.md` before changing public paths or JWT filters. Read `MEMORY/CURRENT_STATE.md` before debugging registration or OTP flows.
+
+> A route being matched by Spring Cloud Gateway does not prove the request reached the downstream service. A custom `GlobalFilter` can return a response before `NettyRoutingFilter` forwards the request.
 
 ---
 

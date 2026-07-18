@@ -122,6 +122,25 @@ class AuthServiceTest {
     }
 
     @Test
+    void startRegistration_notificationFailure_mapsToNotificationFailed() {
+        when(userRepository.existsByEmail("notify@example.com")).thenReturn(false);
+        when(pendingRegistrationRepository.findByEmail("notify@example.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode(any())).thenReturn("encoded");
+        when(pendingRegistrationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        doThrow(new RuntimeException("connection refused"))
+                .when(notificationInternalClient).sendEmail(any());
+
+        RegisterRequest request = new RegisterRequest();
+        request.setEmail("notify@example.com");
+        request.setPassword("pass");
+
+        assertThatThrownBy(() -> authService.startRegistration(request))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo("NOTIFICATION_FAILED");
+    }
+
+    @Test
     void startRegistration_withinCooldown_throws429() {
         PendingRegistration pending = pendingRegistration("cool@example.com");
         pending.setRequestedAt(LocalDateTime.now().minusSeconds(30)); // inside 60s cooldown
