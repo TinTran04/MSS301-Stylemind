@@ -1,5 +1,119 @@
 # Current Project State
 
+## 2026-07-19 Fix: Order/Auth → Notification internal-token 403 (ORDER_PAID email)
+
+**Status: RESOLVED** for `order-service → notification-service`, runtime-verified with a direct
+probe (403 → HTTP 200 after the fix, using the exact production header/token/endpoint).
+`auth-service → notification-service` shares the identical root cause and fix but was not
+independently re-probed — **IMPLEMENTED, RUNTIME VERIFICATION PENDING** for that specific pair.
+
+- Root cause: `com.stylemind.common.security.InternalAuthFilter.doFilterInternal:33` rejected
+  `order-service`'s internal call because `order-service`'s effective `internal.token` (`.env
+  INTERNAL_TOKEN`, via a change made earlier the same day to fix order↔auth) no longer matched
+  `notification-service`'s effective `internal.token` (`.env X_INTERNAL_TOKEN`, unchanged) — same
+  bug class as the order-to-auth fix below, a different pair.
+  Confirmed via: log correlation (request id `30f94034-5062-4eba-83bf-ec17d4536f81`, 3 retries all
+  `[403]`, matched to 3 `BusinessException` traces in notification-service's log at the same
+  timestamps), a SET/SET-but-MISMATCH token comparison (no values printed), and a direct probe
+  (403 before, 200 after).
+- Fix: `BE/docker-compose.yml` — `notification-service.environment.X_INTERNAL_TOKEN` changed from
+  `${X_INTERNAL_TOKEN}` to `${INTERNAL_TOKEN}` (Compose-only value alias; no Java/production code,
+  no security-filter, no endpoint-visibility change). `notification-service` was recreated
+  (`--force-recreate`, no rebuild needed); `order-service` was not recreated (unchanged by this
+  fix).
+- Tests added: `common-lib`'s `InternalAuthFilterTest` (new, 4/4 pass — first coverage of that
+  class); `order-service`'s `ServiceUrlConfigurationTest` gained a Compose-content test that failed
+  before the fix and passed after, plus a Feign-configuration test ruling out "client doesn't apply
+  the shared interceptor"; `order-service`'s `OrderServiceTest` gained a regression test proving a
+  notification-client exception never reverts a PAID order.
+- Full test suites run: `common-lib` 17 run / 15 pass (2 pre-existing, unrelated `JwtUtilTest`
+  RSA-signature failures, not caused by or related to this fix); `order-service` 39 run / 35 pass
+  (4 pre-existing, unrelated `ServiceUrlConfigurationTest` failures for `cartClient`/
+  `paymentClient`/`productClient`/`applicationConfig`, confirmed unchanged at `HEAD` before this
+  session touched anything); `notification-service` 8/8 pass clean.
+- **Not done:** a live end-to-end SePay bank-transfer replay (a human scanning the VietQR code with
+  a real bank app) was not performed — that requires real money movement outside what this agent
+  can or should automate. The fix is verified via the exact production code path
+  (`OrderService.notifyOrderBestEffort` → `NotificationClient` → the same
+  `/internal/v1/notifications/email` endpoint) using the real configured token, just not via an
+  actual SePay-triggered request.
+- **Explicitly not touched (per this fix's scope):** the SePay/payment-to-order flow itself, and
+  the still-open `payment-service → order-service`, `ai-agent-service → order-service`, and
+  `order-service → product-service`/`cart-service`/`payment-service` internal-token mismatches
+  documented below — those remain NEEDS VERIFICATION.
+
+## 2026-07-19 Documentation sync — verified SePay flow, new internal-token risk
+
+**Branch/repo state:** `VoKhai`, identical to `origin/VoKhai` at commit `9ec9b22f`. The working
+tree also has additional **uncommitted** changes (`BE/docker-compose.yml`'s auth-service block,
+`BE/order-service/src/main/resources/application.yml`, and a new
+`ServiceUrlConfigurationTest.java` case) that complete the "Order-to-Auth internal authentication"
+fix below. These uncommitted changes are already built into the currently running
+`order-service`/`auth-service` containers (both recreated 2026-07-18 21:34, confirmed via
+`docker compose ps` and container startup log timestamps), so the live system reflects them even
+though `git status` still shows them as modified, not committed.
+
+**VERIFIED (live evidence, this session):**
+- API Gateway is published on host port 3000 (`BE/docker-compose.yml` `api-gateway.ports`).
+- A public ngrok tunnel forwards SePay webhook calls to the Gateway: a live Gateway DEBUG log line
+  shows route `sepay-webhook` (`Path=/api/v1/payments/webhook/sepay`) matching a request whose
+  `Host` header was an `*.ngrok-free.dev` domain, forwarded to `http://payment-service:8088`.
+- The webhook path is exactly `POST /api/v1/payments/webhook/sepay` (`SepayWebhookController`,
+  Gateway `PUBLIC_EXACT_PATHS`, and Gateway route config all agree).
+- On 2026-07-18 21:12:42, a real SePay webhook reached Payment Service and was authenticated
+  (`payment-service` log: "Authenticated SePay webhook accepted for gatewayTxnId=68890960"). A
+  direct, read-only query against `order_db` confirms order `3176d387b91b442f93767833b099c281`
+  transitioned to `order_status = PAID` at `21:12:42.637`, ~0.5s after the webhook — proving the
+  full SePay → Payment → Order PAID path worked end-to-end under the configuration running at that
+  time (**before** the order-service/auth-service rebuild described below).
+- Order status transitions only via `OrderStatusService.changeStatus`, gated by
+  `OrderStatus.allowedTransitions()`. `PAYMENT_PENDING → PAID` happens only in
+  `OrderService.updateOrderStatusFromPayment`, called from `InternalOrderController`. Nothing in
+  that path also transitions to `PROCESSING` — `PAID → PROCESSING` requires a separate manual/admin
+  status change. A notification failure never rolls back the order: `notifyOrderBestEffort` retries
+  3 times, then only logs a warning (see the "Compensation guardrail" comment,
+  `OrderService.java:493`).
+- The Shop/Checkout frontend polls payment status on an interval (`payment.store.js`, `pollTimer` /
+  `setInterval`) as a read-only fallback observer; it does not process the webhook itself.
+
+**UPDATE (same day, see the entry at the top of this file):** the `notification-service` part of
+this was confirmed broken (live 403s, request id `30f94034-5062-4eba-83bf-ec17d4536f81`) and then
+fixed and runtime-verified. The remaining paragraph below is preserved for the parts that are
+**still open**.
+
+**INVESTIGATING (high priority, source-verified, NOT yet runtime-tested against the current
+build):** The same-day fix that aligned `order-service` and `auth-service` on the canonical
+`INTERNAL_TOKEN` value was not propagated to `product-service`, `cart-service`,
+`payment-service`, or `ai-agent-service` (all still resolve `internal.token` from
+`X_INTERNAL_TOKEN`, which Compose does not inject into their containers, so they silently fall
+back to the hardcoded default). `.env`'s `INTERNAL_TOKEN` and `X_INTERNAL_TOKEN` values were
+confirmed different by a read-only comparison that did not print either value. Full per-service
+breakdown and the resulting call-pair risk (including `payment-service → order-service`, the exact
+call that marks an order PAID — still unresolved) are in
+[ENVIRONMENT_MATRIX.md](../ENVIRONMENT_MATRIX.md) and [KNOWN_ISSUES.md](../KNOWN_ISSUES.md). No
+SePay webhook replay has been observed in logs since the 2026-07-18 21:34 order/auth rebuild, so
+`payment-service → order-service` is not yet proven broken in the current build — it is a
+source-verified regression risk, not a confirmed one, and was deliberately not touched by this
+session's notification fix.
+
+**CONFIRMED security findings (live evidence, out of scope to fix in a documentation task):**
+- API Gateway's `org.springframework.cloud.gateway: DEBUG` logging level is currently printing full
+  `Authorization` header values (the SePay static API key and live customer JWTs) plus
+  `X-User-Id`/`X-User-Roles`/`X-User-Email` from inbound requests, observed directly in current
+  container logs.
+- `BE/PAYMENT_REDIRECT_ISSUE.md` (outside `docs/AGENT_WORKSPACE`, not modified by this task) is
+  committed and pushed to `origin/VoKhai` (commit `4bbf1a7c`) and contains the plaintext SePay
+  webhook API key in two places. This needs rotation and redaction by the user; it was not edited
+  here because it is outside this task's allowed scope
+  (`docs/AGENT_WORKSPACE/**` only).
+
+## 2026-07-19 Order-to-Auth internal authentication
+
+- The `ORDER_PAID` notification path was failing before notification delivery because Order Service received a different internal-token value from Auth Service. Compose injected `${INTERNAL_TOKEN}` into Order Service but `${X_INTERNAL_TOKEN}` into Auth Service, while the repository's shared filter/interceptor uses the `X-Internal-Token` header and the `internal.token` property.
+- Compose and Order Service configuration now use the canonical `INTERNAL_TOKEN` source for both services. The internal endpoint remains protected; no `/internal/**` route was made public.
+- After rebuilding only `order-service` and `auth-service`, both containers reported the token as set and matching without printing its value. A read-only `GET /internal/v1/users/{userId}/email` probe from Order Service to Auth Service returned HTTP 200, and resolved Compose validation passed.
+- Payment and order `PAID` behavior was not changed or manually mutated. A real SePay webhook/payment replay was not run in this verification pass, so notification delivery under an actual `ORDER_PAID` event remains runtime-pending.
+
 ## 2026-07-19 Payment callback URL propagation
 
 - Payment Service now consumes the explicit `ORDER_SERVICE_URL` environment variable for its Order Service Feign client.
@@ -29,7 +143,7 @@ Two independent runtime issues were traced and fixed without resetting Docker vo
 - **Cart ownership:** authenticated cart operations now resolve a cart with `findByUserId(userId)`, then use the returned cart ID for items, updates, merges, reads, and clearing. This preserves the one-cart-per-user constraint and correctly handles the seeded `cart_customer` / `usr_customer` state.
 - **Concurrent first cart:** first-cart creation uses a PostgreSQL `ON CONFLICT (user_id) DO NOTHING` insert and reloads the winning row, so concurrent requests cannot create a second cart.
 - **Auth to Notification URL:** Docker now passes `NOTIFICATION_SERVICE_URL=http://notification-service:8089` through Compose. IDE/local runs retain the `http://localhost:8089` default.
-- **Internal notification authentication:** Auth receives `INTERNAL_TOKEN` from the documented `X_INTERNAL_TOKEN` value, while Notification receives the same value through its existing `X_INTERNAL_TOKEN` placeholder. The `/internal/v1/notifications/email` endpoint remains protected by `X-Internal-Token`.
+- **Internal notification authentication:** Auth and Order use the canonical `INTERNAL_TOKEN` environment variable, while Notification retains its existing compatible binding. Internal endpoints remain protected by `X-Internal-Token`; values must be checked only for presence or equality, never printed.
 
 Focused verification completed:
 

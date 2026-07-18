@@ -1,5 +1,94 @@
 # Implementation Log
 
+## 2026-07-19 - Fix: Order/Auth → Notification 403 on ORDER_PAID email (systematic-debugging + TDD)
+
+- **Symptom:** live logs showed `order-service` retrying 3x and giving up with `[403] ... POST
+  http://notification-service:8089/internal/v1/notifications/email` right after a real order moved
+  PAYMENT_PENDING → PAID (request id `30f94034-5062-4eba-83bf-ec17d4536f81`); `notification-service`
+  logged `BusinessException: Không có quyền truy cập tài nguyên này` at the matching timestamps.
+- **Root cause (confirmed, not assumed):** exact throw site
+  `com.stylemind.common.security.InternalAuthFilter.doFilterInternal:33`. `order-service`'s
+  effective `internal.token` (`.env INTERNAL_TOKEN`, since an earlier same-day fix aligned it with
+  `auth-service`) no longer matched `notification-service`'s effective `internal.token` (`.env
+  X_INTERNAL_TOKEN`, unchanged). Verified via SET/SET-but-MISMATCH token comparison (no values
+  printed) and a direct controlled probe (403 before the fix).
+- **Fix:** one-line Compose value alias — `notification-service.environment.X_INTERNAL_TOKEN`
+  changed from `${X_INTERNAL_TOKEN}` to `${INTERNAL_TOKEN}` in `BE/docker-compose.yml`. No Java
+  source, security filter, or endpoint visibility changed.
+- **Tests (TDD, red-green):** added `InternalAuthFilterTest` (common-lib, new file, 4 tests, first
+  coverage of that class — accepts valid token without a JWT, rejects missing/wrong token, bypasses
+  non-`/internal/v1/**` paths); added a Compose-content test to `ServiceUrlConfigurationTest`
+  (order-service) that failed before the fix (`X_INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}` found instead
+  of `${INTERNAL_TOKEN}`) and passed after; added a Feign-configuration test ruling out "client
+  doesn't apply the shared interceptor"; added a regression test to `OrderServiceTest` proving a
+  notification-client exception never reverts/cancels a PAID order.
+- **Verification:** `common-lib` 17 tests / 15 pass (2 pre-existing unrelated `JwtUtilTest`
+  RSA-signature failures, confirmed present before this session touched anything);
+  `order-service` 39 tests / 35 pass (4 pre-existing unrelated `ServiceUrlConfigurationTest`
+  failures for `cartClient`/`paymentClient`/`productClient`/`applicationConfig`, confirmed
+  unchanged at `HEAD` before this session); `notification-service` 8/8 pass clean.
+  `docker compose config --quiet` passed both before and after. `notification-service` recreated
+  with `--no-deps --force-recreate` (Compose-env-only change); `order-service` was not recreated
+  (unaffected by this fix). The identical direct controlled probe used to reproduce the bug
+  (403) returned HTTP 200 after the fix, using the real production header/token/endpoint.
+- **Not done:** a live SePay bank-transfer replay (a human scanning the real VietQR code) was not
+  performed — outside what this agent can or should automate. The SePay/payment-to-order flow was
+  explicitly not touched, per this task's scope.
+- **Scope boundary:** `payment-service → order-service`, `ai-agent-service → order-service`, and
+  `order-service → product-service`/`cart-service`/`payment-service` remain separate, unresolved
+  internal-token mismatches (source-verified, not runtime-confirmed) — deliberately out of scope
+  for this fix. See KNOWN_ISSUES.md.
+- **Note on a transient environment hiccup:** partway through this session, `BE/docker-compose.yml`
+  was observed reverted to its pre-fix state by an external file-write outside this agent's control
+  (not a revert requested by anyone in this conversation); the fix was re-applied and re-verified
+  before proceeding.
+
+## 2026-07-19 - Documentation-only sync of AGENT_WORKSPACE with recent repository changes
+
+- **Scope:** Documentation only (`docs/AGENT_WORKSPACE/**`); no production code, Compose file,
+  environment file, database script, or test was modified by this entry's task.
+- **Method:** Read the full existing workspace, inspected `git status`/`log`/`fetch` (branch
+  `VoKhai` identical to `origin/VoKhai` at `9ec9b22f`, plus uncommitted working-tree changes),
+  inspected the three most recent commits (`9ec9b22f`, `4bbf1a7c`, `67aaaddf`) and the uncommitted
+  diff, verified current source contracts (Gateway routes/public paths, SePay webhook controller,
+  order status transitions, internal-token binding per service), validated the resolved Compose
+  config, and inspected current container status and read-only container logs plus one read-only
+  database query.
+- **New verified facts (see MEMORY/CURRENT_STATE.md, ARCHITECTURE_ANALYSIS.md,
+  ENVIRONMENT_MATRIX.md):** SePay webhook path and Gateway routing confirmed from source and live
+  logs; a real SePay webhook completed the full PAYMENT_PENDING → PAID path on 2026-07-18
+  (confirmed via a read-only `order_db` query), but that was before the same-day order/auth
+  internal-token fix was rebuilt into the running containers.
+- **New risk identified (see KNOWN_ISSUES.md "Internal-token binding inconsistent across
+  services"):** the order/auth internal-token fix earlier the same day was not propagated to
+  `product-service`, `cart-service`, `payment-service`, `ai-agent-service`, or
+  `notification-service`. Source inspection shows several internal call pairs — including
+  `payment-service → order-service`, the exact call that marks an order PAID — now likely use
+  mismatched effective tokens. This is not yet runtime-confirmed either way; documented as NEEDS
+  VERIFICATION, not RESOLVED or BROKEN.
+- **New security findings recorded, not fixed (out of this task's scope):** API Gateway's
+  `org.springframework.cloud.gateway: DEBUG` log level is currently printing live Authorization
+  headers (JWTs and the SePay API key) and user-identity headers, observed directly in current
+  logs; `BE/PAYMENT_REDIRECT_ISSUE.md` (outside `docs/AGENT_WORKSPACE`) contains a plaintext SePay
+  webhook API key committed and pushed to `origin/VoKhai`. Neither secret value is reproduced in
+  any `docs/AGENT_WORKSPACE` file.
+- **Not changed:** no `RESOLVED` label was added or removed without fresh evidence; existing
+  `RESOLVED`/`NEEDS VERIFICATION` labels elsewhere in the workspace were left as-is unless this
+  session found direct evidence to update them.
+- **Verification of this task itself:** `git status --short` after edits shows only
+  `docs/AGENT_WORKSPACE/**` files changed (plus the pre-existing, unrelated uncommitted code
+  changes from the prior session, untouched by this task); `docker compose --env-file .env
+  --profile all config --quiet` still exits 0; a secret-pattern scan of the edited
+  `docs/AGENT_WORKSPACE` files found no leaked tokens/keys.
+
+## 2026-07-19 - Order-to-Auth internal token mismatch
+
+- **Root cause:** Order Service and Auth Service were given different environment sources for the shared internal token. Order used `${INTERNAL_TOKEN}` but Auth used `${X_INTERNAL_TOKEN}`; both services' common security/Feign code expects the same `internal.token` value and sends/checks it as `X-Internal-Token`.
+- **Fix:** Auth's Compose mapping now uses `${INTERNAL_TOKEN}`, and Order Service's `internal.token` property now binds to `${INTERNAL_TOKEN}`. Endpoint visibility and internal authentication were unchanged.
+- **Regression coverage:** Added a focused Compose contract test requiring both `auth-service` and `order-service` to use the canonical mapping. The test failed against the old Auth mapping and passed after the fix.
+- **Runtime verification:** Rebuilt only `order-service` and `auth-service`. Both containers reported a set matching token without exposing its value; a read-only Order-to-Auth email lookup returned HTTP 200; `docker compose config --quiet` passed.
+- **Scope boundary:** No payment/order status was changed, no database data or volumes were touched, and no controlled SePay webhook replay was performed. The full notification path still needs a real `ORDER_PAID` event or an equivalent controlled integration test.
+
 ## 2026-07-19 - Payment to Order callback URL propagation
 
 - Confirmed the payment callback failure was caused by `payment-service` not receiving `ORDER_SERVICE_URL` in its Compose environment. Its Feign client and YAML fallback also resolved to `http://localhost:8087` when the variable was absent.

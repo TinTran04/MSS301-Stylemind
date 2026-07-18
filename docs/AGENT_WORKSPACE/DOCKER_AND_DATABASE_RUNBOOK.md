@@ -34,6 +34,21 @@ If order checkout reports a Product snapshot or price failure, inspect the order
 
 If payment callbacks fail, inspect payment-service's `ORDER_SERVICE_URL`, which must be `http://order-service:8087`. A 401/403 after connectivity succeeds indicates internal-token mismatch, not a DNS failure.
 
+For Order Service calls to Auth Service, both Compose services must receive the
+same `INTERNAL_TOKEN` value. The shared Feign interceptor sends it as
+`X-Internal-Token`, and Auth's `InternalAuthFilter` validates that header on
+`/internal/v1/**`. A safe check is:
+
+```bash
+docker compose exec order-service sh -c 'test -n "$INTERNAL_TOKEN" && echo SET || echo NOT_SET'
+docker compose exec auth-service sh -c 'test -n "$INTERNAL_TOKEN" && echo SET || echo NOT_SET'
+```
+
+Compare values only in memory and report `MATCH` or `MISMATCH`; never print the
+token. A read-only Order-to-Auth email lookup returning HTTP 200 proves network
+reachability and internal authentication for that endpoint. A 403 with a
+healthy endpoint indicates mismatched token configuration.
+
 Payment Service callback configuration is injected explicitly by the
 `payment-service` Compose environment block:
 
@@ -53,6 +68,60 @@ docker compose --env-file .env --profile all up -d --no-deps --force-recreate pa
 Do not claim the SePay callback workflow is fully verified from configuration
 alone. A controlled webhook test must still confirm payment and order status
 updates, and must show no internal-token 401/403 response.
+
+## Diagnosing internal-token 403s across any service pair (generalized 2026-07-19)
+
+The order-service/auth-service check above is one instance of a general pattern: **every**
+`/internal/v1/**` call is guarded by the same `internal.token` property, but each service binds
+that property to a different environment variable in its own `application.yml`
+(`INTERNAL_TOKEN` or `X_INTERNAL_TOKEN`), and Compose independently decides which of those
+variables it actually injects into each container. A 403 on any internal call can come from either
+side disagreeing. To check any caller/target pair without ever printing a token value:
+
+```bash
+# 1. Confirm which env var each container actually has set (name only, not value):
+docker compose exec <caller>  sh -c 'test -n "$INTERNAL_TOKEN" && echo INTERNAL_TOKEN_SET; test -n "$X_INTERNAL_TOKEN" && echo X_INTERNAL_TOKEN_SET'
+docker compose exec <target>  sh -c 'test -n "$INTERNAL_TOKEN" && echo INTERNAL_TOKEN_SET; test -n "$X_INTERNAL_TOKEN" && echo X_INTERNAL_TOKEN_SET'
+
+# 2. Cross-reference which one each service's application.yml actually binds `internal.token` to
+#    (see ENVIRONMENT_MATRIX.md "Internal-token binding per service" for the current, verified
+#    answer per service - do not assume it is the same variable for every service).
+
+# 3. Compare the two .env values referenced above without printing either:
+python3 - <<'PY'
+vals = {}
+with open('.env') as f:
+    for line in f:
+        line = line.strip()
+        if line.startswith('INTERNAL_TOKEN=') or line.startswith('X_INTERNAL_TOKEN='):
+            k, _, v = line.partition('=')
+            vals[k] = v.strip().strip('"').strip("'")
+print('EQUAL' if vals.get('INTERNAL_TOKEN') == vals.get('X_INTERNAL_TOKEN') else 'DIFFERENT')
+PY
+```
+
+A `403`/`AUTH_ACCESS_DENIED` from `InternalAuthFilter` after DNS/connectivity already succeeds
+means the two sides' effective `internal.token` values differ; a `Connection refused` or timeout
+means DNS/networking is the problem instead, and the internal-token check above is not yet
+relevant.
+
+## Gateway DEBUG logging can print Authorization headers and identity headers
+
+`api-gateway`'s `application.yml` currently sets `org.springframework.cloud.gateway: DEBUG` and
+`com.stylemind.gateway: DEBUG`. At this level, Spring Cloud Gateway's request/response observation
+filters log the full set of inbound headers, including `Authorization` (both the SePay webhook's
+static API key and customer JWTs) and the client-sent `X-User-Id`/`X-User-Roles`/`X-User-Email`
+headers (the custom `JwtAuthenticationFilter` strips these from the *mutated* request forwarded
+downstream, but the DEBUG log captures the original inbound request before that mutation). This was
+observed directly in current container logs. When inspecting Gateway logs for any reason:
+
+```bash
+docker compose logs --tail=300 --no-color api-gateway | \
+  sed -E 's/(Bearer|Apikey) [A-Za-z0-9._-]+/\1 <REDACTED>/g'
+```
+
+Never paste unredacted Gateway DEBUG output into a shared document, chat, or issue tracker. Do not
+lower this log level as part of a documentation task; treat it as a known, reportable risk.
 
 ## Local IntelliJ mode
 

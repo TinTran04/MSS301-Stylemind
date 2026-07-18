@@ -344,9 +344,8 @@ services:
       JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
       JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
       NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL}
-      # Auth's shared Feign config binds internal.token from INTERNAL_TOKEN.
-      # Reuse the documented X_INTERNAL_TOKEN value without duplicating secrets.
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
+      # Auth's shared security and Feign configuration use the canonical token.
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
       SERVER_PORT: ${SERVER_PORT_AUTH}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
       SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
@@ -575,8 +574,12 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
 
       MAIL_ENABLED: ${MAIL_ENABLED}
-      # Notification's current YAML explicitly reads X_INTERNAL_TOKEN.
-      X_INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
+      # Notification's current YAML explicitly reads X_INTERNAL_TOKEN. auth-service and
+      # order-service send the canonical INTERNAL_TOKEN value as X-Internal-Token, so
+      # Notification's X_INTERNAL_TOKEN binding must carry that same value (not a separate
+      # X_INTERNAL_TOKEN .env value) or internal calls to /internal/v1/notifications/email are
+      # rejected with 403 by InternalAuthFilter.
+      X_INTERNAL_TOKEN: ${INTERNAL_TOKEN}
       MAIL_LOG_FALLBACK: ${MAIL_LOG_FALLBACK:-true}
 
       SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}

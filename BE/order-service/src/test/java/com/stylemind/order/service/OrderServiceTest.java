@@ -197,6 +197,26 @@ class OrderServiceTest {
     }
 
     @Test
+    void updateOrderStatusFromPayment_notificationClientThrows_orderRemainsPaid() {
+        Order order = pendingPaymentOrder();
+        when(orderRepository.findById("order-1")).thenReturn(Optional.of(order));
+        when(orderStatusService.changeStatus(any(Order.class), eq(OrderStatus.PAID), eq("PAYMENT_WEBHOOK")))
+                .thenAnswer(inv -> withStatus(inv.getArgument(0), OrderStatus.PAID));
+        when(cartClient.clearCartByUserId("user-1")).thenReturn(ApiResponse.success("ok", null));
+        UserClient.UserEmail userEmail = new UserClient.UserEmail();
+        userEmail.setEmail("buyer@example.com");
+        when(userClient.getUserEmail("user-1")).thenReturn(ApiResponse.success("ok", userEmail));
+        when(notificationClient.sendEmail(any()))
+                .thenThrow(new RuntimeException("notification-service unreachable"));
+
+        orderService.updateOrderStatusFromPayment("order-1", "PAID");
+
+        verify(orderStatusService).changeStatus(any(Order.class), eq(OrderStatus.PAID), eq("PAYMENT_WEBHOOK"));
+        verify(orderStatusService, never()).changeStatus(any(Order.class), eq(OrderStatus.FAILED), any());
+        verify(orderStatusService, never()).changeStatus(any(Order.class), eq(OrderStatus.CANCELLED), any());
+    }
+
+    @Test
     void updateOrderStatusFromPayment_failed_movesToFailedWithoutClearingCart() {
         Order order = pendingPaymentOrder();
         when(orderRepository.findById("order-1")).thenReturn(Optional.of(order));

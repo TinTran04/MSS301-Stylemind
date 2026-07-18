@@ -4,6 +4,62 @@
 **Agent:** Cascade  
 **Purpose:** Comprehensive analysis of current architecture for agent reference
 
+## 2026-07-19 Verified SePay payment flow and internal-auth boundary
+
+Verified components only (see MEMORY/CURRENT_STATE.md for the evidence behind each step):
+
+```text
+SePay (internet)
+  -> public HTTPS tunnel (ngrok in local dev)
+  -> API Gateway, published host port 3000, route id `sepay-webhook`
+     (Path=/api/v1/payments/webhook/sepay, public at the Gateway JWT filter -
+      no user JWT exists for this call)
+  -> Payment Service :8088 (SepayWebhookController)
+     - authenticity verified via the webhook's own Authorization/API-key header,
+       independent of the internal-service-token mechanism below
+  -> Order Service :8087, POST /internal/v1/orders/{orderId}/payment-status
+     (guarded by X-Internal-Token; unreachable through the Gateway - see the
+      api-gateway `internal-block` route for /internal/v1/**)
+     - OrderService.updateOrderStatusFromPayment: PAYMENT_PENDING -> PAID (or FAILED)
+     - best-effort cart clear
+     - Order Service -> Auth Service (X-Internal-Token) to look up the user's email
+     - Order Service -> Notification Service (X-Internal-Token) for the ORDER_PAID email
+```
+
+A real webhook was observed completing this whole path on 2026-07-18 (order moved
+PAYMENT_PENDING -> PAID within ~0.5s of the authenticated webhook), but that
+observation predates a same-day internal-token configuration change described below and in
+KNOWN_ISSUES.md, so it does not confirm the path still works end-to-end under the current build.
+
+**Update (same day):** the `Order Service -> Notification Service` hop was confirmed broken (live
+403s) and then fixed and runtime-verified via a direct probe (403 -> HTTP 200). The
+`Payment Service -> Order Service` hop (the call that marks the order PAID) was deliberately not
+touched and remains a source-verified, not-yet-runtime-confirmed risk - see KNOWN_ISSUES.md.
+
+**Payment/order status update and notification are separate responsibilities.** Marking the order
+PAID happens first and is durable regardless of what happens next; `notifyOrderBestEffort` retries
+the notification a few times and only logs a warning on failure - a notification failure must never
+roll back an already-paid order (`OrderService.java`, "Compensation guardrail" comment). `PAID` is
+an allowed source state for a manual/admin transition to `PROCESSING`
+(`OrderStatus.PAID -> {CONFIRMED, PROCESSING, CANCELLED}`), but nothing in the webhook path performs
+that transition automatically.
+
+**Internal-auth boundary.** Every `/internal/v1/**` endpoint across every service is guarded by the
+same shared `common-lib` mechanism: `FeignClientConfig` (sender) and `InternalAuthFilter`
+(receiver) both bind to one Spring property, `internal.token`, sent/checked as the
+`X-Internal-Token` header. Each service's own `application.yml` independently decides which
+environment variable that property resolves from, and Compose independently decides which
+environment variables are injected into each container - the two are not currently kept in sync
+for every service. See ENVIRONMENT_MATRIX.md for the current, verified per-service binding and the
+resulting call-pair risk, and KNOWN_ISSUES.md for the full write-up.
+
+**Docker vs. host networking (verified, matches ENVIRONMENT_MATRIX.md).** A browser or a host-side
+`curl` may use a published port such as `http://localhost:3000`. A container must reach another
+container using that container's Compose service name and internal port (e.g.
+`http://order-service:8087`); `localhost` inside a container refers to that container itself, not
+another service. `application-local.yml` files retain `localhost` defaults only for non-Docker
+(IntelliJ/local-process) runs.
+
 ## 2026-07-17 Current registration OTP request flow
 
 The registration verification path is a staged request flow:

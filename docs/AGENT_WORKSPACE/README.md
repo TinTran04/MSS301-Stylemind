@@ -16,16 +16,27 @@ This workspace contains all documentation needed for agents to understand the St
 
 ```
 AGENT_WORKSPACE/
-├── README.md                    # This file - workspace overview
-├── ARCHITECTURE_ANALYSIS.md    # Comprehensive architecture analysis
-├── JWT_AUTHENTICATION.md        # Current Gateway/Auth public-path guidance
-├── KNOWN_ISSUES.md              # Verified incidents and follow-up findings
-├── SERVICE_SEPARATION_PLAN.md   # Plan for service database separation
-├── IMPLEMENTATION_LOG.md        # Agent work tracking and progress
+├── README.md                        # This file - workspace overview
+├── ARCHITECTURE_ANALYSIS.md         # Comprehensive architecture analysis
+├── ENVIRONMENT_MATRIX.md            # Docker service URL + internal-token binding matrix
+├── DOCKER_AND_DATABASE_RUNBOOK.md   # Safe Docker/DB troubleshooting commands
+├── JWT_AUTHENTICATION.md            # Current Gateway/Auth public-path guidance
+├── KNOWN_ISSUES.md                  # Verified incidents and follow-up findings
+├── CODEGRAPH.md                     # CodeGraph index status and non-destructive workflow
+├── SERVICE_SEPARATION_PLAN.md       # Plan for service database separation
+├── SOURCE_CODE_ISSUES.md            # Historical bug log - see staleness note below
+├── IMPLEMENTATION_LOG.md            # Agent work tracking and progress (also serves as changelog)
 └── MEMORY/
-    ├── CURRENT_STATE.md         # Current project state snapshot
-    └── DECISIONS.md             # Architectural decisions and rationale
+    ├── CURRENT_STATE.md             # Current project state snapshot
+    └── DECISIONS.md                 # Architectural decisions and rationale
 ```
+
+> **Staleness note:** `SOURCE_CODE_ISSUES.md` describes an older architecture state (symmetric
+> JWT, single shared PostgreSQL instance, a since-reverted `origin/dev` merge) that predates the
+> asymmetric-JWT and per-service-database work reflected in `MEMORY/CURRENT_STATE.md` and
+> `ARCHITECTURE_ANALYSIS.md`. It was left as a historical record rather than rewritten (out of
+> this task's scope); do not treat its "STILL EXISTS" labels as current without re-checking
+> source. Prefer `MEMORY/CURRENT_STATE.md` and `KNOWN_ISSUES.md` for current status.
 
 ---
 
@@ -195,6 +206,34 @@ Record of architectural decisions:
 - Keep documentation up-to-date with project changes
 - Be thorough in documenting decisions and rationale
 - This workspace complements, not replaces, the original AGENTS.md
+
+## Guidance for future agents (added 2026-07-19)
+
+1. Read this workspace before changing the project, but do not treat it as the final word - it can
+   lag the actual repository state, especially for anything dated more than a few days ago.
+2. Before acting on a documented fact, cross-check it against current Git history and current
+   source. A memory or doc entry that names a specific file, property, or config value is a claim
+   about what was true when it was written, not a guarantee about now.
+3. Do not rely only on old issue reports to decide whether something is fixed. A fix recorded for
+   one service pair (e.g. `order-service ↔ auth-service`) does not imply every other pair using the
+   same shared mechanism was updated - verify each pair independently (see ENVIRONMENT_MATRIX.md
+   for an example of this class of problem with `internal.token`).
+4. Use Docker service DNS names and internal ports for container-to-container traffic
+   (`http://order-service:8087`, never `http://localhost:8087` from inside another container).
+   `localhost` is only valid for host-side/browser calls to published ports, same-container
+   healthchecks, and non-Docker local-process runs.
+5. Environment variables in `.env` are not automatically available inside a container - Compose
+   must explicitly map each one under that service's `environment:` block, and the service's own
+   `application.yml` must bind to the same variable name Compose actually injects. Verify both ends
+   before assuming a variable is "set".
+6. Do not mark anything `RESOLVED` without fresh, reproducible evidence (a passing test, a
+   read-only runtime probe, or direct log/database evidence). A configuration change plus a
+   successful build is `IMPLEMENTED - RUNTIME VERIFICATION PENDING`, not `RESOLVED`, until the
+   actual runtime behavior has been observed.
+7. Never place secrets (JWT tokens, `INTERNAL_TOKEN`/`X_INTERNAL_TOKEN` values, SePay/webhook API
+   keys, database passwords, SMTP credentials, RSA private keys) in this workspace, even when
+   discovered in logs or other files during investigation. Reference where a secret lives and how
+   to check it safely (see DOCKER_AND_DATABASE_RUNBOOK.md for examples), never the value itself.
 
 ---
 

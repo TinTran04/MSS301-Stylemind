@@ -30,7 +30,7 @@ spring:
       mode: never
 
 internal:
-  token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
+  token: ${INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
 # Auth-service is only used to look up a user's email for order notifications.
 auth:
