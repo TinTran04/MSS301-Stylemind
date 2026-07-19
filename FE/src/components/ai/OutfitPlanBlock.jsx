@@ -50,7 +50,7 @@ export default function OutfitPlanBlock({ plan, messageId }) {
             <p className="text-xs text-on-surface-variant mb-3">{dayPlan.context}</p>
           )}
 
-          <div className="grid grid-cols-2 gap-3 max-w-[500px]">
+          <div className="grid grid-cols-2 gap-3">
             {dayPlan.items.map((item, idx) => (
               <ProductBlock
                 key={item.product_id || idx}
