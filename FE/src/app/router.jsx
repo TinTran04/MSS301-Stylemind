@@ -22,6 +22,7 @@ import ResetPasswordPage from '../pages/auth/ResetPasswordPage'
 import AdminDashboardPage from '../pages/admin/AdminDashboardPage'
 import ProductManagementPage from '../pages/admin/ProductManagementPage'
 import OrderManagementPage from '../pages/admin/OrderManagementPage'
+import AdminOrderDetailPage from '../pages/admin/AdminOrderDetailPage'
 import UserManagementPage from '../pages/admin/UserManagementPage'
 import AIPipelinePage from '../pages/admin/AIPipelinePage'
 import KnowledgeGraphPage from '../pages/admin/KnowledgeGraphPage'
@@ -67,6 +68,7 @@ export default function AppRouter() {
           <Route path="/admin" element={<AdminDashboardPage />} />
           <Route path="/admin/products" element={<ProductManagementPage />} />
           <Route path="/admin/orders" element={<OrderManagementPage />} />
+          <Route path="/admin/orders/:orderId" element={<AdminOrderDetailPage />} />
           <Route path="/admin/users" element={<UserManagementPage />} />
           <Route path="/admin/ai-pipeline" element={<AIPipelinePage />} />
           <Route path="/admin/knowledge-graph" element={<KnowledgeGraphPage />} />

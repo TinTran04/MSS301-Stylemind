@@ -108,16 +108,7 @@ public class PaymentService {
 
         transaction = transactionRepository.save(transaction);
 
-        String persistedTransferContent = transaction.getTransferContent();
-        return PaymentResponse.builder()
-                .transactionId(transaction.getId())
-                .status(transaction.getStatus())
-                .amount(transaction.getAmount())
-                .transferContent(persistedTransferContent)
-                .qrContent(buildQrContent(transaction.getAmount(), persistedTransferContent))
-                .qrImageUrl(buildQrImageUrl(transaction.getAmount(), persistedTransferContent))
-                .expiresAt(expiresAt.atZone(java.time.ZoneId.systemDefault()).toInstant())
-                .build();
+        return toResponse(transaction);
     }
 
     public PaymentResponse getPaymentStatus(String orderId) {
@@ -415,6 +406,12 @@ public class PaymentService {
                 .transactionId(transaction.getId())
                 .status(transaction.getStatus())
                 .amount(transaction.getAmount())
+                .method(transaction.getMethod())
+                .transactionRef(transaction.getTransactionRef())
+                .gatewayTransactionId(transaction.getGatewayTransactionId())
+                .paidAt(transaction.getPaidAt() == null
+                        ? null
+                        : transaction.getPaidAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .transferContent(transferContent)
                 .qrContent(qrContent)
                 .qrImageUrl(qrImageUrl)

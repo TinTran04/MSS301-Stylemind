@@ -13,6 +13,7 @@ import java.util.List;
 public class OrderResponse {
     private String id;
     private String userId;
+    private String customerEmail;
     private BigDecimal totalAmount;
     private String orderStatus;
     private List<String> availableTransitions;
@@ -22,8 +23,13 @@ public class OrderResponse {
     private String qrImageUrl;
     private String transferContent;
     private Instant paymentExpiresAt;
+    private String paymentMethod;
+    private String paymentReference;
+    private String gatewayTransactionId;
+    private Instant paidAt;
     private String shippingAddress;
     private List<OrderItemResponse> items;
+    private List<OrderStatusHistoryResponse> statusHistory;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -31,6 +37,8 @@ public class OrderResponse {
     public void setId(String id) { this.id = id; }
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
+    public String getCustomerEmail() { return customerEmail; }
+    public void setCustomerEmail(String customerEmail) { this.customerEmail = customerEmail; }
     public BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
     public String getOrderStatus() { return orderStatus; }
@@ -49,10 +57,20 @@ public class OrderResponse {
     public void setTransferContent(String transferContent) { this.transferContent = transferContent; }
     public Instant getPaymentExpiresAt() { return paymentExpiresAt; }
     public void setPaymentExpiresAt(Instant paymentExpiresAt) { this.paymentExpiresAt = paymentExpiresAt; }
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+    public String getPaymentReference() { return paymentReference; }
+    public void setPaymentReference(String paymentReference) { this.paymentReference = paymentReference; }
+    public String getGatewayTransactionId() { return gatewayTransactionId; }
+    public void setGatewayTransactionId(String gatewayTransactionId) { this.gatewayTransactionId = gatewayTransactionId; }
+    public Instant getPaidAt() { return paidAt; }
+    public void setPaidAt(Instant paidAt) { this.paidAt = paidAt; }
     public String getShippingAddress() { return shippingAddress; }
     public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
     public List<OrderItemResponse> getItems() { return items; }
     public void setItems(List<OrderItemResponse> items) { this.items = items; }
+    public List<OrderStatusHistoryResponse> getStatusHistory() { return statusHistory; }
+    public void setStatusHistory(List<OrderStatusHistoryResponse> statusHistory) { this.statusHistory = statusHistory; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

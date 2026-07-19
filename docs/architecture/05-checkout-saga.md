@@ -11,13 +11,13 @@ Mỗi service có DB riêng → **không** dùng được 1 transaction ACID xuy
 |---|---|---|
 | 1 | Lấy cart (cart-service) | Chưa tạo gì → không cần bù |
 | 2 | Lấy giá authoritative (product-service) | Chưa tạo order → dừng |
-| 3 | Tạo Order (PENDING) + items + price_at_purchase | Hủy order nếu bước sau fail nặng |
-| 4 | Tạo payment + sinh VietQR → PAYMENT_PENDING | Hủy payment; Order → CANCELLED |
-| 5 | Chờ webhook SePay (bất đồng bộ) | Timeout (vd 15') → Order = EXPIRED/CANCELLED |
-| 6 | Webhook PAID → Order = PAID | Webhook FAILED/sai tiền → Order = FAILED |
+| 3 | Tạo Order theo phương thức thanh toán: COD bắt đầu `PENDING`, SePay bắt đầu `PAYMENT_PENDING`; lưu items + `price_at_purchase` | Hủy order nếu payment initialization fail |
+| 4 | Tạo payment transaction; SePay sinh VietQR | Nếu payment initialization fail, order chuyển `CANCELLED` qua state service |
+| 5 | Chờ webhook SePay (bất đồng bộ) | Timeout job chỉ chuyển order `PAYMENT_PENDING -> EXPIRED` sau khi payment-service expire thành công |
+| 6 | Webhook match đúng content + amount → payment `PAID`, order `PAID` | Match đúng transaction nhưng sai amount → payment/order `FAILED`; không match hoặc late webhook chỉ ghi event, không callback order |
 | 7 | Clear cart + notification sau khi đã PAID/CONFIRMED | Notification fail **KHÔNG** rollback order (log/retry) |
 
-Luồng **COD** đơn giản: tạo Order (PENDING) → payment COD → Order = CONFIRMED → clear cart → notification. Không có bước chờ webhook.
+Luồng **COD** đơn giản: tạo Order `PENDING` → payment COD transaction `PENDING` (thu tiền khi giao) → Order `CONFIRMED` → clear cart → notification. Không có bước chờ webhook; payment transaction COD không tự chuyển `PAID` trong luồng checkout này.
 
 ## Hardening đang áp dụng
 - Frontend checkout chỉ gọi `POST /api/v1/orders`; frontend **không** tự tạo payment SePay và **không** tự xác nhận thanh toán.
@@ -26,9 +26,10 @@ Luồng **COD** đơn giản: tạo Order (PENDING) → payment COD → Order = 
 - SePay: order chỉ chuyển `PAYMENT_PENDING -> PAID` khi webhook/IPN đã xác thực và đối soát thành công.
 - Webhook **không** tự đẩy `PAID -> PROCESSING`.
 - `payment-service` lưu và đưa vào VietQR cùng một giá trị **`SEVQR STYLEMIND <payment-token>`**, đối soát bằng exact normalized transferContent hoặc token có boundary rõ ràng; chỉ prefix `SEVQR` không được coi là thanh toán và cấm `contains(...)`.
+- `transactions.transfer_content` là reference đầy đủ được lưu; order item chỉ lưu `variant_id`, `quantity`, `price_at_purchase` và các cờ AI. Product name/image/SKU/size/color/material trên admin detail là catalog enrichment hiện tại, không phải snapshot lịch sử.
 - Duplicate webhook cùng `gateway_transaction_id` là **no-op**: trả success nhưng không mark paid lần hai, không callback order-service lần hai.
 - Timeout job của `order-service` đổi `PAYMENT_PENDING -> EXPIRED`, sau đó gọi `payment-service` expire transaction tương ứng.
-- Late webhook sau khi order/payment đã EXPIRED chỉ được log thành event review (`LATE_AFTER_EXPIRY`), **không** revive order về `PAID`.
+- Late webhook sau khi order/payment đã EXPIRED hoặc CANCELLED chỉ được log thành event review (`LATE_AFTER_EXPIRY`), **không** revive order về `PAID`.
 
 ## Idempotency checkout
 - FE gửi `Idempotency-Key` trên `POST /api/v1/orders`.

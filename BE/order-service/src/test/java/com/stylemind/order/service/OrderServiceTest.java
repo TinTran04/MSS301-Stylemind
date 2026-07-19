@@ -10,6 +10,7 @@ import com.stylemind.order.entity.CheckoutIdempotency;
 import com.stylemind.order.entity.Order;
 import com.stylemind.order.entity.OrderItem;
 import com.stylemind.order.entity.OrderStatus;
+import com.stylemind.order.entity.OrderStatusAuditLog;
 import com.stylemind.order.feign.CartClient;
 import com.stylemind.order.feign.NotificationClient;
 import com.stylemind.order.feign.PaymentClient;
@@ -18,6 +19,7 @@ import com.stylemind.order.feign.UserClient;
 import com.stylemind.order.repository.CheckoutIdempotencyRepository;
 import com.stylemind.order.repository.OrderItemRepository;
 import com.stylemind.order.repository.OrderRepository;
+import com.stylemind.order.repository.OrderStatusAuditLogRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +52,7 @@ class OrderServiceTest {
     @Mock ProductClient productClient;
     @Mock UserClient userClient;
     @Mock NotificationClient notificationClient;
+    @Mock OrderStatusAuditLogRepository auditLogRepository;
     @Mock OrderStatusService orderStatusService;
 
     @InjectMocks OrderService orderService;
@@ -66,6 +70,65 @@ class OrderServiceTest {
                 .hasMessageContaining("Cart is empty");
 
         verify(orderRepository, never()).save(any());
+    }
+
+    @Test
+    void getOrderForAdmin_enrichesCustomerVariantAndPaymentDetailsWithoutChangingPurchasePrice() {
+        Order order = pendingPaymentOrder();
+        OrderItem item = savedItem(OrderItem.builder()
+                .id("item-1")
+                .orderId("order-1")
+                .variantId("var-A")
+                .quantity(2)
+                .priceAtPurchase(new BigDecimal("150000"))
+                .build());
+        PaymentClient.PaymentResponse payment = PaymentClient.PaymentResponse.builder()
+                .transactionId("txn-1")
+                .method("sepay")
+                .transactionRef("SEVQR STYLEMIND SMABC1234")
+                .gatewayTransactionId("gateway-1")
+                .status("PAID")
+                .amount(new BigDecimal("300000"))
+                .paidAt(Instant.parse("2026-07-19T10:15:30Z"))
+                .build();
+        UserClient.UserEmail userEmail = new UserClient.UserEmail();
+        userEmail.setUserId("user-1");
+        userEmail.setEmail("customer@example.com");
+
+        when(orderRepository.findById("order-1")).thenReturn(Optional.of(order));
+        when(orderItemRepository.findByOrderId("order-1")).thenReturn(List.of(item));
+        when(userClient.getUserEmail("user-1")).thenReturn(ApiResponse.success("ok", userEmail));
+        when(paymentClient.getPaymentStatus("order-1")).thenReturn(ApiResponse.success("ok", payment));
+        when(productClient.getVariantSnapshot("var-A"))
+                .thenReturn(ApiResponse.success("ok", variantSnapshotWithDetails()));
+        when(auditLogRepository.findByOrderIdOrderByCreatedAtAsc("order-1"))
+                .thenReturn(List.of(OrderStatusAuditLog.builder()
+                        .id("audit-1")
+                        .orderId("order-1")
+                        .actorId("admin-1")
+                        .fromStatus(OrderStatus.PAID)
+                        .toStatus(OrderStatus.PROCESSING)
+                        .build()));
+
+        OrderResponse response = orderService.getOrderForAdmin("order-1");
+
+        assertThat(response.getCustomerEmail()).isEqualTo("customer@example.com");
+        assertThat(response.getPaymentMethod()).isEqualTo("sepay");
+        assertThat(response.getPaymentReference()).isEqualTo("SEVQR STYLEMIND SMABC1234");
+        assertThat(response.getGatewayTransactionId()).isEqualTo("gateway-1");
+        assertThat(response.getPaidAt()).isEqualTo(Instant.parse("2026-07-19T10:15:30Z"));
+        assertThat(response.getItems()).hasSize(1);
+        assertThat(response.getItems().get(0).getPriceAtPurchase()).isEqualByComparingTo("150000");
+        assertThat(response.getItems().get(0).getProductName()).isEqualTo("Oxford Shirt");
+        assertThat(response.getItems().get(0).getCatalogVariantId()).isEqualTo("var-A");
+        assertThat(response.getItems().get(0).getProductId()).isEqualTo("prod-1");
+        assertThat(response.getItems().get(0).getSku()).isEqualTo("SHIRT-WHITE-M");
+        assertThat(response.getItems().get(0).getColor()).isEqualTo("Trắng");
+        assertThat(response.getItems().get(0).getSize()).isEqualTo("M");
+        assertThat(response.getStatusHistory()).hasSize(1);
+        assertThat(response.getStatusHistory().get(0).getPreviousStatus()).isEqualTo("PAID");
+        assertThat(response.getStatusHistory().get(0).getNewStatus()).isEqualTo("PROCESSING");
+        assertThat(response.getStatusHistory().get(0).getActor()).isEqualTo("admin-1");
     }
 
     @Test
@@ -411,6 +474,17 @@ class OrderServiceTest {
         snapshot.setProductName("Product 1");
         snapshot.setEffectivePrice(new BigDecimal(price));
         snapshot.setStatus("ACTIVE");
+        return snapshot;
+    }
+
+    private ProductClient.VariantSnapshot variantSnapshotWithDetails() {
+        ProductClient.VariantSnapshot snapshot = variantSnapshot("var-A", "175000");
+        snapshot.setProductName("Oxford Shirt");
+        snapshot.setSku("SHIRT-WHITE-M");
+        snapshot.setColor("Trắng");
+        snapshot.setSize("M");
+        snapshot.setMaterial("Cotton");
+        snapshot.setPrimaryImageUrl("https://images.example.test/oxford-shirt.jpg");
         return snapshot;
     }
 }

@@ -14,7 +14,7 @@ Rules: một user một cart chính; item trùng thì cộng quantity; quantity 
 
 ## 4. Checkout & tạo đơn (orchestration + saga)
 Flow: `order-service (orchestrator) → cart-service → product-service → payment-service → notification-service`.
-Rules: giá lấy từ product-service (authoritative), không lấy từ cart; lưu `price_at_purchase`; COD → CONFIRMED ngay, SePay → PAYMENT_PENDING đến khi webhook PAID; checkout thành công clear cart; notification fail KHÔNG rollback order; SePay quá hạn → EXPIRED/CANCELLED. Chi tiết: `architecture/05-checkout-saga.md`.
+Rules: giá lấy từ product-service (authoritative), không lấy từ cart; lưu `price_at_purchase`; COD → CONFIRMED ngay, SePay → PAYMENT_PENDING đến khi webhook PAID; checkout thành công clear cart; notification fail KHÔNG rollback order. Timeout tự động chuyển SePay `PAYMENT_PENDING -> EXPIRED`; customer hủy payment pending thì payment expire trước rồi order mới chuyển `CANCELLED`. Chi tiết: `architecture/05-checkout-saga.md`.
 
 ## 5. Payment
 | Method | Bản chất | Xác nhận |

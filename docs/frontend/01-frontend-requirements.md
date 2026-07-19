@@ -25,6 +25,7 @@ Stack: ReactJS/Vite. Frontend chỉ gọi API qua Gateway (`VITE_API_BASE_URL`, 
     ├── /products
     ├── /categories
     ├── /orders
+    ├── /orders/:orderId
     ├── /payments
     ├── /notifications
     └── /ai-pipeline
@@ -75,3 +76,6 @@ Stack: ReactJS/Vite. Frontend chỉ gọi API qua Gateway (`VITE_API_BASE_URL`, 
 - API client tách riêng (một axios instance + interceptor gắn JWT).
 - Server state qua TanStack Query/SWR; validation form rõ ràng.
 - Admin: dropdown đổi trạng thái order chỉ hiện transition hợp lệ (đồng bộ với state machine); xử lý 409 thân thiện.
+- `/admin/orders/:orderId` là trang detail dành cho ADMIN, mở từ mắt xem trong danh sách hoặc bằng direct URL; frontend chỉ gọi `GET/PATCH /api/v1/admin/orders/**` qua Gateway, không gọi `/internal/v1/**` hay service port trực tiếp.
+- Admin detail hiển thị order/payment status tách biệt, customer email/user ID, shipping address snapshot, order items với `price_at_purchase`, payment fields và `statusHistory` khi API trả về. Product name/image/SKU/size/color/material là catalog enrichment hiện tại khi có, không được dùng để thay thế giá snapshot.
+- Đổi trạng thái dùng `availableTransitions` do backend trả về, mở dialog xác nhận trước khi gửi `PATCH /api/v1/admin/orders/:orderId/status`; không optimistic update. Sau success phải refetch detail/history; lỗi `409` phải tải lại trạng thái server và hiển thị lỗi thân thiện. Terminal state không có option hợp lệ.

@@ -21,9 +21,9 @@ const statusConfig = {
   expired: { color: 'bg-error-container text-error', dot: 'bg-error', label: 'Đã hết hạn' },
 }
 
-export default function StatusBadge({ status }) {
+export default function StatusBadge({ status, label: labelOverride }) {
   const config = statusConfig[status] || statusConfig.pending
-  const label = config.label || 'Không xác định'
+  const label = labelOverride || config.label || 'Không xác định'
 
   return (
     <span className={clsx('inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium', config.color)}>

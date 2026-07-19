@@ -1,5 +1,77 @@
 # Current Project State
 
+## 2026-07-19 Admin order status update
+
+**Status:** IMPLEMENTED and verified through the real admin browser flow.
+
+- The dedicated `/admin/orders/{orderId}` page now restores the former drawer's status-update
+  capability without changing backend transition rules.
+- The dropdown uses the backend `availableTransitions` response, with the existing
+  `OrderStatus` transition graph as a defensive fallback. Current and terminal statuses are not
+  selectable.
+- Updates use `PATCH /api/v1/admin/orders/{orderId}/status` through the API Gateway with body
+  `{ "orderStatus": "<next status>" }`. A confirmation dialog is required; the UI does not
+  optimistically change the status.
+- Success refetches the order detail and status history. HTTP 409 refetches server state and
+  shows a stale-status message; 400/403/404/network failures keep the page usable with Vietnamese
+  feedback.
+- The admin response now exposes the existing `order_status_audit_log` rows as additive
+  `statusHistory` data. No transition rule, payment rule, order row, or database schema was
+  changed.
+- Runtime evidence: `PROCESSING -> SHIPPED` returned HTTP 200 through Gateway, the refreshed
+  page showed `Đang giao` and `Đang xử lý -> Đang giao`, direct refresh preserved the result, and
+  a terminal `COMPLETED` order had no status dropdown. Browser traffic used no `/internal/v1/**`
+  path or backend service port.
+
+## 2026-07-19 Admin order item catalog metadata
+
+**Status:** IMPLEMENTED and browser-verified through the Gateway-backed admin detail page.
+
+- Root cause: legacy seeded `order_items.variant_id` values contain the catalog SKU, while the
+  Product Service primary key is a different variant ID. Product Service previously searched only
+  by primary key, so enrichment returned `VARIANT_NOT_FOUND`; the frontend then displayed the raw
+  stored reference as the product title and fell back for image and metadata.
+- Product Service now resolves a variant by primary ID first, then by SKU. This preserves current
+  IDs while supporting existing order data without changing the schema or order records.
+- The admin detail response remains additive: `variantId` is the stored order reference,
+  `catalogVariantId` is the resolved catalog variant ID, and enrichment may provide `productId`,
+  `productName`, `sku`, `color`, `size`, `material`, and `primaryImageUrl`. `productCode`,
+  `variantCode`, and `variantAttributes` are not fabricated because those fields are not part of
+  the current response contract.
+- The frontend now maps these fields in one explicit view-model helper. It renders product name,
+  product ID, resolved variant ID, SKU, attributes, image, quantity, and line totals. Quantity and
+  `priceAtPurchase` remain authoritative order snapshots; current catalog pricing is never used.
+- Runtime evidence: `GET /api/v1/admin/orders/{orderId}` returned HTTP 200; the seeded order's
+  item metadata was present; both catalog images loaded with non-zero dimensions; desktop and
+  390px mobile layouts had no horizontal overflow; browser traffic used only the API Gateway and
+  had no console/page errors.
+
+## 2026-07-19 Admin order detail page
+
+**Status:** IMPLEMENTED and browser-verified for the admin list-to-detail workflow.
+
+- The order-list view action now navigates to `/admin/orders/{orderId}` instead of opening the
+  old detail drawer. The route remains inside `RequireAdmin` and `AdminLayout`.
+- The page uses the existing Gateway-backed `GET /api/v1/admin/orders/{orderId}` contract. The
+  order response was extended additively with customer email, payment reference/gateway fields,
+  and optional product/variant snapshot enrichment. Frontend requests do not call `/internal/v1/**`
+  or service ports directly.
+- Purchased quantity and `priceAtPurchase` remain authoritative for the detail page. The page
+  does not replace historical prices with current Product Service prices, and it shows neutral
+  Vietnamese fallbacks for missing optional values.
+- The shipping address is rendered from the order snapshot. Payment status is displayed separately
+  from order status. Persisted status history is rendered when the additive `statusHistory` field
+  is present; orders with no audit rows retain the neutral empty state.
+- List query state is carried into the detail URL and restored by the back link when it is a safe
+  admin-order-list URL; direct detail navigation falls back to `/admin/orders`.
+- Runtime browser checks covered admin navigation, refresh, query-preserving back navigation,
+  not-found handling, non-admin access, retry after a temporary API error, and mobile overflow.
+  Browser requests used the API Gateway only.
+- Product catalog enrichment supports both current variant IDs and legacy order references that
+  contain a SKU. Missing catalog rows still degrade to safe neutral values; no product data is
+  fabricated. Product Service's internal-token binding was aligned with the Compose-provided
+  `INTERNAL_TOKEN` so this optional lookup reaches the protected endpoint.
+
 ## 2026-07-19 Fix: Order/Auth → Notification internal-token 403 (ORDER_PAID email)
 
 **Status: RESOLVED** for `order-service → notification-service`, runtime-verified with a direct

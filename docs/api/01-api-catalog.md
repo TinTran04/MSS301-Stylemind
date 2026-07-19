@@ -134,6 +134,8 @@ Product conflict responses dùng error envelope chuẩn:
 
 ## Payment / checkout notes
 - Frontend chỉ được checkout qua `POST /api/v1/orders`; **không** gọi `payment-service` trực tiếp và **không** gọi `/internal/v1/**`.
+- Admin order detail trả `availableTransitions` từ `OrderStatus` và `statusHistory` từ `order_status_audit_log` khi có bản ghi; item `priceAtPurchase` là giá snapshot, còn metadata catalog trong admin detail là enrichment tùy khả dụng.
+- Admin status update gửi body `{ "orderStatus": "<allowed-status>" }` qua Gateway, yêu cầu role `ADMIN`; transition không hợp lệ trả `409` và không ghi audit.
 - `/api/v1/payments/webhook/sepay` là public từ góc nhìn JWT/gateway, nhưng payment-service vẫn bắt buộc xác thực webhook bằng SePay API key.
 - Internal payment/order endpoints yêu cầu `X-Internal-Token`.
 - SePay chỉ mark order paid khi **đúng số tiền** và **đúng `SEVQR STYLEMIND <reference>` đã normalize/exact-match**; chỉ `SEVQR` không được match và `contains(...)` không được phép dùng để đối soát.

@@ -1,5 +1,69 @@
 # Implementation Log
 
+## 2026-07-19 - Restore admin order status update on dedicated detail page
+
+- **Verified source of truth:** `OrderStatus.allowedTransitions()` defines the permitted graph;
+  `OrderStatusService.changeStatus()` remains the backend authority and records audit rows.
+- **Frontend:** added a status dropdown to `/admin/orders/{orderId}` using the response's
+  `availableTransitions`, a confirmation dialog, loading state, success toast, and Vietnamese
+  handling for 400/403/404/409/network failures. No arbitrary enum selection or optimistic update
+  was introduced.
+- **API:** reused `PATCH /api/v1/admin/orders/{orderId}/status` with `{orderStatus}` through the
+  Gateway. After success or conflict, the page refetches server-authoritative order data.
+- **Backend:** extended the existing admin detail response additively with `statusHistory` mapped
+  from `order_status_audit_log`; transition business rules were unchanged.
+- **TDD evidence:** the new status helper tests failed before the helper existed, then passed
+  4/4; the backend test initially failed because `OrderResponse` lacked `statusHistory`; the
+  order-service compile/test-compile passed after the response extension.
+- **Verification:** focused frontend Node tests passed 12/12; Vite production build passed; the
+  real browser flow updated a seeded `PROCESSING` order to `SHIPPED` with PATCH HTTP 200, then
+  refetched and displayed the new status and audit history. Canceling the confirmation sent no
+  request, terminal `COMPLETED` orders showed no dropdown, direct refresh preserved state, and no
+  prohibited browser requests or unexpected page errors were observed.
+- **Known test limitation:** the full order-service suite still has pre-existing URL assertion
+  failures and Mockito inline/Byte Buddy self-attach errors on the current JDK 21/macOS runtime;
+  the focused `OrderStatusTest` passed 5/5. `npm run lint` remains unavailable because `eslint`
+  is not installed in the existing frontend dependencies.
+
+## 2026-07-19 - Fix admin order item product and variant metadata
+
+- **Root cause:** the live admin detail contract contained only the order's stored `variantId`,
+  quantity, and purchase price before optional enrichment. Seeded order rows use SKU strings in
+  `order_items.variant_id`, but Product Service's primary variant IDs differ, so its ID-only
+  lookup returned `VARIANT_NOT_FOUND`. The UI consequently used the SKU-like reference as the
+  product title and showed fallback values for image and attributes.
+- **Backend fix:** Product Service resolves by primary ID first and by SKU as a compatibility
+  fallback. Order Service adds the resolved `catalogVariantId` to the additive admin detail DTO.
+- **Frontend fix:** a focused item-display mapper renders `productName`, `productId`,
+  `catalogVariantId`/stored variant reference, `sku`, `color`, `size`, `material`, and
+  `primaryImageUrl`. It does not fall back to a raw variant reference as the product name.
+- **Data rule:** `quantity` and `priceAtPurchase` remain order snapshots. No database schema, order
+  row, catalog price, or payment rule was changed.
+- **Verification:** the live Gateway-backed admin page returned HTTP 200 and rendered the seeded
+  product names, IDs, variant IDs, SKUs, attributes, and real catalog images. Desktop and mobile
+  checks passed with no prohibited browser requests or console/page errors. Frontend utility tests
+  passed 5/5; frontend production build and Product/Order compile passed. Maven service tests
+  remain blocked by the environment's Mockito inline/Byte Buddy self-attach failure on JDK 21.
+
+## 2026-07-19 - Dedicated admin order detail page
+
+- Replaced the admin order-list eye action's detail drawer with the read-only route
+  `/admin/orders/{orderId}` inside the existing admin layout and authorization boundary.
+- Reused `GET /api/v1/admin/orders/{orderId}` through the API Gateway. Order Service now exposes
+  additive customer email, payment reference/gateway fields, and best-effort product/variant
+  metadata without changing the stored order-item purchase snapshot.
+- Added structured loading, not-found, forbidden, retryable-error, empty-items, payment, customer,
+  shipping-address, price, and status-history states. No unsupported action buttons were added.
+- Preserved order-list query parameters in the detail URL and validated the back destination to
+  avoid unsafe or unrelated redirects. Direct detail URLs fall back to the admin order list.
+- Added focused utility tests and an Order Service enrichment regression test. Frontend build and
+  focused Node tests pass. The Order Service test suite is currently blocked before test execution
+  by the environment's Mockito inline/Byte Buddy self-attach limitation on this JDK/macOS setup.
+- Real browser verification covered the admin happy path, refresh, back-state restoration, 404,
+  customer authorization, retry behavior, mobile layout, and Gateway-only browser requests.
+- Product catalog enrichment remains optional: historical orders without a matching catalog row
+  retain safe fallbacks rather than inventing product metadata.
+
 ## 2026-07-19 - Fix: Order/Auth → Notification 403 on ORDER_PAID email (systematic-debugging + TDD)
 
 - **Symptom:** live logs showed `order-service` retrying 3x and giving up with `[403] ... POST

@@ -50,6 +50,10 @@ public interface PaymentClient {
         private String transactionId;
         private String status;
         private BigDecimal amount;
+        private String method;
+        private String transactionRef;
+        private String gatewayTransactionId;
+        private Instant paidAt;
         private String qrContent;
         private String qrImageUrl;
         private String transferContent;

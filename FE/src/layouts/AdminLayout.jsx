@@ -32,26 +32,26 @@ export default function AdminLayout() {
 
   const initials = getInitials(user?.name || user?.email)
   const displayName = user?.name || user?.email || 'Quản trị viên'
+  const responsiveSidebarWidth = collapsed ? 'md:w-[72px]' : 'md:w-64'
+  const responsiveContentMargin = collapsed ? 'md:ml-[72px]' : 'md:ml-64'
 
   return (
     <div className="min-h-screen bg-background">
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-full bg-surface-container-lowest border-r border-outline-variant/20 z-40 transition-all duration-300 flex flex-col ${
-          collapsed ? 'w-[72px]' : 'w-64'
+        className={`fixed left-0 top-0 h-full bg-surface-container-lowest border-r border-outline-variant/20 z-40 transition-all duration-300 flex flex-col w-[72px] ${responsiveSidebarWidth} ${
+          collapsed ? 'w-[72px]' : ''
         }`}
       >
-        <div className={`p-6 border-b border-outline-variant/20 ${collapsed ? 'px-4' : ''}`}>
+        <div className={`p-6 border-b border-outline-variant/20 ${collapsed ? 'px-4' : 'px-3 md:px-6'}`}>
           {!collapsed && (
-            <Link to="/admin" className="font-display-lg tracking-tighter text-primary no-underline">
+            <Link to="/admin" className="hidden md:block font-display-lg tracking-tighter text-primary no-underline">
               StyleMind
             </Link>
           )}
-          {collapsed && (
-            <Link to="/admin" className="font-display-lg tracking-tighter text-primary no-underline text-lg">
-              SM
-            </Link>
-          )}
+          <Link to="/admin" className={`${collapsed ? '' : 'md:hidden'} font-display-lg tracking-tighter text-primary no-underline text-lg`}>
+            SM
+          </Link>
         </div>
 
         <div className={`p-4 border-b border-outline-variant/20 ${collapsed ? 'px-2' : ''}`}>
@@ -83,6 +83,7 @@ export default function AdminLayout() {
               <Link
                 key={link.to}
                 to={link.to}
+                aria-label={link.label}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm no-underline transition-all duration-200 ${
                   isActive
                     ? 'bg-primary text-on-primary shadow-md'
@@ -91,7 +92,7 @@ export default function AdminLayout() {
                 title={collapsed ? link.label : undefined}
               >
                 <Icon size={18} />
-                {!collapsed && <span>{link.label}</span>}
+              {!collapsed && <span className="hidden md:inline">{link.label}</span>}
               </Link>
             )
           })}
@@ -103,37 +104,39 @@ export default function AdminLayout() {
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm no-underline text-on-surface-variant hover:bg-surface-container-high transition-all ${
               collapsed ? 'justify-center' : ''
             }`}
-            title={collapsed ? 'Quay lại cửa hàng' : undefined}
+            aria-label="Quay lại cửa hàng"
+            title="Quay lại cửa hàng"
           >
             <Store size={18} />
-            {!collapsed && <span>Quay lại cửa hàng</span>}
+            {!collapsed && <span className="hidden md:inline">Quay lại cửa hàng</span>}
           </Link>
           <button
             onClick={handleLogout}
+            aria-label="Đăng xuất"
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-error hover:bg-error-container/20 transition-all ${
               collapsed ? 'justify-center' : ''
             }`}
             title={collapsed ? 'Đăng xuất' : undefined}
           >
             <LogOut size={18} />
-            {!collapsed && <span>Đăng xuất</span>}
+            {!collapsed && <span className="hidden md:inline">Đăng xuất</span>}
           </button>
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="w-full flex items-center justify-center gap-3 px-3 py-2.5 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-all"
           >
             {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            {!collapsed && <span>Thu gọn</span>}
+            {!collapsed && <span className="hidden md:inline">Thu gọn</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
-      <div className={`transition-all duration-300 ${collapsed ? 'ml-[72px]' : 'ml-64'}`}>
+      <div className={`transition-all duration-300 ml-[72px] ${responsiveContentMargin}`}>
         {/* Top Bar */}
-        <header className="sticky top-0 z-30 glass-header h-16 flex items-center justify-between px-8">
+        <header className="sticky top-0 z-30 glass-header h-16 flex items-center justify-between px-4 md:px-8">
           <div className="flex items-center gap-4 flex-1">
-            <div className="relative max-w-md w-full">
+            <div className="relative max-w-md w-full hidden md:block">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
               <input
                 type="text"

@@ -81,6 +81,8 @@ Danh sách mã FR để trace. Chi tiết endpoint xem `api/01-api-catalog.md`; 
 | ORDER-10 | Checkout success clear cart | Must |
 | ORDER-11 | SePay quá hạn → EXPIRED/CANCELLED | Must |
 
+> **Clarification / decision required:** source and tests verify that the automatic timeout job changes `PAYMENT_PENDING -> EXPIRED` only. `CANCELLED` is produced by the separate customer cancellation flow, after a pending payment is expired successfully. If ORDER-11 intends to allow automatic timeout to produce `CANCELLED` as well, that remains an unresolved business decision; do not infer it from the current implementation.
+
 ## Payment
 | ID | Requirement | Priority |
 |---|---|---|

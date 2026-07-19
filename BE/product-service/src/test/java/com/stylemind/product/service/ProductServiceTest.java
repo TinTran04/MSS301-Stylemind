@@ -416,6 +416,21 @@ class ProductServiceTest {
     }
 
     @Test
+    void getVariantSnapshot_resolvesLegacySkuReference() {
+        when(variantRepository.findById("SKU-1")).thenReturn(Optional.empty());
+        when(variantRepository.findBySku("SKU-1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("SKU-1");
+
+        assertEquals("v1", response.getVariantId());
+        assertEquals("p1", response.getProductId());
+        assertEquals("SKU-1", response.getSku());
+        verify(variantRepository).findBySku("SKU-1");
+    }
+
+    @Test
     void getVariantSnapshot_priceOverrideSet_usesPriceOverride() {
         variant.setPriceOverride(new BigDecimal("120.00"));
         when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));

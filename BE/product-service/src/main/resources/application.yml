@@ -69,7 +69,7 @@ management:
       show-details: always
 
 internal:
-  token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
+  token: ${INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
 app:
   product:

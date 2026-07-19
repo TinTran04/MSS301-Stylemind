@@ -12,6 +12,10 @@ export async function getAdminOrders(filters = {}) {
   return apiClient.get(`${ENDPOINTS.ADMIN_ORDERS}${qs ? `?${qs}` : ''}`)
 }
 
+export async function getAdminOrder(orderId) {
+  return apiClient.get(`${ENDPOINTS.ADMIN_ORDERS}/${encodeURIComponent(orderId)}`)
+}
+
 export async function updateAdminOrderStatus(id, statusPayload) {
   return apiClient.patch(`${ENDPOINTS.ADMIN_ORDERS}/${id}/status`, statusPayload)
 }

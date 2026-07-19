@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ShoppingCart, TrendingDown, Clock, DollarSign, Eye, RefreshCw, Filter, Search } from 'lucide-react'
 import MetricCard from '../../components/admin/MetricCard'
 import StatusBadge from '../../components/admin/StatusBadge'
-import Drawer from '../../components/common/Drawer'
-import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
-import { getAdminOrders, updateAdminOrderStatus } from '../../features/orders/admin-order.api'
+import { getAdminOrders } from '../../features/orders/admin-order.api'
 import {
-  getAvailableTransitions,
   formatStatusLabel,
   ORDER_STATUS_TRANSITIONS,
   ORDER_REVENUE_STATUSES,
@@ -15,28 +13,19 @@ import {
 import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatDate } from '../../utils/formatDate'
+import { buildAdminOrderDetailPath } from './adminOrderDetail.utils'
 
 const STATUS_OPTIONS = ['All', ...Object.keys(ORDER_STATUS_TRANSITIONS)]
 const STATUS_FILTER_LABELS = {
   All: 'Mọi trạng thái',
 }
 
-const ORDER_KNOWN_ERROR_CODES = {
-  INVALID_ORDER_STATUS_TRANSITION: {
-    title: 'Không thể cập nhật trạng thái đơn hàng',
-    message: 'Trạng thái đơn hàng không thể chuyển theo hướng này. Vui lòng chọn trạng thái hợp lệ.',
-  },
-}
-
 export default function OrderManagementPage() {
-  const [selectedOrder, setSelectedOrder] = useState(null)
+  const navigate = useNavigate()
+  const location = useLocation()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [updating, setUpdating] = useState(false)
-  const [toast, setToast] = useState(null)
   const [listError, setListError] = useState(null)
-  const [statusActionError, setStatusActionError] = useState(null)
-  const [confirmDialog, setConfirmDialog] = useState(null)
   const [statusFilter, setStatusFilter] = useState('All')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -74,11 +63,6 @@ export default function OrderManagementPage() {
     setCustomerFilter(customerInput.trim())
   }
 
-  const showToast = (message) => {
-    setToast(message)
-    setTimeout(() => setToast(null), 4000)
-  }
-
   const getOrderStatus = (order) => normalizeOrderStatus(order?.orderStatus || 'PENDING')
   const revenueTotal = orders.reduce((sum, order) => {
     const status = normalizeOrderStatus(order.orderStatus)
@@ -86,46 +70,13 @@ export default function OrderManagementPage() {
     return sum + (order.totalAmount || order.total || 0)
   }, 0)
 
-  const requestStatusChange = (order, newStatus) => {
-    if (!newStatus) return
-    setStatusActionError(null)
-    setConfirmDialog({
-      title: 'Cập nhật trạng thái đơn hàng?',
-      message: 'Bạn có chắc chắn muốn chuyển đơn hàng sang trạng thái đã chọn không?',
-      confirmLabel: 'Cập nhật trạng thái',
-      onConfirm: () => submitStatusChange(order, newStatus),
-    })
-  }
-
-  const submitStatusChange = async (order, newStatus) => {
-    setUpdating(true)
-    try {
-      const updated = await updateAdminOrderStatus(order.id, { orderStatus: newStatus })
-      showToast(`Đã chuyển đơn hàng ${order.id} sang trạng thái ${formatStatusLabel(newStatus)}`)
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, ...updated } : o)))
-      setSelectedOrder((prev) => (prev && prev.id === order.id ? { ...prev, ...updated } : prev))
-    } catch (err) {
-      // Keep the drawer open and show the error near the status control —
-      // do not close the drawer or drop the selected order on a recoverable error.
-      const friendly = getAdminErrorMessage(err, {
-        knownCodes: ORDER_KNOWN_ERROR_CODES,
-        fallbackTitle: 'Cập nhật đơn hàng thất bại',
-        fallbackMessage: 'Hệ thống chưa thể cập nhật đơn hàng. Vui lòng thử lại sau.',
-      })
-      setStatusActionError(friendly)
-    } finally {
-      setUpdating(false)
-    }
+  const navigateToDetail = (orderId, event) => {
+    event?.stopPropagation()
+    navigate(buildAdminOrderDetailPath(orderId, location.search))
   }
 
   return (
     <div className="space-y-6">
-      {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-surface-container-highest text-on-surface px-4 py-2 rounded-lg shadow-lg text-sm font-medium border border-outline/20">
-          {toast}
-        </div>
-      )}
-
       <div className="flex items-center justify-between">
         <h1 className="font-headline-md text-primary">Quản lý đơn hàng</h1>
         <button onClick={fetchOrders} disabled={loading} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40">
@@ -219,13 +170,22 @@ export default function OrderManagementPage() {
                   <td colSpan={6} className="text-center py-12 text-sm text-on-surface-variant">Không tìm thấy đơn hàng nào.</td>
                 </tr>
               ) : orders.map((order) => (
-                <tr key={order.id} className="hover:bg-surface-container-high/30 cursor-pointer" onClick={() => { setStatusActionError(null); setSelectedOrder(order) }}>
+                <tr key={order.id} className="hover:bg-surface-container-high/30">
                   <td className="px-4 py-3 text-sm font-medium text-primary">{order.id}</td>
                   <td className="px-4 py-3 text-sm text-on-surface">{order.customerName || order.userId || 'Khách vãng lai'}</td>
                   <td className="px-4 py-3 text-sm text-on-surface-variant">{formatDate(order.createdAt || order.date)}</td>
                   <td className="px-4 py-3 text-sm text-primary font-medium">{formatCurrency(order.totalAmount || order.total || 0)}</td>
                   <td className="px-4 py-3"><StatusBadge status={getOrderStatus(order).toLowerCase()} /></td>
-                  <td className="px-4 py-3"><button className="p-1.5 rounded hover:bg-surface-container-high"><Eye size={14} className="text-on-surface-variant" /></button></td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={(event) => navigateToDetail(order.id, event)}
+                      aria-label={`Xem chi tiết đơn hàng ${String(order.id).slice(0, 12)}`}
+                      className="p-1.5 rounded hover:bg-surface-container-high focus:outline-none focus-visible:ring-2 focus-visible:ring-tertiary-container"
+                    >
+                      <Eye size={14} className="text-on-surface-variant" aria-hidden="true" />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -233,69 +193,6 @@ export default function OrderManagementPage() {
         </div>
       </div>
 
-      <Drawer isOpen={!!selectedOrder} onClose={() => setSelectedOrder(null)} title="Chi tiết đơn hàng">
-        {selectedOrder && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="font-title-lg text-primary">{selectedOrder.id}</h3>
-              <p className="text-sm text-on-surface-variant">{selectedOrder.customerName || selectedOrder.userId || 'Khách vãng lai'} &middot; {formatDate(selectedOrder.createdAt || selectedOrder.date)}</p>
-              <p className="text-lg font-semibold text-primary mt-2">{formatCurrency(selectedOrder.totalAmount || selectedOrder.total || 0)}</p>
-            </div>
-
-            <div className="border-t border-outline-variant/20 pt-4">
-              <h4 className="font-label-sm uppercase text-on-surface-variant mb-3">Trạng thái hiện tại</h4>
-              <StatusBadge status={getOrderStatus(selectedOrder).toLowerCase()} />
-            </div>
-
-            <div>
-              <h4 className="font-label-sm uppercase text-on-surface-variant mb-3">Thay đổi trạng thái</h4>
-              {statusActionError && (
-                <div className="mb-3 rounded-lg border border-error/20 bg-error-container/40 px-3 py-2 text-xs text-error">
-                  <p className="font-medium">{statusActionError.title}</p>
-                  <p className="mt-0.5">{statusActionError.message}</p>
-                </div>
-              )}
-              {(() => {
-                const nextOptions = getAvailableTransitions(selectedOrder)
-                if (nextOptions.length === 0) {
-                  return (
-                    <p className="text-sm text-on-surface-variant italic">
-                      Đơn hàng này đã ở trạng thái cuối cùng — không thể chuyển tiếp thêm.
-                    </p>
-                  )
-                }
-                return (
-                  <select
-                    disabled={updating}
-                    value=""
-                    onChange={(e) => requestStatusChange(selectedOrder, e.target.value)}
-                    className="w-full bg-surface-container-low border border-outline-variant/20 rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-tertiary-container disabled:opacity-50"
-                  >
-                    <option value="" disabled>Chọn trạng thái tiếp theo&hellip;</option>
-                    {nextOptions.map((status) => (
-                      <option key={status} value={status}>{formatStatusLabel(status)}</option>
-                    ))}
-                  </select>
-                )
-              })()}
-            </div>
-          </div>
-        )}
-      </Drawer>
-
-      <AdminConfirmDialog
-        open={!!confirmDialog}
-        title={confirmDialog?.title}
-        message={confirmDialog?.message}
-        confirmLabel={confirmDialog?.confirmLabel}
-        loading={updating}
-        onConfirm={async () => {
-          const dialog = confirmDialog
-          setConfirmDialog(null)
-          if (dialog) await dialog.onConfirm()
-        }}
-        onCancel={() => setConfirmDialog(null)}
-      />
     </div>
   )
 }

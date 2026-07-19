@@ -34,16 +34,18 @@
 
 ## Key business rules
 - Lấy giá **authoritative** từ product-service; không lấy từ cart DTO.
-- Lưu `price_at_purchase`; total tính từ product-service.
+- Lưu `price_at_purchase`; total tính từ product-service. Order item hiện không lưu snapshot product name/image/SKU/size/color/material; admin detail có thể enrich các trường này từ product-service hiện tại và phải chấp nhận fallback khi catalog không còn khả dụng.
 - COD → CONFIRMED ngay; SePay → PAYMENT_PENDING đến khi webhook PAID.
 - Webhook SePay chỉ đổi `PAYMENT_PENDING -> PAID`; không tự đẩy sang `PROCESSING`.
 - Checkout thành công → clear cart; notification fail KHÔNG rollback order.
 - Customer có thể hủy order đang chờ thanh toán qua `PATCH /api/v1/orders/{id}/cancel`; nếu order đang `PAYMENT_PENDING`, order-service phải gọi payment-service expire payment thành công trước rồi mới chuyển order sang `CANCELLED`, tránh trạng thái order hủy nhưng payment vẫn `PENDING`.
-- SePay quá hạn → EXPIRED/CANCELLED (timeout job).
+- Timeout job chỉ chuyển `PAYMENT_PENDING -> EXPIRED` sau khi payment-service xác nhận expire; customer cancellation là flow riêng chuyển order sang `CANCELLED`.
 - Timeout job expire transaction SePay trước rồi mới đổi order sang `EXPIRED`; nếu payment-service lỗi, job giữ order `PAYMENT_PENDING` để retry lần sau.
 - Customer chỉ xem order của mình; admin xem tất cả.
 - MỌI đổi trạng thái đi qua `OrderStatusService.changeStatus()`.
 - `POST /api/v1/orders` hỗ trợ `Idempotency-Key`; cùng key đang xử lý trả `409`, cùng key đã thành công trả lại order cũ thay vì tạo order/payment mới.
+- Admin detail `GET /api/v1/admin/orders/{id}` trả `availableTransitions`, payment fields, optional catalog-enriched item metadata và `statusHistory`; admin status update dùng `PATCH /api/v1/admin/orders/{id}/status` với body `{"orderStatus":"<ALLOWED_STATUS>"}`. Endpoint yêu cầu role `ADMIN`; transition sai trả `409` và không ghi audit.
+- Status history lấy từ `order_status_audit_log`, gồm previous/new status, actor ID và timestamp; chưa có reason/source/correlation ID.
 - **Dashboard revenue rule:** doanh thu chỉ tính order đã thanh toán & đang xử lý/hoàn tất — `PAID, CONFIRMED, PROCESSING, SHIPPED, COMPLETED`; KHÔNG tính `PENDING`/`PAYMENT_PENDING` (chưa trả) hay `CANCELLED`/`EXPIRED`/`FAILED`. Summary chỉ trả count/sum, không lộ dữ liệu order.
 
 ## Dependencies

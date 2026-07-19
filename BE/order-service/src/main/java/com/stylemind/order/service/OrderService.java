@@ -33,6 +33,7 @@ public class OrderService {
     private final ProductClient productClient;
     private final UserClient userClient;
     private final NotificationClient notificationClient;
+    private final OrderStatusAuditLogRepository auditLogRepository;
     private final OrderStatusService orderStatusService;
 
     private static final String CHECKOUT_STATUS_PROCESSING = "PROCESSING";
@@ -292,7 +293,11 @@ public class OrderService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
-        return buildOrderResponse(order, items);
+        OrderResponse response = buildOrderResponse(order, items);
+        applyPaymentStatusIfAvailable(orderId, response);
+        enrichAdminOrderDetails(response);
+        enrichAdminStatusHistory(orderId, response);
+        return response;
     }
 
     /**
@@ -327,7 +332,9 @@ public class OrderService {
         Order order = orderStatusService.changeStatus(orderId, target, adminUserId);
 
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
-        return buildOrderResponse(order, items);
+        OrderResponse response = buildOrderResponse(order, items);
+        enrichAdminStatusHistory(orderId, response);
+        return response;
     }
 
     // Called by payment-service after it reconciles a SePay webhook (see
@@ -469,6 +476,55 @@ public class OrderService {
         orderResponse.setQrImageUrl(paymentResponse.getQrImageUrl());
         orderResponse.setTransferContent(paymentResponse.getTransferContent());
         orderResponse.setPaymentExpiresAt(paymentResponse.getExpiresAt());
+        orderResponse.setPaymentMethod(paymentResponse.getMethod());
+        orderResponse.setPaymentReference(paymentResponse.getTransactionRef());
+        orderResponse.setGatewayTransactionId(paymentResponse.getGatewayTransactionId());
+        orderResponse.setPaidAt(paymentResponse.getPaidAt());
+    }
+
+    private void enrichAdminOrderDetails(OrderResponse response) {
+        try {
+            var userResponse = userClient.getUserEmail(response.getUserId());
+            if (userResponse != null && userResponse.isSuccess() && userResponse.getData() != null) {
+                response.setCustomerEmail(userResponse.getData().getEmail());
+            }
+        } catch (Exception ex) {
+            log.debug("Customer enrichment unavailable for admin order {}: {}", response.getId(), ex.getMessage());
+        }
+
+        response.getItems().forEach(item -> {
+            try {
+                var variantResponse = productClient.getVariantSnapshot(item.getVariantId());
+                if (variantResponse == null || !variantResponse.isSuccess() || variantResponse.getData() == null) {
+                    return;
+                }
+                ProductClient.VariantSnapshot variant = variantResponse.getData();
+                item.setCatalogVariantId(variant.getVariantId());
+                item.setProductId(variant.getProductId());
+                item.setProductName(variant.getProductName());
+                item.setSku(variant.getSku());
+                item.setSize(variant.getSize());
+                item.setColor(variant.getColor());
+                item.setMaterial(variant.getMaterial());
+                item.setPrimaryImageUrl(variant.getPrimaryImageUrl());
+            } catch (Exception ex) {
+                log.debug("Variant enrichment unavailable for admin order item {}: {}", item.getId(), ex.getMessage());
+            }
+        });
+    }
+
+    private void enrichAdminStatusHistory(String orderId, OrderResponse response) {
+        response.setStatusHistory(auditLogRepository.findByOrderIdOrderByCreatedAtAsc(orderId).stream()
+                .map(audit -> OrderStatusHistoryResponse.builder()
+                        .id(audit.getId())
+                        .previousStatus(audit.getFromStatus() != null ? audit.getFromStatus().name() : null)
+                        .newStatus(audit.getToStatus().name())
+                        .actor(audit.getActorId())
+                        .timestamp(audit.getCreatedAt() != null
+                                ? audit.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()
+                                : null)
+                        .build())
+                .collect(Collectors.toList()));
     }
 
     private void clearCartBestEffort(String authHeader, String orderId) {

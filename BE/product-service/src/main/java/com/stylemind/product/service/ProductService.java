@@ -367,6 +367,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public VariantSnapshotResponse getVariantSnapshot(String variantId) {
         ProductVariant variant = variantRepository.findById(variantId)
+                .or(() -> variantRepository.findBySku(variantId))
                 .orElseThrow(() -> new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể", 404));
         Product product = productRepository.findById(variant.getProductId())
                 .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "Không tìm thấy sản phẩm", 404));

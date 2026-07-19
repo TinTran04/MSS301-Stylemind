@@ -1,5 +1,76 @@
 # Known Issues
 
+## 2026-07-19
+
+### Admin order item metadata used a legacy SKU reference
+
+**Status:** RESOLVED for the verified admin detail flow.
+
+The order detail page initially received a stored order-item reference such as a SKU in
+`variantId`. Product Service searched only by its primary variant ID, while the corresponding
+catalog row used a different primary ID. This caused optional enrichment to fail and made the
+frontend display the reference as the product title while image, SKU, and attributes fell back.
+
+Product Service now resolves primary ID first and SKU second. Order Service exposes the resolved
+`catalogVariantId` additively, and the frontend maps the response explicitly. Product name, product
+ID, resolved variant ID, SKU, color, size, material, and image are rendered when returned. The
+stored order quantity and `priceAtPurchase` remain the source of truth for the detail page.
+
+The current contract does not expose separate `productCode`, `variantCode`, or arbitrary
+`variantAttributes` fields; the UI does not invent them. Missing or deleted catalog data continues
+to use the neutral Vietnamese fallback.
+
+Verification used a real admin browser session and the API Gateway-backed detail request. The item
+metadata and images rendered on desktop and a 390px viewport, browser traffic did not call internal
+paths or service ports, and no console/page errors were observed. Full Maven unit execution remains
+environment-blocked by Mockito/Byte Buddy self-attach on JDK 21; compile and frontend tests/build
+passed.
+
+## 2026-07-19
+
+### Admin order detail catalog enrichment depends on matching Product data
+
+**Status:** RESOLVED for legacy SKU references; catalog-missing rows still degrade safely.
+
+The dedicated read-only admin detail page uses the stored order-item snapshot for quantity and
+purchase price, then optionally enriches each item through the protected Product Service variant
+snapshot endpoint. The runtime-tested seeded order stores SKU strings in its order-item reference,
+so the Product Service now resolves by SKU after trying the primary variant ID. The page renders
+catalog metadata when that lookup succeeds and keeps the stored reference and snapshot price when
+the catalog row is genuinely unavailable.
+
+Do not make the browser call Product Service directly or fabricate missing product data in the
+frontend. Historical orders whose catalog rows were deleted can still show neutral fallbacks.
+
+### Dedicated admin order detail route
+
+**Status:** IMPLEMENTED and browser-verified, including status updates.
+
+The admin eye action navigates to `/admin/orders/{orderId}` and no longer opens the legacy detail
+drawer. The route uses `GET /api/v1/admin/orders/{orderId}` through the Gateway, preserves safe
+order-list query parameters on return, supports direct refresh, and separates order status from
+payment status. Persisted status history is now returned additively from the existing
+`order_status_audit_log` table and refreshed after a successful status update; the UI still shows
+an empty state when no audit rows exist rather than inferring history from the current order.
+
+The browser verification also confirmed that an authenticated non-admin cannot view the detail
+page, temporary detail failures expose a retry action, and browser requests do not target internal
+paths or backend service ports.
+
+### Admin order status update on dedicated detail page
+
+**Status:** RESOLVED for the verified admin workflow.
+
+The dedicated detail page now restores the former drawer's status update control. Its options are
+limited to the backend-provided `availableTransitions` and the existing `OrderStatus` graph; the
+backend remains the final authority. Terminal statuses expose no interactive transition control.
+
+The page uses `PATCH /api/v1/admin/orders/{orderId}/status` through the Gateway, confirms the
+selected transition before submission, and refetches the order and audit history after success.
+HTTP 409 is treated as a stale-status conflict and causes a refetch without a fake success state.
+The browser flow verified `PROCESSING -> SHIPPED`, persistence after refresh, confirmation cancel
+without a request, terminal-state behavior, and absence of direct internal/service-port calls.
+
 ## 2026-07-19 (fix) Order→Notification 403 on ORDER_PAID email
 
 **Status:** RESOLVED for `order-service → notification-service`. `auth-service →
