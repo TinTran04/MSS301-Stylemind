@@ -1,5 +1,25 @@
 # Docker Runtime Runbook
 
+## 2026-07-20 structured address schema
+
+User Service creates/extends its administrative and address schema through Flyway
+`V3__structured_vietnamese_addresses.sql`. Order Service has no Flyway history in this repository;
+fresh databases use `BE/init-scripts/06-order-db.sql`, while existing Order volumes require the
+reviewed non-destructive patch
+`docs/database/manual-patches/2026-07-20-structured-shipping-snapshot.sql`.
+
+The patch only adds missing snapshot columns/indexes. Do not reset volumes, infer legacy province or
+ward values, or backfill historical orders without a separately reviewed migration plan.
+
+For Docker checkout, Order Service must resolve User Service through
+`USER_SERVICE_URL=http://user-service:8082`. The browser must continue using Gateway routes and must
+never call the protected User Service address lookup directly.
+
+The User Service Compose block must also include `INTERNAL_TOKEN: ${INTERNAL_TOKEN}`. Without this
+mapping, Order Service can resolve `user-service` and reach the network, but User Service's
+`InternalAuthFilter` returns 403 before ownership validation. A 403 at this boundary is therefore
+first an internal-token configuration check, not proof that the address belongs to another user.
+
 ## Start the application profile
 
 From `BE/`, use the existing Compose file and preserve the current volumes:

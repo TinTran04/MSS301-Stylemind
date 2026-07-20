@@ -13,6 +13,14 @@ export async function getAddresses() {
   return apiClient.get(`${ENDPOINTS.USERS}/addresses`)
 }
 
+export async function getProvinces() {
+  return apiClient.get(`${ENDPOINTS.USERS}/administrative/provinces`)
+}
+
+export async function getWards(provinceCode) {
+  return apiClient.get(`${ENDPOINTS.USERS}/administrative/provinces/${provinceCode}/wards`)
+}
+
 export async function createAddress(data) {
   return apiClient.post(`${ENDPOINTS.USERS}/addresses`, data)
 }

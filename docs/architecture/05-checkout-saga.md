@@ -9,6 +9,7 @@ Mỗi service có DB riêng → **không** dùng được 1 transaction ACID xuy
 ## Saga của StyleMind (SePay)
 | Bước | Hành động | Compensation nếu lỗi |
 |---|---|---|
+| 0 | Xác thực `addressId` qua User Service internal lookup, kiểm tra ownership và `validationStatus=VALID` | Chưa tạo gì → không cần bù |
 | 1 | Lấy cart (cart-service) | Chưa tạo gì → không cần bù |
 | 2 | Lấy giá authoritative (product-service) | Chưa tạo order → dừng |
 | 3 | Tạo Order theo phương thức thanh toán: COD bắt đầu `PENDING`, SePay bắt đầu `PAYMENT_PENDING`; lưu items + `price_at_purchase` | Hủy order nếu payment initialization fail |
@@ -22,6 +23,8 @@ Luồng **COD** đơn giản: tạo Order `PENDING` → payment COD transaction 
 ## Hardening đang áp dụng
 - Frontend checkout chỉ gọi `POST /api/v1/orders`; frontend **không** tự tạo payment SePay và **không** tự xác nhận thanh toán.
 - `order-service` là orchestrator: lấy cart, lấy giá authoritative, tạo order rồi mới gọi `payment-service` qua `/internal/v1/payments/cod|sepay`.
+- Checkout không nhận free-text shipping address từ browser nữa. Browser gửi `addressId` qua Gateway; order-service xác thực address trước cart/product/payment và copy snapshot structured vào order.
+- User Service là owner của delivery address, dùng mã tỉnh/phường local từ dataset đã pin và libphonenumber cho recipient phone. Address cũ `LEGACY_UNVERIFIED` không được checkout.
 - COD: order chuyển thẳng `CONFIRMED`, clear cart ngay.
 - SePay: order chỉ chuyển `PAYMENT_PENDING -> PAID` khi webhook/IPN đã xác thực và đối soát thành công.
 - Webhook **không** tự đẩy `PAID -> PROCESSING`.

@@ -28,6 +28,15 @@ public class OrderResponse {
     private String gatewayTransactionId;
     private Instant paidAt;
     private String shippingAddress;
+    private String sourceAddressId;
+    private String shippingRecipientName;
+    private String shippingPhone;
+    private String shippingProvinceCode;
+    private String shippingProvinceName;
+    private String shippingWardCode;
+    private String shippingWardName;
+    private String shippingAddressLine;
+    private String shippingNote;
     private List<OrderItemResponse> items;
     private List<OrderStatusHistoryResponse> statusHistory;
     private Instant createdAt;
@@ -67,6 +76,24 @@ public class OrderResponse {
     public void setPaidAt(Instant paidAt) { this.paidAt = paidAt; }
     public String getShippingAddress() { return shippingAddress; }
     public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
+    public String getSourceAddressId() { return sourceAddressId; }
+    public void setSourceAddressId(String sourceAddressId) { this.sourceAddressId = sourceAddressId; }
+    public String getShippingRecipientName() { return shippingRecipientName; }
+    public void setShippingRecipientName(String shippingRecipientName) { this.shippingRecipientName = shippingRecipientName; }
+    public String getShippingPhone() { return shippingPhone; }
+    public void setShippingPhone(String shippingPhone) { this.shippingPhone = shippingPhone; }
+    public String getShippingProvinceCode() { return shippingProvinceCode; }
+    public void setShippingProvinceCode(String shippingProvinceCode) { this.shippingProvinceCode = shippingProvinceCode; }
+    public String getShippingProvinceName() { return shippingProvinceName; }
+    public void setShippingProvinceName(String shippingProvinceName) { this.shippingProvinceName = shippingProvinceName; }
+    public String getShippingWardCode() { return shippingWardCode; }
+    public void setShippingWardCode(String shippingWardCode) { this.shippingWardCode = shippingWardCode; }
+    public String getShippingWardName() { return shippingWardName; }
+    public void setShippingWardName(String shippingWardName) { this.shippingWardName = shippingWardName; }
+    public String getShippingAddressLine() { return shippingAddressLine; }
+    public void setShippingAddressLine(String shippingAddressLine) { this.shippingAddressLine = shippingAddressLine; }
+    public String getShippingNote() { return shippingNote; }
+    public void setShippingNote(String shippingNote) { this.shippingNote = shippingNote; }
     public List<OrderItemResponse> getItems() { return items; }
     public void setItems(List<OrderItemResponse> items) { this.items = items; }
     public List<OrderStatusHistoryResponse> getStatusHistory() { return statusHistory; }

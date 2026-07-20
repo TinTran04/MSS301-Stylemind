@@ -75,10 +75,8 @@ const usePaymentStore = create((set, get) => ({
 
     try {
       markProcessing(0)
-      const shippingAddress = orderData.shippingAddress
-        || [orderData.address?.line1, orderData.address?.line2].filter(Boolean).join(', ')
       const order = await createOrder({
-        shippingAddress,
+        addressId: orderData.addressId,
         paymentMethod: method,
       }, {
         idempotencyKey,

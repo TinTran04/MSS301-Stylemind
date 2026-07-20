@@ -16,11 +16,13 @@ import com.stylemind.order.feign.NotificationClient;
 import com.stylemind.order.feign.PaymentClient;
 import com.stylemind.order.feign.ProductClient;
 import com.stylemind.order.feign.UserClient;
+import com.stylemind.order.feign.UserAddressClient;
 import com.stylemind.order.repository.CheckoutIdempotencyRepository;
 import com.stylemind.order.repository.OrderItemRepository;
 import com.stylemind.order.repository.OrderRepository;
 import com.stylemind.order.repository.OrderStatusAuditLogRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -37,7 +39,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -51,11 +55,29 @@ class OrderServiceTest {
     @Mock PaymentClient paymentClient;
     @Mock ProductClient productClient;
     @Mock UserClient userClient;
+    @Mock UserAddressClient userAddressClient;
     @Mock NotificationClient notificationClient;
     @Mock OrderStatusAuditLogRepository auditLogRepository;
     @Mock OrderStatusService orderStatusService;
 
     @InjectMocks OrderService orderService;
+
+    @BeforeEach
+    void stubCheckoutAddress() {
+        UserAddressClient.DeliveryAddressSnapshot address = new UserAddressClient.DeliveryAddressSnapshot();
+        address.setId("address-1");
+        address.setUserId("user-1");
+        address.setRecipientName("Test User");
+        address.setPhoneNumber("+84901234567");
+        address.setProvinceCode("01");
+        address.setProvinceName("Thành phố Hà Nội");
+        address.setWardCode("00004");
+        address.setWardName("Phường Ba Đình");
+        address.setAddressLine("123 Main Street");
+        address.setValidationStatus("VALID");
+        lenient().when(userAddressClient.getAddress(anyString(), anyString()))
+                .thenReturn(ApiResponse.success("ok", address));
+    }
 
     @Test
     void createOrder_emptyCart_throws() {
@@ -420,14 +442,14 @@ class OrderServiceTest {
 
     private CreateOrderRequest codReq() {
         CreateOrderRequest req = new CreateOrderRequest();
-        req.setShippingAddress("123 Main Street");
+        req.setAddressId("address-1");
         req.setPaymentMethod("cod");
         return req;
     }
 
     private CreateOrderRequest sepayReq() {
         CreateOrderRequest req = new CreateOrderRequest();
-        req.setShippingAddress("123 Main Street");
+        req.setAddressId("address-1");
         req.setPaymentMethod("sepay");
         return req;
     }

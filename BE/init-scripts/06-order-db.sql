@@ -12,6 +12,15 @@ CREATE TABLE IF NOT EXISTS orders (
             'SHIPPED', 'COMPLETED', 'CANCELLED', 'EXPIRED', 'FAILED'
         )),
     shipping_address TEXT NOT NULL,
+    source_address_id VARCHAR(50),
+    shipping_recipient_name VARCHAR(100),
+    shipping_phone VARCHAR(20),
+    shipping_province_code VARCHAR(10),
+    shipping_province_name VARCHAR(150),
+    shipping_ward_code VARCHAR(10),
+    shipping_ward_name VARCHAR(150),
+    shipping_address_line TEXT,
+    shipping_note TEXT,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

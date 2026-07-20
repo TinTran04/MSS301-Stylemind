@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class CreateOrderRequest {
-    @NotBlank(message = "Shipping address is required")
-    private String shippingAddress;
+    @NotBlank(message = "Shipping address ID is required")
+    private String addressId;
 
     @NotBlank(message = "Payment method is required")
     @Pattern(regexp = "^(cod|sepay)$", message = "Payment method is invalid")
@@ -24,8 +24,8 @@ public class CreateOrderRequest {
     @Deprecated
     private String transactionId;
 
-    public String getShippingAddress() { return shippingAddress; }
-    public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
+    public String getAddressId() { return addressId; }
+    public void setAddressId(String addressId) { this.addressId = addressId; }
     public String getPaymentMethod() { return paymentMethod; }
     public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
     public String getTransactionId() { return transactionId; }

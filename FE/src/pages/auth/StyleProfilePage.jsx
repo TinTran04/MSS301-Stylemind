@@ -17,10 +17,14 @@ import {
   createAddress,
   deleteAddress,
   getAddresses,
+  getProvinces,
+  getWards,
   getProfile,
   updateAddress,
   updateProfile,
 } from '../../features/profile/profile.api'
+import { buildAddressPayload, formatSavedAddress } from '../../features/profile/address.utils'
+import { getVietnamesePhoneValidationMessage } from '../../features/profile/phone.utils.js'
 import { getInitials } from '../../features/auth/auth.utils'
 import { mockStyleOptions } from '../../features/profile/profile.mock'
 
@@ -33,7 +37,9 @@ const addressFormTemplate = {
   recipientName: '',
   phoneNumber: '',
   addressLine: '',
-  city: '',
+  provinceCode: '',
+  wardCode: '',
+  shippingNote: '',
   isDefault: false,
 }
 
@@ -50,19 +56,8 @@ function getOptionLabel(options, value) {
   return options.find((option) => option.value === value || option.id === value)?.label || value
 }
 
-function buildAddressPayload(form) {
-  return {
-    recipientName: form.recipientName.trim(),
-    phoneNumber: form.phoneNumber.trim(),
-    addressLine: form.addressLine.trim(),
-    city: form.city.trim(),
-    isDefault: Boolean(form.isDefault),
-  }
-}
-
 function formatAddressLine(address) {
-  const parts = [address.addressLine, address.city].filter(Boolean)
-  return parts.length > 0 ? parts.join(', ') : 'Chưa có địa chỉ'
+  return formatSavedAddress(address)
 }
 
 function isEmailLike(value) {
@@ -170,6 +165,9 @@ export default function StyleProfilePage() {
   const [unsavedChangeConfirmOpen, setUnsavedChangeConfirmOpen] = useState(false)
   const [addressForm, setAddressForm] = useState(createEmptyAddressForm())
   const [addressFormBaseline, setAddressFormBaseline] = useState(createEmptyAddressForm())
+  const [provinces, setProvinces] = useState([])
+  const [wards, setWards] = useState([])
+  const [administrativeLoading, setAdministrativeLoading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -208,6 +206,38 @@ export default function StyleProfilePage() {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    let active = true
+    setAdministrativeLoading(true)
+    getProvinces()
+      .then((list) => {
+        if (active) setProvinces(Array.isArray(list) ? list : [])
+      })
+      .catch(() => {
+        if (active) setAddressError('Không thể tải dữ liệu tỉnh/thành phố.')
+      })
+      .finally(() => {
+        if (active) setAdministrativeLoading(false)
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    if (!addressForm.provinceCode) {
+      setWards([])
+      return undefined
+    }
+    getWards(addressForm.provinceCode)
+      .then((list) => {
+        if (active) setWards(Array.isArray(list) ? list : [])
+      })
+      .catch(() => {
+        if (active) setAddressError('Không thể tải dữ liệu phường/xã.')
+      })
+    return () => { active = false }
+  }, [addressForm.provinceCode])
 
   useEffect(() => {
     let active = true
@@ -292,7 +322,9 @@ export default function StyleProfilePage() {
       recipientName: address.recipientName || '',
       phoneNumber: address.phoneNumber || '',
       addressLine: address.addressLine || '',
-      city: address.city || '',
+      provinceCode: address.provinceCode || '',
+      wardCode: address.wardCode || '',
+      shippingNote: address.shippingNote || '',
       isDefault: Boolean(address.isDefault),
     }
     setEditingAddressId(address.id)
@@ -360,6 +392,15 @@ export default function StyleProfilePage() {
 
     try {
       const payload = buildAddressPayload(addressForm)
+      const phoneError = getVietnamesePhoneValidationMessage(addressForm.phoneNumber)
+      if (phoneError) {
+        setAddressError(phoneError)
+        return
+      }
+      if (!payload.provinceCode || !payload.wardCode) {
+        setAddressError('Vui lòng chọn tỉnh/thành phố và phường/xã.')
+        return
+      }
       if (editingAddressId) {
         await updateAddress(editingAddressId, payload)
         setAddressSuccess('Cập nhật địa chỉ thành công.')
@@ -370,8 +411,8 @@ export default function StyleProfilePage() {
 
       await reloadAddresses()
       closeAddressForm()
-    } catch {
-      setAddressError('Không thể cập nhật địa chỉ. Vui lòng thử lại.')
+    } catch (error) {
+      setAddressError(error?.message || 'Không thể cập nhật địa chỉ. Vui lòng thử lại.')
     } finally {
       setAddressSaving(false)
     }
@@ -443,7 +484,9 @@ export default function StyleProfilePage() {
           recipientName: address.recipientName,
           phoneNumber: address.phoneNumber,
           addressLine: address.addressLine,
-          city: address.city,
+          provinceCode: address.provinceCode,
+          wardCode: address.wardCode,
+          shippingNote: address.shippingNote,
           isDefault: true,
         })
       )
@@ -764,6 +807,11 @@ export default function StyleProfilePage() {
                           </div>
                           <p className="text-sm text-on-surface-variant">{address.phoneNumber}</p>
                           <p className="text-sm text-on-surface-variant">{formatAddressLine(address)}</p>
+                          {address.validationStatus !== 'VALID' && (
+                            <p className="text-xs font-medium text-error">
+                              Cần cập nhật địa chỉ trước khi thanh toán.
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
@@ -923,14 +971,49 @@ export default function StyleProfilePage() {
                       </div>
 
                       <div className="space-y-2 md:col-span-1">
-                        <label className="block text-sm font-medium text-primary">Thành phố</label>
+                        <label htmlFor="address-province" className="block text-sm font-medium text-primary">Tỉnh/thành phố</label>
+                        <select
+                          id="address-province"
+                          value={addressForm.provinceCode}
+                          disabled={administrativeLoading || addressSaving}
+                          onChange={(event) => setAddressForm((current) => ({
+                            ...current,
+                            provinceCode: event.target.value,
+                            wardCode: '',
+                          }))}
+                          className="w-full rounded-2xl border border-outline-variant/20 bg-transparent px-4 py-3 text-sm text-primary outline-none transition-colors focus:border-primary"
+                        >
+                          <option value="">Chọn tỉnh/thành phố</option>
+                          {provinces.map((province) => (
+                            <option key={province.code} value={province.code}>{province.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2 md:col-span-1">
+                        <label htmlFor="address-ward" className="block text-sm font-medium text-primary">Phường/xã</label>
+                        <select
+                          id="address-ward"
+                          value={addressForm.wardCode}
+                          disabled={!addressForm.provinceCode || administrativeLoading || addressSaving}
+                          onChange={(event) => setAddressForm((current) => ({ ...current, wardCode: event.target.value }))}
+                          className="w-full rounded-2xl border border-outline-variant/20 bg-transparent px-4 py-3 text-sm text-primary outline-none transition-colors focus:border-primary"
+                        >
+                          <option value="">Chọn phường/xã</option>
+                          {wards.map((ward) => (
+                            <option key={ward.code} value={ward.code}>{ward.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2 md:col-span-2">
+                        <label htmlFor="shipping-note" className="block text-sm font-medium text-primary">Ghi chú giao hàng (không bắt buộc)</label>
                         <input
-                          value={addressForm.city}
-                          onChange={(event) =>
-                            setAddressForm((current) => ({ ...current, city: event.target.value }))
-                          }
+                          id="shipping-note"
+                          value={addressForm.shippingNote}
+                          onChange={(event) => setAddressForm((current) => ({ ...current, shippingNote: event.target.value }))}
                           className="w-full rounded-2xl border border-outline-variant/20 bg-transparent px-4 py-3 text-sm text-primary outline-none transition-colors placeholder:text-on-surface-variant/55 focus:border-primary"
-                          placeholder="Ví dụ: TP. Hồ Chí Minh"
+                          placeholder="Ví dụ: Gọi trước khi giao"
                         />
                       </div>
 

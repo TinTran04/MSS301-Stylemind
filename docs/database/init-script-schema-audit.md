@@ -2,6 +2,16 @@
 
 ## Scope and Method
 
+### 2026-07-20 structured-address extension
+
+The current implementation adds `administrative_provinces`,
+`administrative_wards`, structured delivery-address columns and nullable order
+shipping snapshot columns. User Service applies these through Flyway V3; the
+clean-install init scripts mirror the fields, and the existing Order Service
+uses the non-destructive manual patch
+`docs/database/manual-patches/2026-07-20-structured-shipping-snapshot.sql`.
+Legacy address/order rows are intentionally not backfilled from free text.
+
 Audit date: 2026-07-11.
 
 The audit compares JPA entity mappings, shared `BaseEntity` audit fields,

@@ -62,6 +62,20 @@ class ServiceUrlConfigurationTest {
                 .contains("INTERNAL_TOKEN: ${INTERNAL_TOKEN}");
     }
 
+    @Test
+    void dockerComposeGivesUserServiceTheCanonicalInternalTokenForAddressLookup() throws IOException {
+        Path composeFile = findRepositoryFile("docker-compose.yml");
+        String compose = Files.readString(composeFile, StandardCharsets.UTF_8);
+
+        String userServiceBlock = compose.substring(
+                compose.indexOf("\n  user-service:"),
+                compose.indexOf("\n  product-service:"));
+
+        assertThat(userServiceBlock)
+                .as("user-service must validate Order Service address lookups with the same token")
+                .contains("INTERNAL_TOKEN: ${INTERNAL_TOKEN}");
+    }
+
     // notification-service's application.yml binds internal.token to X_INTERNAL_TOKEN (not
     // INTERNAL_TOKEN like auth-service/order-service), so its container must receive the same
     // configured value under that variable name - otherwise ORDER_PAID / registration-OTP emails

@@ -21,6 +21,20 @@ import java.util.List;
 public class UserProfileController {
 
     private final UserProfileService userProfileService;
+    private final com.stylemind.user.service.AdministrativeDataService administrativeDataService;
+
+    @GetMapping("/administrative/provinces")
+    public ResponseEntity<ApiResponse<List<com.stylemind.user.dto.AdministrativeProvinceResponse>>> getProvinces() {
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách tỉnh/thành phố thành công",
+                administrativeDataService.getProvinces()));
+    }
+
+    @GetMapping("/administrative/provinces/{provinceCode}/wards")
+    public ResponseEntity<ApiResponse<List<com.stylemind.user.dto.AdministrativeWardResponse>>> getWards(
+            @PathVariable String provinceCode) {
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách phường/xã thành công",
+                administrativeDataService.getWards(provinceCode)));
+    }
 
     @GetMapping("/style-profile")
     public ResponseEntity<ApiResponse<StyleProfileResponse>> getProfile(@AuthenticationPrincipal UserPrincipal principal) {

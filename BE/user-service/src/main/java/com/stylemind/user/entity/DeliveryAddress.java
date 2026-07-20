@@ -30,7 +30,31 @@ public class DeliveryAddress extends BaseEntity {
     private String addressLine;
 
     @Column(name = "city", length = 100, nullable = false)
+    @Deprecated
     private String city;
+
+    @Column(name = "province_code", length = 10)
+    private String provinceCode;
+
+    @Column(name = "province_name", length = 150)
+    private String provinceName;
+
+    @Column(name = "ward_code", length = 10)
+    private String wardCode;
+
+    @Column(name = "ward_name", length = 150)
+    private String wardName;
+
+    @Column(name = "shipping_note", columnDefinition = "TEXT")
+    private String shippingNote;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "validation_status", length = 30, nullable = false)
+    @Builder.Default
+    private AddressValidationStatus validationStatus = AddressValidationStatus.LEGACY_UNVERIFIED;
+
+    @Column(name = "administrative_data_version", length = 50)
+    private String administrativeDataVersion;
 
     @Column(name = "is_default", nullable = false)
     @Builder.Default

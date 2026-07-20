@@ -7,6 +7,8 @@ import { useCart } from '../../hooks/useCart'
 import { formatCurrency } from '../../utils/formatCurrency'
 import Modal from '../../components/common/Modal'
 import { cancelOrder } from '../../features/orders/order.api'
+import { getAddresses } from '../../features/profile/profile.api'
+import { formatSavedAddress, isCheckoutEligibleAddress } from '../../features/profile/address.utils'
 import { TAX_LABEL, TAX_RATE } from '../../features/cart/cart.utils'
 
 const paymentMethods = [
@@ -20,7 +22,9 @@ export default function CheckoutPage() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const [shippingAddress, setShippingAddress] = useState('')
+  const [addresses, setAddresses] = useState([])
+  const [addressLoading, setAddressLoading] = useState(true)
+  const [selectedAddressId, setSelectedAddressId] = useState('')
   const [addressError, setAddressError] = useState('')
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
@@ -37,6 +41,27 @@ export default function CheckoutPage() {
       navigate('/shop')
     }
   }, [items.length, status, navigate])
+
+  useEffect(() => {
+    let active = true
+    setAddressLoading(true)
+    getAddresses()
+      .then((list) => {
+        if (!active) return
+        const nextAddresses = Array.isArray(list) ? list : []
+        setAddresses(nextAddresses)
+        const preferred = nextAddresses.find((address) => isCheckoutEligibleAddress(address) && address.isDefault)
+          || nextAddresses.find(isCheckoutEligibleAddress)
+        setSelectedAddressId(preferred?.id || '')
+      })
+      .catch((err) => {
+        if (active) setAddressError(err?.message || 'Không thể tải địa chỉ giao hàng.')
+      })
+      .finally(() => {
+        if (active) setAddressLoading(false)
+      })
+    return () => { active = false }
+  }, [])
 
   useLayoutEffect(() => {
     if (location.state?.freshCheckout) {
@@ -55,8 +80,8 @@ export default function CheckoutPage() {
   useEffect(() => stopPolling, [stopPolling])
 
   const handlePlaceOrder = async () => {
-    if (!shippingAddress.trim()) {
-      setAddressError('Vui lòng nhập địa chỉ giao hàng.')
+    if (!selectedAddressId || !addresses.some((address) => address.id === selectedAddressId && isCheckoutEligibleAddress(address))) {
+      setAddressError('Vui lòng chọn một địa chỉ giao hàng đã được xác thực.')
       return
     }
     setAddressError('')
@@ -64,7 +89,7 @@ export default function CheckoutPage() {
     // COD resolves synchronously, but SePay only resolves once payment is
     // confirmed (manually or via polling), so a single effect covers both.
     await processPayment({
-      shippingAddress: shippingAddress.trim(),
+      addressId: selectedAddressId,
       items: displayItems,
       total,
     })
@@ -367,15 +392,68 @@ export default function CheckoutPage() {
                 <MapPin size={18} className="text-primary" />
                 <h2 className="font-title-lg text-primary">Địa chỉ giao hàng</h2>
               </div>
-              <textarea
-                rows={3}
-                value={shippingAddress}
-                onChange={(e) => { setShippingAddress(e.target.value); setAddressError('') }}
-                placeholder="Nhập đầy đủ địa chỉ giao hàng (số nhà, đường, quận/huyện, thành phố)"
-                className="w-full bg-surface-container-low border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-tertiary-container resize-none transition-colors"
-              />
+              {addressLoading ? (
+                <div className="rounded-xl bg-surface-container-low px-4 py-5 text-sm text-on-surface-variant">
+                  Đang tải địa chỉ giao hàng...
+                </div>
+              ) : addresses.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-outline-variant/30 bg-surface-container-low px-4 py-5 text-sm text-on-surface-variant">
+                  <p>Bạn chưa có địa chỉ giao hàng.</p>
+                  <Link to="/profile" className="mt-2 inline-flex font-medium text-primary underline underline-offset-4">
+                    Thêm địa chỉ giao hàng
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {addresses.map((address) => {
+                    const eligible = isCheckoutEligibleAddress(address)
+                    return (
+                      <label
+                        key={address.id}
+                        className={`block rounded-xl border p-4 transition-colors ${
+                          !eligible
+                            ? 'border-outline-variant/10 bg-surface-container-low opacity-70'
+                            : selectedAddressId === address.id
+                              ? 'border-primary bg-primary/5'
+                              : 'border-outline-variant/20 hover:border-primary/50'
+                        }`}
+                      >
+                        <span className="flex items-start gap-3">
+                          <input
+                            type="radio"
+                            name="shipping-address"
+                            value={address.id}
+                            checked={selectedAddressId === address.id}
+                            disabled={!eligible}
+                            onChange={() => { setSelectedAddressId(address.id); setAddressError('') }}
+                            className="mt-1 h-4 w-4 text-primary focus:ring-primary"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-primary">
+                              {address.recipientName}
+                              {address.isDefault && <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px]">Mặc định</span>}
+                              {!eligible && <span className="rounded-full bg-error/10 px-2 py-0.5 text-[11px] text-error">Cần cập nhật</span>}
+                            </span>
+                            <span className="mt-1 block text-xs text-on-surface-variant">{address.phoneNumber || 'Chưa có số điện thoại'}</span>
+                            <span className="mt-1 block text-sm leading-relaxed text-on-surface-variant">{formatSavedAddress(address)}</span>
+                          </span>
+                        </span>
+                      </label>
+                    )
+                  })}
+                  {!addresses.some(isCheckoutEligibleAddress) && (
+                    <div className="rounded-xl border border-error/20 bg-error-container/20 px-4 py-3 text-sm text-error">
+                      Các địa chỉ hiện có cần được cập nhật trước khi thanh toán.
+                      <Link to="/profile" className="ml-1 font-medium underline underline-offset-4">Cập nhật địa chỉ</Link>
+                    </div>
+                  )}
+                  <Link to="/profile" className="inline-flex text-sm font-medium text-primary underline underline-offset-4">
+                    Thêm hoặc chỉnh sửa địa chỉ
+                  </Link>
+                </div>
+              )}
               {addressError && (
-                <p className="text-xs text-error mt-2">{addressError}</p>
+                <p role="alert" className="text-xs text-error mt-2">{addressError}</p>
               )}
             </div>
 
@@ -450,7 +528,7 @@ export default function CheckoutPage() {
               </div>
               <button
                 onClick={handlePlaceOrder}
-                disabled={displayItems.length === 0}
+                disabled={displayItems.length === 0 || addressLoading || !selectedAddressId || !addresses.some(isCheckoutEligibleAddress)}
                 className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Lock size={14} /> Đặt hàng

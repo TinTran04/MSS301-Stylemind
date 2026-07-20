@@ -34,6 +34,14 @@ Quy ước: public/admin = `/api/v1`; nội bộ = `/internal/v1` (frontend cấ
 | POST | `/api/v1/users/addresses` | Tạo địa chỉ |
 | PUT | `/api/v1/users/addresses/{id}` | Cập nhật địa chỉ |
 | DELETE | `/api/v1/users/addresses/{id}` | Xóa địa chỉ |
+| GET | `/api/v1/users/administrative/provinces` | Danh sách tỉnh/thành phố active |
+| GET | `/api/v1/users/administrative/provinces/{provinceCode}/wards` | Danh sách phường/xã theo tỉnh/thành phố |
+
+`POST`/`PUT /api/v1/users/addresses` nhận `recipientName`, `phoneNumber`,
+`provinceCode`, `wardCode`, `addressLine`, tùy chọn `shippingNote` và
+`isDefault`. Phone được User Service kiểm tra bằng libphonenumber và normalize
+trước khi lưu. Address response có `validationStatus`; chỉ `VALID` được
+checkout.
 
 ## Product (product-service)
 | Method | Endpoint | Mô tả |
@@ -94,7 +102,7 @@ Product conflict responses dùng error envelope chuẩn:
 ## Order (order-service)
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| POST | `/api/v1/orders` | Tạo order từ cart; nhận `paymentMethod=cod|sepay`, hỗ trợ header `Idempotency-Key` |
+| POST | `/api/v1/orders` | Tạo order từ cart; body `{"addressId":"<ADDRESS_ID>","paymentMethod":"cod|sepay"}`, hỗ trợ header `Idempotency-Key` |
 | GET | `/api/v1/orders` | Danh sách order của customer |
 | GET | `/api/v1/orders/{id}` | Chi tiết order |
 | PATCH | `/api/v1/orders/{id}/cancel` | Hủy order/payment đang chờ (PENDING/PAYMENT_PENDING); kết thúc checkout attempt hiện tại, lần checkout sau dùng Idempotency-Key mới |
@@ -103,6 +111,10 @@ Product conflict responses dùng error envelope chuẩn:
 | GET | `/api/v1/admin/orders/{id}` | Admin chi tiết |
 | PATCH | `/api/v1/admin/orders/{id}/status` | Admin đổi trạng thái (validate transition) |
 | POST | `/internal/v1/orders/{orderId}/payment-status` | Internal callback từ payment-service về trạng thái webhook |
+
+Order Service kiểm tra `addressId` qua `GET /internal/v1/users/{userId}/addresses/{addressId}`
+trước các bước cart/product/payment. Order response mới có các shipping snapshot
+fields nullable để vẫn đọc được order lịch sử chỉ có `shippingAddress`.
 
 ## Payment (payment-service)
 | Method | Endpoint | Mô tả |

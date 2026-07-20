@@ -35,7 +35,10 @@ internal:
 # Auth-service is only used to look up a user's email for order notifications.
 auth:
   service:
-    url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+      url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+user:
+  service:
+    url: ${USER_SERVICE_URL:http://user-service:8082}
 notification:
   service:
     url: ${NOTIFICATION_SERVICE_URL:http://notification-service:8089}

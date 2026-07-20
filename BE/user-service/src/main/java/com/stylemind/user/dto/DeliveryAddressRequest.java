@@ -19,9 +19,19 @@ public class DeliveryAddressRequest {
     @NotBlank(message = "Địa chỉ không được để trống")
     private String addressLine;
 
-    @NotBlank(message = "Thành phố không được để trống")
-    @Size(max = 100, message = "Thành phố tối đa 100 ký tự")
+    @NotBlank(message = "Mã tỉnh/thành không được để trống")
+    private String provinceCode;
+
+    @NotBlank(message = "Mã phường/xã không được để trống")
+    private String wardCode;
+
+    @Size(max = 500, message = "Ghi chú giao hàng tối đa 500 ký tự")
+    private String shippingNote;
+
+    /** Legacy field accepted only during the migration window; it is not authoritative. */
+    @Deprecated
     private String city;
 
+    @Builder.Default
     private Boolean isDefault = false;
 }

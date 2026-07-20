@@ -8,6 +8,7 @@ import com.stylemind.order.dto.*;
 import com.stylemind.order.entity.*;
 import com.stylemind.order.feign.*;
 import com.stylemind.order.repository.*;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,6 +33,7 @@ public class OrderService {
     private final PaymentClient paymentClient;
     private final ProductClient productClient;
     private final UserClient userClient;
+    private final com.stylemind.order.feign.UserAddressClient userAddressClient;
     private final NotificationClient notificationClient;
     private final OrderStatusAuditLogRepository auditLogRepository;
     private final OrderStatusService orderStatusService;
@@ -47,6 +49,7 @@ public class OrderService {
             return buildExistingOrderResponse(userId, checkoutIdempotency.getOrderId());
         }
         try {
+            UserAddressClient.DeliveryAddressSnapshot address = getCheckoutAddress(userId, request.getAddressId());
             CartResponse cart = getCart(authHeader).getData();
             if (cart == null || cart.getItems() == null || cart.getItems().isEmpty()) {
                 throw new BusinessException("CART_EMPTY", "Cart is empty", 400);
@@ -69,7 +72,16 @@ public class OrderService {
                     .userId(userId)
                     .totalAmount(totalAmount)
                     .orderStatus(initialStatus)
-                    .shippingAddress(request.getShippingAddress())
+                    .shippingAddress(formatShippingAddress(address))
+                    .sourceAddressId(address.getId())
+                    .shippingRecipientName(address.getRecipientName())
+                    .shippingPhone(address.getPhoneNumber())
+                    .shippingProvinceCode(address.getProvinceCode())
+                    .shippingProvinceName(address.getProvinceName())
+                    .shippingWardCode(address.getWardCode())
+                    .shippingWardName(address.getWardName())
+                    .shippingAddressLine(address.getAddressLine())
+                    .shippingNote(address.getShippingNote())
                     .build();
 
             order = orderRepository.save(order);
@@ -137,6 +149,46 @@ public class OrderService {
                 .amount(amount)
                 .build();
         return unwrapPaymentResponse(paymentClient.createSepayPayment(paymentRequest));
+    }
+
+    private UserAddressClient.DeliveryAddressSnapshot getCheckoutAddress(String userId, String addressId) {
+        if (!StringUtils.hasText(addressId)) {
+            throw new BusinessException("SHIPPING_ADDRESS_REQUIRED", "Vui lòng chọn địa chỉ giao hàng", 400);
+        }
+        try {
+            var response = userAddressClient.getAddress(userId, addressId);
+            if (response == null || !response.isSuccess() || response.getData() == null) {
+                throw new BusinessException("SHIPPING_ADDRESS_NOT_FOUND", "Không tìm thấy địa chỉ giao hàng", 404);
+            }
+            UserAddressClient.DeliveryAddressSnapshot address = response.getData();
+            if (!userId.equals(address.getUserId()) || !"VALID".equals(address.getValidationStatus())) {
+                throw new BusinessException("SHIPPING_ADDRESS_NOT_VALIDATED", "Địa chỉ giao hàng chưa được xác thực", 409);
+            }
+            return address;
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (FeignException ex) {
+            if (ex.status() == 404) {
+                throw new BusinessException("SHIPPING_ADDRESS_NOT_FOUND", "Không tìm thấy địa chỉ giao hàng", 404);
+            }
+            if (ex.status() == 403) {
+                throw new BusinessException("SHIPPING_ADDRESS_NOT_OWNED", "Địa chỉ giao hàng không thuộc tài khoản này", 403);
+            }
+            if (ex.status() == 409) {
+                throw new BusinessException("SHIPPING_ADDRESS_NOT_VALIDATED", "Địa chỉ giao hàng chưa được xác thực", 409);
+            }
+            log.warn("Address validation service failed for user {} with status {}", userId, ex.status());
+            throw new BusinessException("SHIPPING_ADDRESS_UNAVAILABLE", "Không thể xác thực địa chỉ giao hàng", 502);
+        } catch (Exception ex) {
+            log.warn("Unable to validate checkout address for user {}: {}", userId, ex.getMessage());
+            throw new BusinessException("SHIPPING_ADDRESS_UNAVAILABLE", "Không thể xác thực địa chỉ giao hàng", 502);
+        }
+    }
+
+    private String formatShippingAddress(UserAddressClient.DeliveryAddressSnapshot address) {
+        return java.util.stream.Stream.of(address.getAddressLine(), address.getWardName(), address.getProvinceName())
+                .filter(org.springframework.util.StringUtils::hasText)
+                .collect(Collectors.joining(", "));
     }
 
     private PaymentClient.PaymentResponse unwrapPaymentResponse(com.stylemind.common.dto.ApiResponse<PaymentClient.PaymentResponse> response) {
@@ -460,6 +512,15 @@ public class OrderService {
                 .orderStatus(order.getOrderStatus().name())
                 .availableTransitions(order.getOrderStatus().allowedTransitions().stream().map(Enum::name).collect(Collectors.toList()))
                 .shippingAddress(order.getShippingAddress())
+                .sourceAddressId(order.getSourceAddressId())
+                .shippingRecipientName(order.getShippingRecipientName())
+                .shippingPhone(order.getShippingPhone())
+                .shippingProvinceCode(order.getShippingProvinceCode())
+                .shippingProvinceName(order.getShippingProvinceName())
+                .shippingWardCode(order.getShippingWardCode())
+                .shippingWardName(order.getShippingWardName())
+                .shippingAddressLine(order.getShippingAddressLine())
+                .shippingNote(order.getShippingNote())
                 .items(itemResponses)
                 .createdAt(order.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .updatedAt(order.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())

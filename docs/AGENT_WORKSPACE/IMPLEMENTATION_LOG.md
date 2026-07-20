@@ -1,5 +1,29 @@
 # Implementation Log
 
+## 2026-07-20 - Structured Vietnamese address and phone checkout
+
+- Added a pinned MIT-licensed province/ward dataset (`v4.0.0`) to User Service with attribution;
+  checkout does not make an external administrative-data request.
+- Added structured address fields and `VALID`/`LEGACY_UNVERIFIED` rollout semantics. Legacy rows
+  are retained without inferred codes or names.
+- Added libphonenumber-backed Vietnamese phone parsing and E.164 persistence. Blank, malformed,
+  and non-Vietnamese values are rejected by User Service.
+- Changed checkout to send only `addressId` and payment method. Order Service validates the owned,
+  validated address through protected User Service before side effects.
+- Added immutable structured shipping snapshot columns while preserving the legacy
+  `shipping_address` field and historical-order readability.
+- Added fresh-init/Flyway support, a rerunnable Order manual patch, focused backend/frontend tests,
+  and the first repository Playwright checkout spec.
+- Runtime debugging found the Order → User address lookup was rejected by User Service's internal
+  auth filter because Compose did not inject `INTERNAL_TOKEN` into `user-service`. A focused
+  Compose-content regression test failed before the mapping and passed after the one-line
+  `INTERNAL_TOKEN: ${INTERNAL_TOKEN}` fix.
+- Verification: User compile and focused tests passed (15); Order compile and focused tests passed
+  (18); frontend tests passed (102); Vite build and Compose config passed. `npm run lint` remains
+  unavailable because ESLint is not installed. Final Playwright verification passed 1/1 after the
+  affected application containers were rebuilt without touching databases or volumes; the browser
+  submitted `addressId` only and made no prohibited direct/internal requests.
+
 ## 2026-07-19 - Restore admin order status update on dedicated detail page
 
 - **Verified source of truth:** `OrderStatus.allowedTransitions()` defines the permitted graph;

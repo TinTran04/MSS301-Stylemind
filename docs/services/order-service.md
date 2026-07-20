@@ -14,7 +14,7 @@
 ## API — Public / Customer
 | Method | Endpoint | Mô tả |
 |---|---|---|
-| POST | `/api/v1/orders` | Tạo order từ cart (orchestration) |
+| POST | `/api/v1/orders` | Tạo order từ cart; body dùng `addressId` và `paymentMethod` |
 | GET | `/api/v1/orders` | Danh sách order của customer |
 | GET | `/api/v1/orders/{id}` | Chi tiết order của customer |
 | PATCH | `/api/v1/orders/{id}/cancel` | Hủy order/payment đang chờ (PENDING/PAYMENT_PENDING) |
@@ -34,6 +34,8 @@
 
 ## Key business rules
 - Lấy giá **authoritative** từ product-service; không lấy từ cart DTO.
+- Trước khi đọc cart, order-service gọi User Service internal address lookup với `userId` xác thực và `addressId`; địa chỉ sai ownership, không tồn tại hoặc `LEGACY_UNVERIFIED` bị từ chối.
+- Order mới copy immutable shipping snapshot gồm recipient, phone E.164, province/ward code + name, address line và note; `shipping_address` vẫn được lưu dạng chuỗi để tương thích order cũ.
 - Lưu `price_at_purchase`; total tính từ product-service. Order item hiện không lưu snapshot product name/image/SKU/size/color/material; admin detail có thể enrich các trường này từ product-service hiện tại và phải chấp nhận fallback khi catalog không còn khả dụng.
 - COD → CONFIRMED ngay; SePay → PAYMENT_PENDING đến khi webhook PAID.
 - Webhook SePay chỉ đổi `PAYMENT_PENDING -> PAID`; không tự đẩy sang `PROCESSING`.
@@ -54,4 +56,5 @@
 
 ## Notes
 - Hiện tại `order-service` vẫn dùng **init-script** `BE/init-scripts/06-order-db.sql` cho local Docker schema; chưa bật Flyway trong service này.
+- Các cột snapshot bổ sung cho volume hiện hữu nằm trong `docs/database/manual-patches/2026-07-20-structured-shipping-snapshot.sql`; patch chỉ `ADD COLUMN IF NOT EXISTS` và tạo index, không backfill suy đoán dữ liệu cũ.
 - Xem `architecture/04-order-state-machine.md` và `architecture/05-checkout-saga.md`.

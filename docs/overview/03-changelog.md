@@ -1,5 +1,17 @@
 # 3. Change Log
 
+## 2026-07-20
+
+### Structured Vietnamese checkout address
+
+- Delivery addresses now use local province/ward codes and names from the pinned
+  `v4.0.0` dataset; legacy free-text addresses remain `LEGACY_UNVERIFIED`.
+- Recipient phones are validated with libphonenumber and normalized to E.164.
+- Checkout sends a saved `addressId`; Order Service verifies ownership and
+  stores an immutable structured shipping snapshot while retaining the legacy
+  formatted `shippingAddress` field.
+- Existing orders and addresses are not rewritten or inferred.
+
 ## v2.0 — thay đổi so với bản gốc
 | # | Thay đổi | Ảnh hưởng |
 |---|---|---|

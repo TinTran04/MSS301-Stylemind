@@ -7,6 +7,7 @@ import com.stylemind.user.dto.DeliveryAddressResponse;
 import com.stylemind.user.dto.StyleProfileRequest;
 import com.stylemind.user.dto.StyleProfileResponse;
 import com.stylemind.user.entity.CustomerStyleProfile;
+import com.stylemind.user.entity.AddressValidationStatus;
 import com.stylemind.user.entity.DeliveryAddress;
 import com.stylemind.user.repository.CustomerStyleProfileRepository;
 import com.stylemind.user.repository.DeliveryAddressRepository;
@@ -34,8 +35,22 @@ class UserProfileServiceTest {
     @Mock
     private DeliveryAddressRepository addressRepository;
 
+    @Mock
+    private AdministrativeDataService administrativeDataService;
+
+    @Mock
+    private VietnamesePhoneNumberService phoneNumberService;
+
     @InjectMocks
     private UserProfileService userProfileService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void stubAddressValidation() {
+        lenient().when(administrativeDataService.validateAndResolve(anyString(), anyString()))
+                .thenReturn(new AdministrativeDataService.AddressAdministrativeSnapshot(
+                        "01", "Thành phố Hà Nội", "00004", "Phường Ba Đình", "v4.0.0"));
+        lenient().when(phoneNumberService.normalize(anyString())).thenReturn("+84901234567");
+    }
 
     // ─── Style Profile ────────────────────────────────────────────────────────
 
@@ -226,6 +241,11 @@ class UserProfileServiceTest {
         a.setPhoneNumber("0901234567");
         a.setAddressLine("123 Test St");
         a.setCity("Hanoi");
+        a.setProvinceCode("01");
+        a.setProvinceName("Thành phố Hà Nội");
+        a.setWardCode("00004");
+        a.setWardName("Phường Ba Đình");
+        a.setValidationStatus(AddressValidationStatus.VALID);
         a.setIsDefault(isDefault);
         a.setCreatedAt(LocalDateTime.now());
         a.setUpdatedAt(LocalDateTime.now());
@@ -237,7 +257,8 @@ class UserProfileServiceTest {
                 .recipientName("Test User")
                 .phoneNumber("0901234567")
                 .addressLine("123 Test St")
-                .city("Hanoi")
+                .provinceCode("01")
+                .wardCode("00004")
                 .isDefault(isDefault)
                 .build();
     }

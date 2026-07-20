@@ -1,5 +1,41 @@
 # Known Issues
 
+## 2026-07-20
+
+### Order-to-User structured address lookup initially failed with 403
+
+**Status:** RESOLVED and runtime-verified on 2026-07-20.
+
+The first real checkout run reached User Service but its `InternalAuthFilter` rejected the
+Order → User address lookup because the User Service Compose block did not inject the canonical
+`INTERNAL_TOKEN`. The frontend surfaced the resulting failure as an ownership message, but the
+controller was never reached; this was an internal-auth configuration problem, not an ownership
+decision.
+
+The fix adds `INTERNAL_TOKEN: ${INTERNAL_TOKEN}` to the User Service Compose environment. A focused
+Compose-content test failed before the mapping and passed after it. The rebuilt Gateway-backed
+Playwright flow then created a validated address and completed checkout with an `addressId`-only
+request. No database volume was recreated.
+
+### Legacy delivery addresses require re-validation
+
+**Status:** IMPLEMENTED — rollout behavior documented; operational user migration remains pending.
+
+Existing delivery-address rows retain their historical free-text values and are marked
+`LEGACY_UNVERIFIED`. User Service does not infer Vietnamese province or ward codes from those
+strings. The checkout UI excludes them until the user edits the address with a valid province/ward
+selection and phone number. This is intentional data-preserving behavior, not a reason to rewrite
+historical rows or orders.
+
+### Structured checkout E2E verification pending
+
+**Status:** IMPLEMENTED — RUNTIME VERIFICATION PENDING.
+
+Focused User/Order tests, frontend tests, Vite build, and Compose syntax checks pass. The first real
+Playwright attempt reached the new form while the old application containers were still running,
+so the province list was empty. Re-run the same Gateway-only browser flow after the User/Order
+containers finish rebuilding. Do not mark this issue resolved from unit/compile evidence alone.
+
 ## 2026-07-19
 
 ### Admin order item metadata used a legacy SKU reference

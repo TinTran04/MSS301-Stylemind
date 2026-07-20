@@ -1,5 +1,33 @@
 # Current Project State
 
+## 2026-07-20 Structured Vietnamese address checkout
+
+**Status:** IMPLEMENTED and verified through the real browser flow.
+
+- User Service owns structured address validation. New or edited addresses require a bundled
+  province code and ward code whose relationship is verified server-side.
+- Recipient phone numbers are parsed with Google's `libphonenumber` for region `VN` and persisted
+  in E.164 format. The frontend provides immediate shape feedback, but the backend remains
+  authoritative.
+- Existing free-text address rows are preserved and marked `LEGACY_UNVERIFIED`; no administrative
+  names or codes are inferred for them. They must be edited through the validated form before
+  checkout.
+- Checkout now sends `{ addressId, paymentMethod }` through the Gateway. Order Service calls the
+  protected User Service lookup before cart/product/payment work and verifies ownership plus
+  `VALID` status.
+- Orders retain legacy `shipping_address` and now snapshot recipient, normalized phone, province,
+  ward, address line, source address ID, and shipping note in additive columns. Historical orders
+  remain readable.
+- User schema support is in Flyway `V3__structured_vietnamese_addresses.sql`; Order schema support
+  is synchronized in init scripts with a non-destructive manual patch for existing volumes.
+- Docker Compose now injects the canonical `INTERNAL_TOKEN` into User Service so Order → User
+  address lookups pass the protected internal filter. A 403 at that boundary should be checked as
+  an internal-token configuration failure before being interpreted as an ownership decision.
+- Real Playwright evidence: a validated address was created through the Gateway, checkout sent only
+  `addressId`, and the browser made no `/internal/v1/**` or direct service-port request. Do not call
+  `/internal/v1/**` from the browser or re-read mutable user addresses to render historical orders.
+  See the implementation report under `docs/reports/` for the full evidence.
+
 ## 2026-07-19 Admin order status update
 
 **Status:** IMPLEMENTED and verified through the real admin browser flow.

@@ -5,6 +5,7 @@ import com.stylemind.user.dto.DeliveryAddressResponse;
 import com.stylemind.user.dto.StyleProfileRequest;
 import com.stylemind.user.dto.StyleProfileResponse;
 import com.stylemind.user.entity.CustomerStyleProfile;
+import com.stylemind.user.entity.AddressValidationStatus;
 import com.stylemind.user.entity.DeliveryAddress;
 import com.stylemind.user.repository.CustomerStyleProfileRepository;
 import com.stylemind.user.repository.DeliveryAddressRepository;
@@ -26,6 +27,8 @@ public class UserProfileService {
 
     private final CustomerStyleProfileRepository profileRepository;
     private final DeliveryAddressRepository addressRepository;
+    private final AdministrativeDataService administrativeDataService;
+    private final VietnamesePhoneNumberService phoneNumberService;
 
     // Style Profile
     @Transactional
@@ -61,6 +64,9 @@ public class UserProfileService {
 
     @Transactional
     public DeliveryAddressResponse createAddress(String userId, DeliveryAddressRequest request) {
+        AdministrativeDataService.AddressAdministrativeSnapshot administrative =
+                administrativeDataService.validateAndResolve(request.getProvinceCode(), request.getWardCode());
+        String normalizedPhone = phoneNumberService.normalize(request.getPhoneNumber());
         if (Boolean.TRUE.equals(request.getIsDefault())) {
             // Single atomic UPDATE — no race condition
             addressRepository.clearAllDefaultsByUserId(userId);
@@ -70,9 +76,16 @@ public class UserProfileService {
                 .id(StringUtil.generateUniqueId())
                 .userId(userId)
                 .recipientName(request.getRecipientName())
-                .phoneNumber(request.getPhoneNumber())
+                .phoneNumber(normalizedPhone)
                 .addressLine(request.getAddressLine())
-                .city(request.getCity())
+                .city(administrative.provinceName())
+                .provinceCode(administrative.provinceCode())
+                .provinceName(administrative.provinceName())
+                .wardCode(administrative.wardCode())
+                .wardName(administrative.wardName())
+                .shippingNote(request.getShippingNote())
+                .validationStatus(AddressValidationStatus.VALID)
+                .administrativeDataVersion(administrative.dataVersion())
                 .isDefault(Boolean.TRUE.equals(request.getIsDefault()))
                 .build();
 
@@ -87,16 +100,27 @@ public class UserProfileService {
             throw new BusinessException("ACCESS_DENIED", "Không có quyền truy cập địa chỉ này", 403);
         }
 
+        AdministrativeDataService.AddressAdministrativeSnapshot administrative =
+                administrativeDataService.validateAndResolve(request.getProvinceCode(), request.getWardCode());
+        String normalizedPhone = phoneNumberService.normalize(request.getPhoneNumber());
+
         if (Boolean.TRUE.equals(request.getIsDefault()) && !Boolean.TRUE.equals(address.getIsDefault())) {
             // Single atomic UPDATE — no race condition
             addressRepository.clearAllDefaultsByUserId(userId);
         }
 
         address.setRecipientName(request.getRecipientName());
-        address.setPhoneNumber(request.getPhoneNumber());
+        address.setPhoneNumber(normalizedPhone);
         address.setAddressLine(request.getAddressLine());
-        address.setCity(request.getCity());
-        address.setIsDefault(request.getIsDefault());
+        address.setCity(administrative.provinceName());
+        address.setProvinceCode(administrative.provinceCode());
+        address.setProvinceName(administrative.provinceName());
+        address.setWardCode(administrative.wardCode());
+        address.setWardName(administrative.wardName());
+        address.setShippingNote(request.getShippingNote());
+        address.setValidationStatus(AddressValidationStatus.VALID);
+        address.setAdministrativeDataVersion(administrative.dataVersion());
+        address.setIsDefault(Boolean.TRUE.equals(request.getIsDefault()));
 
         return mapToAddressResponse(addressRepository.save(address));
     }
@@ -122,6 +146,9 @@ public class UserProfileService {
                 .orElseThrow(() -> new BusinessException("ADDRESS_NOT_FOUND", "Không tìm thấy địa chỉ", 404));
         if (!address.getUserId().equals(userId)) {
             throw new BusinessException("ACCESS_DENIED", "Địa chỉ không thuộc người dùng này", 403);
+        }
+        if (address.getValidationStatus() != AddressValidationStatus.VALID) {
+            throw new BusinessException("SHIPPING_ADDRESS_NOT_VALIDATED", "Địa chỉ cần được cập nhật trước khi thanh toán", 409);
         }
         return mapToAddressResponse(address);
     }
@@ -156,6 +183,14 @@ public class UserProfileService {
                 .phoneNumber(address.getPhoneNumber())
                 .addressLine(address.getAddressLine())
                 .city(address.getCity())
+                .userId(address.getUserId())
+                .provinceCode(address.getProvinceCode())
+                .provinceName(address.getProvinceName())
+                .wardCode(address.getWardCode())
+                .wardName(address.getWardName())
+                .shippingNote(address.getShippingNote())
+                .validationStatus(address.getValidationStatus())
+                .administrativeDataVersion(address.getAdministrativeDataVersion())
                 .isDefault(address.getIsDefault())
                 .createdAt(address.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .updatedAt(address.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())

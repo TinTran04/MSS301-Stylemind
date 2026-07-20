@@ -16,6 +16,25 @@ CREATE TABLE IF NOT EXISTS customer_style_profiles (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Local administrative lookup data is imported by User Service from its pinned
+-- bundled dataset after these tables are created.
+CREATE TABLE IF NOT EXISTS administrative_provinces (
+    code VARCHAR(10) PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    type VARCHAR(30) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    data_version VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS administrative_wards (
+    code VARCHAR(10) PRIMARY KEY,
+    province_code VARCHAR(10) NOT NULL REFERENCES administrative_provinces(code),
+    name VARCHAR(150) NOT NULL,
+    type VARCHAR(30) NOT NULL,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    data_version VARCHAR(50) NOT NULL
+);
+
 -- Delivery Addresses
 CREATE TABLE IF NOT EXISTS delivery_addresses (
     id VARCHAR(50) PRIMARY KEY,
@@ -24,6 +43,14 @@ CREATE TABLE IF NOT EXISTS delivery_addresses (
     phone_number VARCHAR(20) NOT NULL,
     address_line TEXT NOT NULL,
     city VARCHAR(100) NOT NULL,
+    province_code VARCHAR(10),
+    province_name VARCHAR(150),
+    ward_code VARCHAR(10),
+    ward_name VARCHAR(150),
+    shipping_note TEXT,
+    validation_status VARCHAR(30) NOT NULL DEFAULT 'LEGACY_UNVERIFIED'
+        CONSTRAINT ck_delivery_addresses_validation_status CHECK (validation_status IN ('VALID', 'LEGACY_UNVERIFIED')),
+    administrative_data_version VARCHAR(50),
     is_default BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -43,6 +70,9 @@ END $$;
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_delivery_addresses_user_id ON delivery_addresses(user_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_addresses_default ON delivery_addresses(user_id, is_default) WHERE is_default = true;
+CREATE INDEX IF NOT EXISTS idx_admin_provinces_active_name ON administrative_provinces(active, name);
+CREATE INDEX IF NOT EXISTS idx_admin_wards_province_active_name ON administrative_wards(province_code, active, name);
+CREATE INDEX IF NOT EXISTS idx_delivery_addresses_validation_status ON delivery_addresses(user_id, validation_status);
 
 -- Seed Data for Customer Style Profiles
 INSERT INTO customer_style_profiles (

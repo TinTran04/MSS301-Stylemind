@@ -1,5 +1,13 @@
 # Docker Service URL Matrix
 
+## 2026-07-20 address-checkout boundary
+
+Order Service now depends on User Service for checkout address ownership and validation. In Docker,
+the caller must receive `USER_SERVICE_URL=http://user-service:8082`; the browser still uses only the
+Gateway public `/api/v1/users/**` and `/api/v1/orders` routes. The internal lookup is
+`GET /internal/v1/users/{userId}/addresses/{addressId}` and uses the existing `X-Internal-Token`
+interceptor/filter boundary. No internal endpoint is exposed to the frontend.
+
 This matrix records the Docker-first runtime contract. Values below are hostnames on the Compose network, not host-machine loopback addresses.
 
 | Caller | Target | Variable/property | Docker value | Internal auth |
@@ -13,6 +21,7 @@ This matrix records the Docker-first runtime contract. Values below are hostname
 | API Gateway | notification-service | `NOTIFICATION_SERVICE_URL` | `http://notification-service:8089` | Gateway routing/JWT rules |
 | API Gateway | ai-agent-service | `AI_SERVICE_URL` | `http://ai-agent-service:8085` | Gateway routing/JWT rules |
 | auth-service | notification-service | `NOTIFICATION_SERVICE_URL` | `http://notification-service:8089` | `X-Internal-Token` |
+| order-service | user-service | `USER_SERVICE_URL` | `http://user-service:8082` | `X-Internal-Token` |
 | cart-service | product-service | `PRODUCT_SERVICE_URL` | `http://product-service:8083` | `X-Internal-Token` |
 | order-service | auth-service | `AUTH_SERVICE_URL` | `http://auth-service:8081` | `X-Internal-Token` |
 | order-service | notification-service | `NOTIFICATION_SERVICE_URL` | `http://notification-service:8089` | `X-Internal-Token` |
@@ -38,6 +47,7 @@ currently consistent across all seven services.
 |---|---|---|---|
 | auth-service | no explicit override (Spring's built-in relaxed binding of the `INTERNAL_TOKEN` env var) | `INTERNAL_TOKEN` | `.env` `INTERNAL_TOKEN` |
 | order-service | `${INTERNAL_TOKEN:default}` (changed 2026-07-19, currently uncommitted in git but built into the running container) | `INTERNAL_TOKEN` | `.env` `INTERNAL_TOKEN` |
+| user-service | shared common-lib default unless overridden (Compose mapping added 2026-07-20) | `INTERNAL_TOKEN` | `.env` `INTERNAL_TOKEN` |
 | notification-service | `${X_INTERNAL_TOKEN:default}` (unchanged) | `X_INTERNAL_TOKEN`, now aliased in Compose to `${INTERNAL_TOKEN}` (fixed 2026-07-19) | `.env` `INTERNAL_TOKEN` (same value as auth/order, since the fix) |
 | product-service | `${X_INTERNAL_TOKEN:default}` | `INTERNAL_TOKEN` only (`X_INTERNAL_TOKEN` is not injected) | hardcoded default |
 | cart-service | `${X_INTERNAL_TOKEN:default}` | `INTERNAL_TOKEN` only | hardcoded default |
@@ -52,6 +62,7 @@ read-only comparison script confirmed they are **different** without printing ei
 | Caller → Target | Caller's effective token | Target's effective token | Match? | Status |
 |---|---|---|---|---|
 | order-service → auth-service | `.env INTERNAL_TOKEN` | `.env INTERNAL_TOKEN` | MATCH | Runtime-verified (HTTP 200 read-only probe, 2026-07-19) |
+| order-service → user-service | `.env INTERNAL_TOKEN` | `.env INTERNAL_TOKEN` | MATCH | **Fixed and runtime-verified 2026-07-20**: address lookup passed after User Service received the canonical Compose mapping |
 | order-service → notification-service | `.env INTERNAL_TOKEN` | `.env INTERNAL_TOKEN` (via alias) | MATCH | **Fixed and runtime-verified 2026-07-19**: direct probe went 403 → 200 after `notification-service`'s `X_INTERNAL_TOKEN` Compose mapping was aliased to `${INTERNAL_TOKEN}` |
 | auth-service → notification-service | `.env INTERNAL_TOKEN` | `.env INTERNAL_TOKEN` (via alias) | MATCH | Fixed by the same change; not independently re-probed for this specific pair (IMPLEMENTED, RUNTIME VERIFICATION PENDING) |
 | cart-service → product-service | hardcoded default | hardcoded default | MATCH (coincidental) | Not independently retested this session |

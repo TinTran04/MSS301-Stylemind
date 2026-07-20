@@ -31,6 +31,33 @@ public class Order extends BaseEntity {
     @Column(name = "shipping_address", columnDefinition = "TEXT", nullable = false)
     private String shippingAddress;
 
+    @Column(name = "source_address_id", length = 50)
+    private String sourceAddressId;
+
+    @Column(name = "shipping_recipient_name", length = 100)
+    private String shippingRecipientName;
+
+    @Column(name = "shipping_phone", length = 20)
+    private String shippingPhone;
+
+    @Column(name = "shipping_province_code", length = 10)
+    private String shippingProvinceCode;
+
+    @Column(name = "shipping_province_name", length = 150)
+    private String shippingProvinceName;
+
+    @Column(name = "shipping_ward_code", length = 10)
+    private String shippingWardCode;
+
+    @Column(name = "shipping_ward_name", length = 150)
+    private String shippingWardName;
+
+    @Column(name = "shipping_address_line", columnDefinition = "TEXT")
+    private String shippingAddressLine;
+
+    @Column(name = "shipping_note", columnDefinition = "TEXT")
+    private String shippingNote;
+
     // Explicit getters/setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
