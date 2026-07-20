@@ -16,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -440,17 +442,22 @@ public class OrderService {
     }
 
     private OrderResponse buildOrderResponse(Order order, List<OrderItem> items) {
+        Map<String, ProductClient.VariantSnapshot> variantSnapshots = new HashMap<>();
         List<OrderItemResponse> itemResponses = items.stream()
-                .map(item -> OrderItemResponse.builder()
-                        .id(item.getId())
-                        .orderId(item.getOrderId())
-                        .variantId(item.getVariantId())
-                        .quantity(item.getQuantity())
-                        .priceAtPurchase(item.getPriceAtPurchase())
-                        .isAiConversion(item.getIsAiConversion())
-                        .sourceBundleId(item.getSourceBundleId())
-                        .createdAt(item.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
-                        .build())
+                .map(item -> {
+                    OrderItemResponse response = OrderItemResponse.builder()
+                            .id(item.getId())
+                            .orderId(item.getOrderId())
+                            .variantId(item.getVariantId())
+                            .quantity(item.getQuantity())
+                            .priceAtPurchase(item.getPriceAtPurchase())
+                            .isAiConversion(item.getIsAiConversion())
+                            .sourceBundleId(item.getSourceBundleId())
+                            .createdAt(item.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
+                            .build();
+                    enrichOrderItemWithVariant(response, variantSnapshots);
+                    return response;
+                })
                 .collect(Collectors.toList());
 
         return OrderResponse.builder()
@@ -492,25 +499,51 @@ public class OrderService {
             log.debug("Customer enrichment unavailable for admin order {}: {}", response.getId(), ex.getMessage());
         }
 
-        response.getItems().forEach(item -> {
-            try {
-                var variantResponse = productClient.getVariantSnapshot(item.getVariantId());
-                if (variantResponse == null || !variantResponse.isSuccess() || variantResponse.getData() == null) {
-                    return;
-                }
-                ProductClient.VariantSnapshot variant = variantResponse.getData();
-                item.setCatalogVariantId(variant.getVariantId());
-                item.setProductId(variant.getProductId());
-                item.setProductName(variant.getProductName());
-                item.setSku(variant.getSku());
-                item.setSize(variant.getSize());
-                item.setColor(variant.getColor());
-                item.setMaterial(variant.getMaterial());
-                item.setPrimaryImageUrl(variant.getPrimaryImageUrl());
-            } catch (Exception ex) {
-                log.debug("Variant enrichment unavailable for admin order item {}: {}", item.getId(), ex.getMessage());
+        Map<String, ProductClient.VariantSnapshot> variantSnapshots = new HashMap<>();
+        response.getItems().forEach(item -> enrichOrderItemWithVariant(item, variantSnapshots));
+    }
+
+    private void enrichOrderItemWithVariant(
+            OrderItemResponse item,
+            Map<String, ProductClient.VariantSnapshot> variantSnapshots) {
+        if (item == null || !StringUtils.hasText(item.getVariantId())) {
+            return;
+        }
+        if (StringUtils.hasText(item.getCatalogVariantId())
+                && StringUtils.hasText(item.getProductId())
+                && StringUtils.hasText(item.getProductName())) {
+            return;
+        }
+
+        ProductClient.VariantSnapshot variant = variantSnapshots.computeIfAbsent(
+                item.getVariantId(),
+                this::fetchVariantSnapshotForDisplay
+        );
+        if (variant == null) {
+            return;
+        }
+
+        item.setCatalogVariantId(variant.getVariantId());
+        item.setProductId(variant.getProductId());
+        item.setProductName(variant.getProductName());
+        item.setSku(variant.getSku());
+        item.setSize(variant.getSize());
+        item.setColor(variant.getColor());
+        item.setMaterial(variant.getMaterial());
+        item.setPrimaryImageUrl(variant.getPrimaryImageUrl());
+    }
+
+    private ProductClient.VariantSnapshot fetchVariantSnapshotForDisplay(String variantId) {
+        try {
+            var variantResponse = productClient.getVariantSnapshot(variantId);
+            if (variantResponse == null || !variantResponse.isSuccess() || variantResponse.getData() == null) {
+                return null;
             }
-        });
+            return variantResponse.getData();
+        } catch (Exception ex) {
+            log.debug("Variant enrichment unavailable for order item variant {}: {}", variantId, ex.getMessage());
+            return null;
+        }
     }
 
     private void enrichAdminStatusHistory(String orderId, OrderResponse response) {

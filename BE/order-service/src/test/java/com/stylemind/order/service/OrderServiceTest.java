@@ -73,6 +73,39 @@ class OrderServiceTest {
     }
 
     @Test
+    void getOrders_enrichesCustomerOrderItemsWithVariantDisplayData() {
+        Order order = pendingPaymentOrder();
+        OrderItem item = savedItem(OrderItem.builder()
+                .id("item-1")
+                .orderId("order-1")
+                .variantId("var-A")
+                .quantity(2)
+                .priceAtPurchase(new BigDecimal("150000"))
+                .build());
+
+        ProductClient.VariantSnapshot snapshot = variantSnapshotWithDetails();
+        snapshot.setColor("White");
+
+        when(orderRepository.findByUserId("user-1")).thenReturn(List.of(order));
+        when(orderItemRepository.findByOrderId("order-1")).thenReturn(List.of(item));
+        when(productClient.getVariantSnapshot("var-A"))
+                .thenReturn(ApiResponse.success("ok", snapshot));
+
+        List<OrderResponse> response = orderService.getOrders("user-1");
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).getItems()).hasSize(1);
+        assertThat(response.get(0).getItems().get(0).getProductName()).isEqualTo("Oxford Shirt");
+        assertThat(response.get(0).getItems().get(0).getCatalogVariantId()).isEqualTo("var-A");
+        assertThat(response.get(0).getItems().get(0).getProductId()).isEqualTo("prod-1");
+        assertThat(response.get(0).getItems().get(0).getSku()).isEqualTo("SHIRT-WHITE-M");
+        assertThat(response.get(0).getItems().get(0).getColor()).isEqualTo("White");
+        assertThat(response.get(0).getItems().get(0).getSize()).isEqualTo("M");
+        assertThat(response.get(0).getItems().get(0).getPrimaryImageUrl())
+                .isEqualTo("https://images.example.test/oxford-shirt.jpg");
+    }
+
+    @Test
     void getOrderForAdmin_enrichesCustomerVariantAndPaymentDetailsWithoutChangingPurchasePrice() {
         Order order = pendingPaymentOrder();
         OrderItem item = savedItem(OrderItem.builder()

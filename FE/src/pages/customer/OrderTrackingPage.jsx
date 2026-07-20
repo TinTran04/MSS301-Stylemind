@@ -27,6 +27,21 @@ const badgeVariants = {
   failed: 'error',
 }
 
+function OrderItemImage({ item, className, iconSize = 16 }) {
+  if (item.image) {
+    return <img src={item.image} alt={item.name} className={className} />
+  }
+
+  return (
+    <div
+      aria-label={item.name}
+      className={`${className} flex items-center justify-center bg-surface-container-high text-on-surface-variant`}
+    >
+      <Package size={iconSize} />
+    </div>
+  )
+}
+
 export default function OrderTrackingPage() {
   const [orders, setOrders] = useState([])
   const [selectedTab, setSelectedTab] = useState('All')
@@ -114,7 +129,12 @@ export default function OrderTrackingPage() {
                 <p className="text-xs text-on-surface-variant">{formatDate(order.date)}</p>
                 <div className="flex gap-2 mt-2">
                   {order.items.slice(0, 3).map((item, idx) => (
-                    <img key={idx} src={item.image} alt={item.name} className="w-10 h-10 object-cover rounded-lg" />
+                    <OrderItemImage
+                      key={item.id || item.variantId || idx}
+                      item={item}
+                      className="w-10 h-10 object-cover rounded-lg"
+                      iconSize={14}
+                    />
                   ))}
                 </div>
                 <p className="text-sm font-semibold text-primary mt-2">{formatCurrency(order.total)}</p>
@@ -164,7 +184,7 @@ export default function OrderTrackingPage() {
               <div className="space-y-3 mb-6">
                 {selectedOrder.items.map((item, idx) => (
                   <div key={idx} className="flex gap-3 p-3 bg-surface-container-low rounded-lg">
-                    <img src={item.image} alt={item.name} className="w-16 h-20 object-cover rounded-lg" />
+                    <OrderItemImage item={item} className="w-16 h-20 object-cover rounded-lg" iconSize={20} />
                     <div>
                       <p className="text-sm font-medium text-primary">{item.name}</p>
                       <p className="text-xs text-on-surface-variant">Kích cỡ: {item.size} / Màu sắc: {item.color}</p>

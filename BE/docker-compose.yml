@@ -30,7 +30,7 @@ services:
     networks:
       - stylemind-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6333/ || exit 1"]
+      test: ["CMD-SHELL", "bash -c ': >/dev/tcp/localhost/6333'"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -293,7 +293,7 @@ services:
     image: stylemind/api-gateway:latest
     container_name: stylemind-gateway
     ports:
-      - "3000:3000"
+      - "${API_GATEWAY_HOST_PORT:-3001}:${API_GATEWAY_CONTAINER_PORT:-3000}"
       - "5005:5005"
     environment:
       SERVER_PORT: ${SERVER_PORT}

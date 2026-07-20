@@ -8,7 +8,7 @@ localStorage.removeItem(AUTH_TOKEN_KEY)
 localStorage.removeItem(AUTH_USER_KEY)
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001',
+  baseURL: import.meta.env?.VITE_API_BASE_URL || 'http://localhost:3001',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
