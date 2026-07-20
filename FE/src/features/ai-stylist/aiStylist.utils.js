@@ -2,16 +2,16 @@ export function formatTimestamp(dateStr) {
   return new Date(dateStr).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 }
 
-// Compact relative time for the sessions sidebar ("5 ph├║t", "2 giß╗¥", "3 ng├áy").
+// Compact relative time for the sessions sidebar ("5 phút", "2 giờ", "3 ngày").
 export function formatRelativeTime(dateStr) {
   const diffMs = Date.now() - new Date(dateStr).getTime()
   const minutes = Math.floor(diffMs / 60000)
-  if (minutes < 1) return 'Vß╗½a xong'
-  if (minutes < 60) return `${minutes} ph├║t tr╞░ß╗¢c`
+  if (minutes < 1) return 'Vừa xong'
+  if (minutes < 60) return `${minutes} phút trước`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} giß╗¥ tr╞░ß╗¢c`
+  if (hours < 24) return `${hours} giờ trước`
   const days = Math.floor(hours / 24)
-  if (days < 7) return `${days} ng├áy tr╞░ß╗¢c`
+  if (days < 7) return `${days} ngày trước`
   return new Date(dateStr).toLocaleDateString('vi-VN')
 }
 

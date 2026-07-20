@@ -13,12 +13,12 @@ const nodeColors = {
 }
 
 const TYPE_LABELS = {
-  style: 'Phong c├ích',
-  material: 'Chß║Ñt liß╗çu',
-  occasion: 'Dß╗ïp',
-  fit: 'Phom d├íng',
-  color: 'M├áu sß║»c',
-  customer: 'Kh├ích h├áng',
+  style: 'Phong cách',
+  material: 'Chất liệu',
+  occasion: 'Dịp',
+  fit: 'Phom dáng',
+  color: 'Màu sắc',
+  customer: 'Khách hàng',
   silhouette: 'Silhouette',
 }
 
@@ -30,7 +30,7 @@ export default function KnowledgeGraphPage() {
     getKnowledgeGraph().then(setGraph)
   }, [])
 
-  if (!graph) return <div className="p-8 text-on-surface-variant">─Éang tß║úi...</div>
+  if (!graph) return <div className="p-8 text-on-surface-variant">Đang tải...</div>
 
   // Simple node positions for visualization
   const nodePositions = graph.nodes.reduce((acc, node, idx) => {
@@ -44,8 +44,8 @@ export default function KnowledgeGraphPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-headline-md text-primary">─Éß╗ô thß╗ï tri thß╗⌐c</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Quß║ún l├╜ c├íc quan hß╗ç tri thß╗⌐c cß╗ºa AI</p>
+          <h1 className="font-headline-md text-primary">Đồ thị tri thức</h1>
+          <p className="text-sm text-on-surface-variant mt-1">Quản lý các quan hệ tri thức của AI</p>
         </div>
         <div className="flex gap-2">
           <button className="bg-surface-container p-2 rounded-lg hover:bg-surface-container-high"><ZoomIn size={16} /></button>
@@ -91,11 +91,11 @@ export default function KnowledgeGraphPage() {
                   <h3 className="font-title-lg text-primary">{selectedNode.label}</h3>
                 </div>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-on-surface-variant">Loß║íi</span><span className="text-primary capitalize">{TYPE_LABELS[selectedNode.type] || selectedNode.type}</span></div>
-                  <div className="flex justify-between"><span className="text-on-surface-variant">─Éß╗Ö tin cß║¡y</span><span className="text-primary">{(selectedNode.confidence * 100).toFixed(0)}%</span></div>
+                  <div className="flex justify-between"><span className="text-on-surface-variant">Loại</span><span className="text-primary capitalize">{TYPE_LABELS[selectedNode.type] || selectedNode.type}</span></div>
+                  <div className="flex justify-between"><span className="text-on-surface-variant">Độ tin cậy</span><span className="text-primary">{(selectedNode.confidence * 100).toFixed(0)}%</span></div>
                 </div>
                 <div>
-                  <h4 className="font-label-sm uppercase text-on-surface-variant mb-2">Kß║┐t nß╗æi vß╗¢i</h4>
+                  <h4 className="font-label-sm uppercase text-on-surface-variant mb-2">Kết nối với</h4>
                   <div className="space-y-1">
                     {graph.relationships.filter((r) => r.from === selectedNode.id || r.to === selectedNode.id).map((rel, idx) => {
                       const otherId = rel.from === selectedNode.id ? rel.to : rel.from
@@ -111,24 +111,24 @@ export default function KnowledgeGraphPage() {
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8 text-on-surface-variant text-sm">Chß╗ìn mß╗Öt n├║t ─æß╗â xem chi tiß║┐t</div>
+              <div className="text-center py-8 text-on-surface-variant text-sm">Chọn một nút để xem chi tiết</div>
             )}
           </div>
 
           {/* Rules Editor */}
           <div className="bg-surface-container-lowest rounded-xl p-5 ambient-shadow">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-title-lg text-primary">Quy tß║»c</h3>
+              <h3 className="font-title-lg text-primary">Quy tắc</h3>
               <button className="p-1.5 rounded hover:bg-surface-container-high"><Plus size={14} className="text-on-surface-variant" /></button>
             </div>
             <div className="space-y-3">
               <div className="bg-surface-container-low rounded-lg p-3">
-                <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-1"><GitBranch size={12} /> Nß║╛U</div>
-                <p className="text-sm text-primary">Phong c├ích = Tß╗æi giß║ún</p>
+                <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-1"><GitBranch size={12} /> NẾU</div>
+                <p className="text-sm text-primary">Phong cách = Tối giản</p>
               </div>
               <div className="bg-surface-container-low rounded-lg p-3">
-                <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-1"><GitBranch size={12} /> TH├î</div>
-                <p className="text-sm text-primary">Gß╗úi ├╜ t├┤ng m├áu trung t├¡nh</p>
+                <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-1"><GitBranch size={12} /> THÌ</div>
+                <p className="text-sm text-primary">Gợi ý tông màu trung tính</p>
               </div>
             </div>
           </div>

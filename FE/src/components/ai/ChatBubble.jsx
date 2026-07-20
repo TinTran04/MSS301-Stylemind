@@ -34,7 +34,7 @@ export default function ChatBubble({ message, isAI = true }) {
       </div>
       {!isAI && (
         <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center shrink-0">
-          <span className="text-xs font-semibold text-on-secondary-container">Bß║ín</span>
+          <span className="text-xs font-semibold text-on-secondary-container">Bạn</span>
         </div>
       )}
     </motion.div>

@@ -42,7 +42,7 @@ export default function OutfitPlanBlock({ plan, messageId }) {
           {outfits.length > 1 && (
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 rounded-full bg-primary text-on-primary text-xs font-semibold">
-                Ng├áy {dayPlan.day}
+                Ngày {dayPlan.day}
               </span>
             </div>
           )}
@@ -78,8 +78,8 @@ export default function OutfitPlanBlock({ plan, messageId }) {
                   ? <Loader2 size={12} className="animate-spin" />
                   : <ShoppingBag size={12} />}
                 {addingDay === dayPlan.day
-                  ? '─Éang th├¬m...'
-                  : addedDays.includes(dayPlan.day) ? '─É├ú th├¬m trß╗ìn set' : 'Th├¬m trß╗ìn set'}
+                  ? 'Đang thêm...'
+                  : addedDays.includes(dayPlan.day) ? 'Đã thêm trọn set' : 'Thêm trọn set'}
               </button>
             </div>
           )}

@@ -2,14 +2,14 @@
 // the Python ai-stylist service (see services/concept/ingestion.py allowed sets).
 
 export const CONCEPT_TYPE_LABELS = {
-  item_type: 'Loß║íi trang phß╗Ñc',
-  style: 'Phong c├ích',
-  occasion: 'Dß╗ïp / ho├án cß║únh',
-  body_context: 'D├íng ng╞░ß╗¥i',
-  preference: 'Sß╗ƒ th├¡ch',
-  material_property: 'Chß║Ñt liß╗çu',
-  color: 'M├áu sß║»c',
-  user_context: 'Ngß╗» cß║únh ng╞░ß╗¥i d├╣ng',
+  item_type: 'Loại trang phục',
+  style: 'Phong cách',
+  occasion: 'Dịp / hoàn cảnh',
+  body_context: 'Dáng người',
+  preference: 'Sở thích',
+  material_property: 'Chất liệu',
+  color: 'Màu sắc',
+  user_context: 'Ngữ cảnh người dùng',
 }
 
 // Monochrome-friendly accents from the app theme palette.
@@ -25,35 +25,35 @@ export const CONCEPT_TYPE_COLORS = {
 }
 
 export const RELATION_LABELS = {
-  PAIRS_WITH: 'phß╗æi hß╗úp vß╗¢i',
-  PREFERS: '╞░u ti├¬n',
-  AVOIDS: 'tr├ính',
-  COMPATIBLE_WITH: 't╞░╞íng th├¡ch vß╗¢i',
+  PAIRS_WITH: 'phối hợp với',
+  PREFERS: 'ưu tiên',
+  AVOIDS: 'tránh',
+  COMPATIBLE_WITH: 'tương thích với',
 }
 
 export const RULE_TYPE_LABELS = {
-  style_rule: 'Quy tß║»c phong c├ích',
-  body_rule: 'Quy tß║»c d├íng ng╞░ß╗¥i',
-  occasion_rule: 'Quy tß║»c theo dß╗ïp',
-  modesty_rule: 'Quy tß║»c k├¡n ─æ├ío',
-  preferred_item_types: 'Trang phß╗Ñc n├¬n chß╗ìn',
-  avoided_item_types: 'Trang phß╗Ñc n├¬n tr├ính',
-  preferred_colors: 'M├áu n├¬n chß╗ìn',
-  preferred_targets: 'Nh├│m ╞░u ti├¬n',
-  excluded_items: 'Loß║íi trß╗½',
-  pairing_rules: 'Quy tß║»c phß╗æi ─æß╗ô',
+  style_rule: 'Quy tắc phong cách',
+  body_rule: 'Quy tắc dáng người',
+  occasion_rule: 'Quy tắc theo dịp',
+  modesty_rule: 'Quy tắc kín đáo',
+  preferred_item_types: 'Trang phục nên chọn',
+  avoided_item_types: 'Trang phục nên tránh',
+  preferred_colors: 'Màu nên chọn',
+  preferred_targets: 'Nhóm ưu tiên',
+  excluded_items: 'Loại trừ',
+  pairing_rules: 'Quy tắc phối đồ',
 }
 
 export const RULE_PAYLOAD_LABELS = {
-  advice: 'Lß╗¥i khuy├¬n',
-  rationale: 'L├╜ do',
-  colors: 'M├áu sß║»c',
-  items: 'Trang phß╗Ñc',
-  avoid_items: 'N├¬n tr├ính',
-  contexts: 'Ngß╗» cß║únh',
-  constraints: 'R├áng buß╗Öc',
-  pairings: 'Phß╗æi hß╗úp',
-  examples: 'V├¡ dß╗Ñ',
+  advice: 'Lời khuyên',
+  rationale: 'Lý do',
+  colors: 'Màu sắc',
+  items: 'Trang phục',
+  avoid_items: 'Nên tránh',
+  contexts: 'Ngữ cảnh',
+  constraints: 'Ràng buộc',
+  pairings: 'Phối hợp',
+  examples: 'Ví dụ',
 }
 
 export function conceptTypeLabel(type) {

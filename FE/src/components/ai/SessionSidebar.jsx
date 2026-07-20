@@ -31,13 +31,13 @@ export default function SessionSidebar({
           onClick={onNewChat}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
         >
-          <Plus size={16} /> Cuß╗Öc tr├▓ chuyß╗çn mß╗¢i
+          <Plus size={16} /> Cuộc trò chuyện mới
         </button>
       </div>
 
       <div className="px-4 pb-2 shrink-0">
         <h4 className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-          Lß╗ïch sß╗¡ tr├▓ chuyß╗çn
+          Lịch sử trò chuyện
         </h4>
       </div>
 
@@ -50,7 +50,7 @@ export default function SessionSidebar({
 
         {!loading && sessions.length === 0 && (
           <p className="px-3 py-6 text-xs text-on-surface-variant text-center">
-            Ch╞░a c├│ cuß╗Öc tr├▓ chuyß╗çn n├áo. H├úy bß║»t ─æß║ºu hß╗Åi Stylist AI!
+            Chưa có cuộc trò chuyện nào. Hãy bắt đầu hỏi Stylist AI!
           </p>
         )}
 
@@ -73,7 +73,7 @@ export default function SessionSidebar({
               />
               <span className="flex-1 min-w-0">
                 <span className={clsx('block text-sm truncate', isActive && 'font-medium')}>
-                  {session.title || 'Cuß╗Öc tr├▓ chuyß╗çn mß╗¢i'}
+                  {session.title || 'Cuộc trò chuyện mới'}
                 </span>
                 <span className={clsx('block text-[10px] mt-0.5', isActive ? 'text-on-primary/70' : 'text-on-surface-variant')}>
                   {formatRelativeTime(session.updated_at)}
@@ -82,8 +82,8 @@ export default function SessionSidebar({
               <span
                 role="button"
                 tabIndex={-1}
-                aria-label="X├│a cuß╗Öc tr├▓ chuyß╗çn"
-                title="X├│a cuß╗Öc tr├▓ chuyß╗çn"
+                aria-label="Xóa cuộc trò chuyện"
+                title="Xóa cuộc trò chuyện"
                 onClick={(e) => handleDelete(e, session.id)}
                 className={clsx(
                   'opacity-0 group-hover:opacity-100 p-1 rounded-md transition-all shrink-0',

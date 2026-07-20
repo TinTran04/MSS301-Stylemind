@@ -14,7 +14,7 @@ export default function ProductListBlock({ products, messageId }) {
     return (
       <div className="flex items-center gap-2 text-xs text-on-surface-variant py-2">
         <PackageSearch size={14} />
-        <span>Kh├┤ng t├¼m thß║Ñy sß║ún phß║⌐m ph├╣ hß╗úp trong catalog.</span>
+        <span>Không tìm thấy sản phẩm phù hợp trong catalog.</span>
       </div>
     )
   }
@@ -33,7 +33,7 @@ export default function ProductListBlock({ products, messageId }) {
         setAddedIds((prev) => [...prev, pid])
       }
     } catch {
-      // silently fail ΓÇö user can retry
+      // silently fail — user can retry
     } finally {
       setAddingId(null)
     }
@@ -95,7 +95,7 @@ export default function ProductListBlock({ products, messageId }) {
               )}
               {colors.length > 0 && (
                 <p className="text-[11px] text-on-surface-variant">
-                  M├áu: {colors.slice(0, 3).join(', ')}
+                  Màu: {colors.slice(0, 3).join(', ')}
                 </p>
               )}
 
@@ -105,7 +105,7 @@ export default function ProductListBlock({ products, messageId }) {
                   onClick={() => handleAdd(product)}
                   disabled={isAdding || isAdded}
                   className="mt-auto flex items-center justify-center gap-1.5 w-8 h-8 rounded-full bg-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-50 self-end"
-                  title={isAdded ? '─É├ú th├¬m v├áo giß╗Å' : 'Th├¬m v├áo giß╗Å h├áng'}
+                  title={isAdded ? 'Đã thêm vào giỏ' : 'Thêm vào giỏ hàng'}
                 >
                   {isAdding
                     ? <Loader2 size={13} className="animate-spin" />

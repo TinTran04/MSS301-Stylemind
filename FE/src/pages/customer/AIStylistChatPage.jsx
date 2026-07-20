@@ -42,7 +42,7 @@ export default function AIStylistChatPage() {
           selectSession(list[0].id)
         }
       })
-      .catch(() => setError('Kh├┤ng thß╗â tß║úi danh s├ích tr├▓ chuyß╗çn.'))
+      .catch(() => setError('Không thể tải danh sách trò chuyện.'))
       .finally(() => setLoadingSessions(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
@@ -60,7 +60,7 @@ export default function AIStylistChatPage() {
       const history = await getSessionMessages(sessionId)
       setMessages(history.map(toDisplayMessage))
     } catch {
-      setError('Kh├┤ng thß╗â tß║úi lß╗ïch sß╗¡ tr├▓ chuyß╗çn.')
+      setError('Không thể tải lịch sử trò chuyện.')
     } finally {
       setLoadingMessages(false)
     }
@@ -81,7 +81,7 @@ export default function AIStylistChatPage() {
         handleNewChat()
       }
     } catch {
-      setError('Kh├┤ng thß╗â x├│a cuß╗Öc tr├▓ chuyß╗çn.')
+      setError('Không thể xóa cuộc trò chuyện.')
     }
   }
 
@@ -135,7 +135,7 @@ export default function AIStylistChatPage() {
         return updated.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
       })
     } catch {
-      setError('Stylist AI hiß╗çn ch╞░a sß║╡n s├áng. Vui l├▓ng thß╗¡ lß║íi sau.')
+      setError('Stylist AI hiện chưa sẵn sàng. Vui lòng thử lại sau.')
     } finally {
       setIsTyping(false)
     }
@@ -148,13 +148,13 @@ export default function AIStylistChatPage() {
           <Sparkles size={32} className="text-tertiary mx-auto mb-4" />
           <h3 className="text-base font-medium text-primary mb-2">Stylist AI</h3>
           <p className="text-sm text-on-surface-variant mb-6">
-            ─É─âng nhß║¡p ─æß╗â tr├▓ chuyß╗çn vß╗¢i Stylist AI v├á l╞░u lß║íi c├íc cuß╗Öc t╞░ vß║Ñn cß╗ºa bß║ín.
+            Đăng nhập để trò chuyện với Stylist AI và lưu lại các cuộc tư vấn của bạn.
           </p>
           <Link
             to="/login"
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-on-primary rounded-xl text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            <LogIn size={14} /> ─É─âng nhß║¡p
+            <LogIn size={14} /> Đăng nhập
           </Link>
         </div>
       </div>
@@ -182,7 +182,7 @@ export default function AIStylistChatPage() {
               <h3 className="text-sm font-medium text-primary">Stylist AI</h3>
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-green-status animate-pulse" />
-                <span className="text-xs text-on-surface-variant">─É├ú kß║┐t nß╗æi</span>
+                <span className="text-xs text-on-surface-variant">Đã kết nối</span>
               </div>
             </div>
           </div>
@@ -191,7 +191,7 @@ export default function AIStylistChatPage() {
         <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-6 pb-24 space-y-6">
           {loadingMessages && (
             <div className="py-12 text-center text-sm text-on-surface-variant">
-              ─Éang tß║úi lß╗ïch sß╗¡ tr├▓ chuyß╗çn...
+              Đang tải lịch sử trò chuyện...
             </div>
           )}
 
@@ -234,7 +234,7 @@ export default function AIStylistChatPage() {
             <div className="flex flex-col items-center justify-center py-12">
               <Sparkles size={32} className="text-tertiary mb-4" />
               <p className="text-on-surface-variant text-center mb-6 max-w-sm">
-                H├úy hß╗Åi vß╗ü phong c├ích, gß╗úi ├╜ trang phß╗Ñc hoß║╖c lß╗¥i khuy├¬n phß╗æi ─æß╗ô.
+                Hãy hỏi về phong cách, gợi ý trang phục hoặc lời khuyên phối đồ.
               </p>
               <PromptSuggestion onSelect={handleSend} />
             </div>
@@ -249,7 +249,7 @@ export default function AIStylistChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="M├┤ tß║ú phong c├ích bß║ín ─æang cß║ºn..."
+              placeholder="Mô tả phong cách bạn đang cần..."
               className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-on-surface-variant/50 outline-none"
             />
             <button
