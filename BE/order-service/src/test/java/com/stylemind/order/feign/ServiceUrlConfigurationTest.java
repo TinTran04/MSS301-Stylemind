@@ -87,7 +87,7 @@ class ServiceUrlConfigurationTest {
 
         String notificationServiceBlock = compose.substring(
                 compose.indexOf("\n  notification-service:"),
-                compose.indexOf("\n  ai-agent-service:"));
+                compose.indexOf("\nnetworks:"));
 
         assertThat(notificationServiceBlock)
                 .as("notification-service's X_INTERNAL_TOKEN must be sourced from the same "

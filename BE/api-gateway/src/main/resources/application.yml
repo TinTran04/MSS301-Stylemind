@@ -82,12 +82,21 @@ spring:
           uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
           predicates:
             - Path=/api/v1/admin/notifications/**
+        - id: ai-chat-service
+          uri: ${AI_CHAT_SERVICE_URL:${AI_SERVICE_URL:http://host.docker.internal:8000}}
+          predicates:
+            - Path=/api/v1/ai-stylist/sessions,/api/v1/ai-stylist/sessions/**,/api/v1/ai-stylist/knowledge,/api/v1/ai-stylist/knowledge/**
+          filters:
+            - RewritePath=/api/v1/ai-stylist/(?<segment>.*), /api/v1/$\{segment}
+          metadata:
+            response-timeout: 300000
+            connect-timeout: 5000
         - id: ai-service
-          uri: ${AI_SERVICE_URL:http://localhost:8085}
+          uri: ${AI_SERVICE_URL:http://host.docker.internal:8000}
           predicates:
             - Path=/api/v1/ai-stylist/**
         - id: admin-ai-service
-          uri: ${AI_SERVICE_URL:http://localhost:8085}
+          uri: ${AI_SERVICE_URL:http://host.docker.internal:8000}
           predicates:
             - Path=/api/v1/admin/ai/**
         - id: admin-users-service

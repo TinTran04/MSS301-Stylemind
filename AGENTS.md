@@ -28,7 +28,7 @@ All external clients route requests via **API Gateway (Port 3000)** under `/api/
 | `auth-service` | `8081` | `auth_db` | Authentication, RBAC, users management |
 | `user-service` | `8082` | `user_db` | Biometric profiles, delivery addresses |
 | `product-service` | `8083` | `product_db` | Categories, products, variants, images |
-| `ai-agent-service` | `8085` | `ai_db` | Chatbot, AI bundles, analytics, vector indexing |
+| `ai-stylist-service` | `8000` | `ai_stylist` | FastAPI AI Stylist Chatbot, Vector search, Knowledge Graph (D:\MSS_AI_SERVICE) |
 | `cart-service` | `8086` | `cart_db` | Shopping carts, item selections |
 | `order-service` | `8087` | `order_db` | Orders management, Saga state transitions |
 | `payment-service` | `8088` | `payment_db` | Simulates payment checkout and refunds |

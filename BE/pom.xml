@@ -128,7 +128,6 @@
         <module>cart-service</module>
         <module>order-service</module>
         <module>payment-service</module>
-        <module>ai-agent-service</module>
         <module>notification-service</module>
     </modules>
 

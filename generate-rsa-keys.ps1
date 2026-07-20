@@ -4,7 +4,7 @@
 # PREREQUISITE: If openssl is not recognized, add Git/usr/bin to PATH:
 # $env:Path += ";C:\Program Files\Git\usr\bin"
 
-$certsDir = ".docker\certs"
+$certsDir = "BE\.docker\certs"
 
 # Create directory if it doesn't exist
 if (-not (Test-Path $certsDir)) {
