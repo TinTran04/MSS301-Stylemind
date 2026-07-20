@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { ShoppingCart, TrendingDown, Clock, DollarSign, Eye, RefreshCw, Filter, Search } from 'lucide-react'
+import {
+  ShoppingCart, TrendingDown, Clock, DollarSign,
+  Eye, RefreshCw, Filter, Search, ChevronLeft, ChevronRight,
+} from 'lucide-react'
 import MetricCard from '../../components/admin/MetricCard'
 import StatusBadge from '../../components/admin/StatusBadge'
 import { getAdminOrders } from '../../features/orders/admin-order.api'
 import {
   formatStatusLabel,
   ORDER_STATUS_TRANSITIONS,
-  ORDER_REVENUE_STATUSES,
   normalizeOrderStatus,
 } from '../../features/orders/orderStatus'
 import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
@@ -19,30 +21,51 @@ const STATUS_OPTIONS = ['All', ...Object.keys(ORDER_STATUS_TRANSITIONS)]
 const STATUS_FILTER_LABELS = {
   All: 'Mọi trạng thái',
 }
+const PAGE_SIZE = 20
 
 export default function OrderManagementPage() {
   const navigate = useNavigate()
   const location = useLocation()
+
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [listError, setListError] = useState(null)
+
+  // Filters
   const [statusFilter, setStatusFilter] = useState('All')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [customerInput, setCustomerInput] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
 
-  const fetchOrders = useCallback(async () => {
+  // Pagination & metrics — all sourced from the backend to avoid partial-page errors
+  const [currentPage, setCurrentPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalElements, setTotalElements] = useState(0)
+  const [totalRevenue, setTotalRevenue] = useState(0)
+
+  const fetchOrders = useCallback(async (page = 0) => {
     setLoading(true)
     setListError(null)
     try {
-      const data = await getAdminOrders({
+      const params = {
+        size: PAGE_SIZE,
+        page,
         status: statusFilter === 'All' ? undefined : statusFilter,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
         userId: customerFilter || undefined,
-      })
-      setOrders(data.content || data || [])
+      }
+      // API now returns { page: { content, totalElements, totalPages, ... }, totalRevenue }
+      const data = await getAdminOrders(params)
+
+      const pageData = data?.page ?? data
+      setOrders(pageData?.content ?? [])
+      setTotalElements(pageData?.totalElements ?? 0)
+      setTotalPages(pageData?.totalPages ?? 1)
+      setCurrentPage(pageData?.number ?? 0)
+      // totalRevenue comes from the backend — covers ALL matching orders, not just this page
+      setTotalRevenue(data?.totalRevenue ?? 0)
     } catch (err) {
       const friendly = getAdminErrorMessage(err, {
         fallbackTitle: 'Không thể tải danh sách đơn hàng',
@@ -54,8 +77,10 @@ export default function OrderManagementPage() {
     }
   }, [statusFilter, fromDate, toDate, customerFilter])
 
+  // Reset to page 0 whenever filters change
   useEffect(() => {
-    fetchOrders()
+    setCurrentPage(0)
+    fetchOrders(0)
   }, [fetchOrders])
 
   const handleCustomerSearch = (e) => {
@@ -64,11 +89,6 @@ export default function OrderManagementPage() {
   }
 
   const getOrderStatus = (order) => normalizeOrderStatus(order?.orderStatus || 'PENDING')
-  const revenueTotal = orders.reduce((sum, order) => {
-    const status = normalizeOrderStatus(order.orderStatus)
-    if (!ORDER_REVENUE_STATUSES.has(status)) return sum
-    return sum + (order.totalAmount || order.total || 0)
-  }, 0)
 
   const navigateToDetail = (orderId, event) => {
     event?.stopPropagation()
@@ -77,13 +97,19 @@ export default function OrderManagementPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="font-headline-md text-primary">Quản lý đơn hàng</h1>
-        <button onClick={fetchOrders} disabled={loading} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40">
+        <button
+          onClick={() => fetchOrders(currentPage)}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40"
+        >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
         </button>
       </div>
 
+      {/* Error banner */}
       {listError && (
         <div className="rounded-lg border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-error">
           <p className="font-medium">{listError.title}</p>
@@ -91,6 +117,7 @@ export default function OrderManagementPage() {
         </div>
       )}
 
+      {/* Filters */}
       <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
         <div className="flex items-center gap-2">
           <Filter size={16} className="text-on-surface-variant shrink-0" />
@@ -140,13 +167,20 @@ export default function OrderManagementPage() {
         )}
       </div>
 
+      {/* Metric cards — all values sourced from the backend */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Giao dịch" value={orders.length} change={0} icon={ShoppingCart} />
+        <MetricCard title="Giao dịch" value={totalElements} change={0} icon={ShoppingCart} />
         <MetricCard title="Tỷ lệ thất bại" value="0%" change={0} icon={TrendingDown} status="good" />
         <MetricCard title="Thời gian xử lý TB" value="-" change={0} icon={Clock} status="good" />
-        <MetricCard title="Doanh thu" value={formatCurrency(revenueTotal)} change={0} icon={DollarSign} />
+        <MetricCard
+          title="Doanh thu"
+          value={formatCurrency(totalRevenue)}
+          change={0}
+          icon={DollarSign}
+        />
       </div>
 
+      {/* Orders table */}
       <div className="bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -191,8 +225,32 @@ export default function OrderManagementPage() {
             </tbody>
           </table>
         </div>
-      </div>
 
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-outline-variant/20 text-sm text-on-surface-variant">
+            <span>
+              Trang {currentPage + 1} / {totalPages} · {totalElements} đơn hàng
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => fetchOrders(currentPage - 1)}
+                disabled={currentPage === 0 || loading}
+                className="p-1.5 rounded-lg hover:bg-surface-container-high disabled:opacity-30 transition-colors"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                onClick={() => fetchOrders(currentPage + 1)}
+                disabled={currentPage >= totalPages - 1 || loading}
+                className="p-1.5 rounded-lg hover:bg-surface-container-high disabled:opacity-30 transition-colors"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

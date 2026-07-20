@@ -7,7 +7,7 @@ import com.stylemind.order.config.ResilientReadFeignConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
-@FeignClient(name = "cart-service", url = "${CART_SERVICE_URL:http://localhost:8086}", configuration = ResilientReadFeignConfig.class)
+@FeignClient(name = "cart-service", url = "${CART_SERVICE_URL}", configuration = ResilientReadFeignConfig.class)
 public interface CartClient {
 
     @GetMapping("/api/v1/cart")

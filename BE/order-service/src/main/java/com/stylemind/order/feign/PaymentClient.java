@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-@FeignClient(name = "payment-service", url = "${PAYMENT_SERVICE_URL:http://localhost:8088}")
+@FeignClient(name = "payment-service", url = "${PAYMENT_SERVICE_URL}")
 public interface PaymentClient {
 
     @PostMapping("/internal/v1/payments/cod")

@@ -330,7 +330,7 @@ public class OrderService {
                 .collect(Collectors.toList());
     }
 
-    public org.springframework.data.domain.Page<OrderResponse> getAllOrdersForAdmin(
+    public com.stylemind.order.dto.AdminOrdersResponse getAllOrdersForAdmin(
             String status, String userId, java.time.LocalDateTime fromDate, java.time.LocalDateTime toDate,
             org.springframework.data.domain.Pageable pageable) {
         OrderStatus statusFilter = null;
@@ -342,8 +342,21 @@ public class OrderService {
             }
         }
         String userIdFilter = org.springframework.util.StringUtils.hasText(userId) ? userId : null;
-        return orderRepository.search(statusFilter, userIdFilter, fromDate, toDate, pageable)
+
+        var page = orderRepository.search(statusFilter, userIdFilter, fromDate, toDate, pageable)
                 .map(order -> buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId())));
+
+        var revenueStatuses = java.util.EnumSet.of(
+                OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.PROCESSING,
+                OrderStatus.SHIPPED, OrderStatus.COMPLETED);
+
+        var totalRevenue = orderRepository.sumRevenueForSearch(
+                statusFilter, userIdFilter, fromDate, toDate, revenueStatuses);
+
+        return com.stylemind.order.dto.AdminOrdersResponse.builder()
+                .page(page)
+                .totalRevenue(totalRevenue)
+                .build();
     }
 
     public OrderResponse getOrderForAdmin(String orderId) {

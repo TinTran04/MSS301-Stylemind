@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 
-@FeignClient(name = "product-service", url = "${PRODUCT_SERVICE_URL:http://localhost:8083}", configuration = ResilientReadFeignConfig.class)
+@FeignClient(name = "product-service", url = "${PRODUCT_SERVICE_URL}", configuration = ResilientReadFeignConfig.class)
 public interface ProductClient {
 
     @GetMapping("/internal/v1/products/variants/{variantId}")
