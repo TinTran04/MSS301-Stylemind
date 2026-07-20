@@ -568,6 +568,86 @@ services:
       - all
 
 
+  # ----------------------------------------------------
+  # AI Stylist — PostgreSQL (sessions & messages DB)
+  # Profile: infra (owned infra) + all
+  # Port 5433 on host to avoid colliding with shared postgres on 5432
+  # ----------------------------------------------------
+  postgres-ai-stylist:
+    image: postgres:16-alpine
+    container_name: postgres-ai-stylist
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: ${AI_POSTGRES_DB:-ai_stylist}
+      POSTGRES_USER: ${AI_POSTGRES_USER:-stylist}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-stylist123}
+    volumes:
+      - pgdata-ai-stylist:/var/lib/postgresql/data
+    networks:
+      - stylemind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AI_POSTGRES_USER:-stylist} -d ${AI_POSTGRES_DB:-ai_stylist}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+      - all
+
+  # ----------------------------------------------------
+  # AI Stylist — Python FastAPI Service
+  # Profile: app + all
+  # Pulls pre-built image from Docker Hub — no Python source needed locally.
+  # To rebuild: see FULL_GUIDE_START.md → "Manual Build & Push"
+  # ----------------------------------------------------
+  ai-stylist-service:
+    image: ${AI_STYLIST_IMAGE:-stylemind/ai-stylist-service:latest}
+    container_name: ai-stylist-service
+    environment:
+      # PostgreSQL — own sessions DB (within stylemind-network)
+      POSTGRES_HOST: postgres-ai-stylist
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${AI_POSTGRES_DB:-ai_stylist}
+      POSTGRES_USER: ${AI_POSTGRES_USER:-stylist}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-stylist123}
+      # Neo4j — shared infra container
+      NEO4J_URI: bolt://stylemind-neo4j:7687
+      NEO4J_USER: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password}
+      # Qdrant — shared infra container
+      QDRANT_URL: http://stylemind-qdrant:6333
+      QDRANT_CONCEPT_COLLECTION: ${QDRANT_CONCEPT_COLLECTION:-ai_stylist_concepts}
+      QDRANT_PRODUCT_COLLECTION: ${QDRANT_PRODUCT_COLLECTION:-ai_stylist_products}
+      # Product Service — internal network
+      PRODUCT_SERVICE_BASE_URL: http://product-service:8083
+      # Gemini API Key
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-text-embedding-004}
+      # Firecrawl (optional — blog ingestion only)
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      FIRECRAWL_BASE_URL: https://api.firecrawl.dev/v2
+      # App
+      APP_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CONCEPT_SIMILARITY_THRESHOLD: ${CONCEPT_SIMILARITY_THRESHOLD:-0.65}
+    volumes:
+      # Zero-Trust JWT public key — mounted read-only at runtime
+      - ./.docker/certs:/app/certs:ro
+    depends_on:
+      postgres-ai-stylist:
+        condition: service_healthy
+      stylemind-neo4j:
+        condition: service_healthy
+      stylemind-qdrant:
+        condition: service_started
+    networks:
+      - stylemind-network
+    profiles:
+      - app
+      - all
+
 
 networks:
   stylemind-network:
@@ -581,6 +661,7 @@ volumes:
   pgdata-order:
   pgdata-payment:
   pgdata-notification:
+  pgdata-ai-stylist:
   qdrant_data:
   neo4j_data:
   minio_data:

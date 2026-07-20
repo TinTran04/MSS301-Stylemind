@@ -1,4 +1,4 @@
-﻿# StyleMind — Full Stack Start Guide
+# StyleMind — Full Stack Start Guide
 
 > **Tài liệu dành cho toàn team.** Mô tả đầy đủ cấu trúc dự án, các file cần xin từ main developer, và thứ tự khởi động toàn bộ stack.
 
@@ -420,3 +420,119 @@ docker compose --profile app --profile infra down
 ### Frontend không gọi được API
 → Kiểm tra `FE/.env` có `VITE_API_BASE_URL=http://localhost:3000`.
 → Kiểm tra Gateway đang chạy: `docker ps | grep gateway`.
+
+---
+
+## Manual Build & Push — Python AI Service Image
+
+> **Dành cho developer chịu trách nhiệm release image.** Các thành viên khác chỉ cần `docker compose up` — Docker tự pull image về.
+
+### Yêu Cầu
+
+- Docker Desktop đang chạy
+- Tài khoản Docker Hub (hoặc registry nội bộ)
+- Có source code tại `MSS301-AI-Service-real/AI-stylist-recommendation/`
+
+### Bước 1 — Đăng nhập Docker Hub
+
+```powershell
+docker login
+# Nhập Docker Hub username và password (hoặc Access Token)
+# Tạo Access Token tại: https://hub.docker.com/settings/security
+```
+
+### Bước 2 — Vào thư mục Python AI service
+
+```powershell
+cd "c:\Users\KHAI\Documents\semester 8\MSS301-Code\MSS301-AI-Service-real\AI-stylist-recommendation"
+```
+
+### Bước 3 — Build image (multi-stage với uv)
+
+```powershell
+# Syntax: docker build -t <username>/<image-name>:<tag> .
+docker build -t your-dockerhub-username/ai-stylist-service:latest .
+
+# Build với tag phiên bản cụ thể (khuyến nghị cho production)
+docker build -t your-dockerhub-username/ai-stylist-service:v1.0.0 .
+```
+
+> `Dockerfile` tại repo dùng multi-stage build:
+> - **Stage 1 (builder):** Cài deps bằng `uv sync --frozen` vào `.venv`
+> - **Stage 2 (runtime):** Chỉ copy `.venv` + `src/` — không có build tools, không có secrets
+
+### Bước 4 — Verify image build thành công
+
+```powershell
+docker images | Select-String "ai-stylist-service"
+# Expected: your-dockerhub-username/ai-stylist-service  latest  <image-id>  <size>
+
+# Test chạy thử local (không cần .env — chỉ kiểm tra image boot được không)
+docker run --rm -p 8000:8000 your-dockerhub-username/ai-stylist-service:latest
+# Ctrl+C để dừng
+```
+
+### Bước 5 — Tag thêm alias nếu cần
+
+```powershell
+# Tag thêm version cụ thể song song với latest
+docker tag your-dockerhub-username/ai-stylist-service:latest `
+           your-dockerhub-username/ai-stylist-service:v1.0.0
+```
+
+### Bước 6 — Push lên Docker Hub
+
+```powershell
+# Push tag latest
+docker push your-dockerhub-username/ai-stylist-service:latest
+
+# Push tag version (nếu có)
+docker push your-dockerhub-username/ai-stylist-service:v1.0.0
+```
+
+### Bước 7 — Cập nhật `BE/.env` trong repo chính
+
+Sau khi push xong, cập nhật biến `AI_STYLIST_IMAGE` trong `BE/.env` để team pull đúng image:
+
+```env
+# Thay your-dockerhub-username bằng username thực
+AI_STYLIST_IMAGE=your-dockerhub-username/ai-stylist-service:latest
+```
+
+### Bước 8 — Team member pull và chạy
+
+Các thành viên khác **không cần Python source** — chỉ cần:
+
+```powershell
+# Từ thư mục MSS301-Stylemind/BE/
+# Pull image mới nhất (nếu đã chạy trước đó)
+docker compose --profile app pull ai-stylist-service
+
+# Start toàn bộ stack (Docker tự pull nếu chưa có image local)
+docker compose --profile infra up -d
+docker compose --profile app up -d
+```
+
+### Tagging Convention
+
+| Tag | Dùng khi |
+|---|---|
+| `latest` | Luôn trỏ vào build mới nhất ổn định |
+| `v1.0.0`, `v1.1.0` | Release cụ thể theo semver |
+| `dev-YYYYMMDD` | Build dev hàng ngày (optional) |
+
+### Nếu dùng registry khác (GitHub Container Registry)
+
+```powershell
+# Login
+docker login ghcr.io -u YOUR_GITHUB_USERNAME
+
+# Build + tag
+docker build -t ghcr.io/your-org/ai-stylist-service:latest .
+
+# Push
+docker push ghcr.io/your-org/ai-stylist-service:latest
+
+# Cập nhật .env
+# AI_STYLIST_IMAGE=ghcr.io/your-org/ai-stylist-service:latest
+```
