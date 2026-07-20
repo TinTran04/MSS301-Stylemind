@@ -235,29 +235,7 @@ services:
       - app
       - all
 
-  postgres-ai:
-    image: postgres:15-alpine
-    container_name: postgres-ai
-    ports:
-      - "5439:5432"
-    environment:
-      POSTGRES_DB: ai_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    volumes:
-      - pgdata-ai:/var/lib/postgresql/data
-      - ./init-scripts/08-ai-db.sql:/docker-entrypoint-initdb.d/08-ai-db.sql
-    networks:
-      - stylemind-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_db"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    profiles:
-      - infra
-      - app
-      - all
+
 
   postgres-notification:
     image: postgres:15-alpine
@@ -608,50 +586,7 @@ services:
       - app
       - all
 
-  # ----------------------------------------------------
-  # 7. AI Agent Service (Profile: app, all)
-  # ----------------------------------------------------
-  ai-agent-service:
-    build:
-      context: .
-      dockerfile: ai-agent-service/Dockerfile
-    image: stylemind/ai-agent-service:latest
-    container_name: ai-agent-service
-    ports:
-      - "8085:8085"
-      - "5010:5005"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-ai:5432/ai_db
-      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
-      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
-      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
-      JWT_ALGORITHM: ${JWT_ALGORITHM}
-      JWT_KEY_SIZE: ${JWT_KEY_SIZE}
-      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
-      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
-      QDRANT_HOST: ${QDRANT_HOST}
-      QDRANT_PORT: ${QDRANT_PORT}
-      NEO4J_URI: ${NEO4J_URI}
-      NEO4J_USERNAME: ${NEO4J_USERNAME}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
-      LLM_API_KEY: ${LLM_API_KEY}
-      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
-      PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL}
-      ORDER_SERVICE_URL: ${ORDER_SERVICE_URL}
-      SERVER_PORT: ${SERVER_PORT_AI}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
-    volumes:
-      - ./.docker/certs:/app/certs:ro
-    depends_on:
-      postgres-ai:
-        condition: service_healthy
-      neo4j:
-        condition: service_healthy
-    networks:
-      - stylemind-network
-    profiles:
-      - app
-      - all
+
 
 networks:
   stylemind-network:
@@ -664,7 +599,6 @@ volumes:
   pgdata-cart:
   pgdata-order:
   pgdata-payment:
-  pgdata-ai:
   pgdata-notification:
   qdrant_data:
   neo4j_data:

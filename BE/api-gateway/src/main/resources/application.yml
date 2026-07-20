@@ -83,11 +83,11 @@ spring:
           predicates:
             - Path=/api/v1/admin/notifications/**
         - id: ai-service
-          uri: ${AI_SERVICE_URL:http://localhost:8085}
+          uri: forward:/
           predicates:
             - Path=/api/v1/ai-stylist/**
         - id: admin-ai-service
-          uri: ${AI_SERVICE_URL:http://localhost:8085}
+          uri: forward:/
           predicates:
             - Path=/api/v1/admin/ai/**
         - id: admin-users-service
