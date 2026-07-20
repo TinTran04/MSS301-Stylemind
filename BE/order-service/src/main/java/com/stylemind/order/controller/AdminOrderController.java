@@ -2,6 +2,7 @@ package com.stylemind.order.controller;
 
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.security.UserPrincipal;
+import com.stylemind.order.dto.AdminOrdersResponse;
 import com.stylemind.order.dto.AdminOrderSummaryResponse;
 import com.stylemind.order.dto.OrderResponse;
 import com.stylemind.order.dto.UpdateOrderStatusRequest;
@@ -28,19 +29,19 @@ public class AdminOrderController {
     private final OrderService orderService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<Page<OrderResponse>>> getOrders(
+    public ResponseEntity<ApiResponse<AdminOrdersResponse>> getOrders(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @PageableDefault(size = 20) Pageable pageable) {
-        Page<OrderResponse> orders = orderService.getAllOrdersForAdmin(
+        AdminOrdersResponse result = orderService.getAllOrdersForAdmin(
                 status,
                 userId,
                 fromDate != null ? fromDate.atStartOfDay() : null,
                 toDate != null ? toDate.atTime(23, 59, 59) : null,
                 pageable);
-        return ResponseEntity.ok(ApiResponse.success("Admin orders fetched successfully", orders));
+        return ResponseEntity.ok(ApiResponse.success("Admin orders fetched successfully", result));
     }
 
     @GetMapping("/summary")

@@ -51,4 +51,20 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             @Param("toDate") LocalDateTime toDate,
             Pageable pageable
     );
+
+    @Query("""
+            SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o
+            WHERE (CAST(:status AS string) IS NULL OR o.orderStatus = :status)
+              AND (:userId IS NULL OR o.userId = :userId)
+              AND (CAST(:fromDate AS timestamp) IS NULL OR o.createdAt >= :fromDate)
+              AND (CAST(:toDate AS timestamp) IS NULL OR o.createdAt <= :toDate)
+              AND o.orderStatus IN :revenueStatuses
+            """)
+    BigDecimal sumRevenueForSearch(
+            @Param("status") OrderStatus status,
+            @Param("userId") String userId,
+            @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate,
+            @Param("revenueStatuses") Collection<OrderStatus> revenueStatuses
+    );
 }
