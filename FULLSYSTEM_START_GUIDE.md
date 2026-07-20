@@ -405,8 +405,7 @@ docker compose down -v
 - [Backend Architecture](BE/README.md)
 - [Frontend Documentation](FE/README.md)
 - [Docker Configuration](BE/docker-compose.yml)
-- [Environment Variables](BE/.env)
-- [JWT Implementation](docs/AGENT_WORKSPACE/ASYMMETRIC_JWT_IMPLEMENTATION_PLAN.md)
+- [Environment Variables Template](BE/.env.example)
 
 ---
 
