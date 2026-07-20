@@ -58,3 +58,13 @@ change/
 .agent/skills/
 .playwright-cli/
 output/
+
+# Dev-only tools & AI agent files (local only, not for production/git)
+.devin/
+skills-lock.json
+
+# Dev-only docs and scripts (kept locally, not tracked)
+summary.md
+generate-rsa-keys.ps1
+DOCKER_DEBUG_GUIDE.md
+docs/

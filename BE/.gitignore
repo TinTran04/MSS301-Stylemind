@@ -18,3 +18,8 @@ scripts/bin/harness-cli.exe
 .env
 .env.local
 .env.docker
+
+# Dev-only files (kept locally, not tracked in git)
+.env.example
+scripts/
+LOCAL_DEVELOPMENT_GUIDE.md
