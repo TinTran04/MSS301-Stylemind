@@ -293,6 +293,8 @@ services:
       REDIS_PORT: ${REDIS_PORT}
     volumes:
       - ./.docker/certs:/app/certs:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Linux: resolve host.docker.internal → host machine
     networks:
       - stylemind-network
     profiles:
