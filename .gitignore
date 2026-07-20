@@ -70,12 +70,13 @@ DOCKER_DEBUG_GUIDE.md
 docs/reports/
 
 # Production Cleanup Exclusions (Documentation and Dev Scripts)
-docs/
-scripts/
+docs/*
+!docs/architecture/
+scripts/*
+!scripts/full-up.sh
 README.md
 RUN_GUIDE.md
 README-WINDOWS.md
-architecture_diagram.jpg
 BE/README.md
 BE/PROJECT_SPEC.md
 BE/init-scripts/00-create-databases.sh.backup
