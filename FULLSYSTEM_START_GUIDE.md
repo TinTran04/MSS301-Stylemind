@@ -14,12 +14,12 @@ API Gateway (Port 3000)
 ├── Order Service (8087)
 ├── Payment Service (8088)
 ├── Notification Service (8089)
-└── AI Agent Service (8085)
+└── AI Stylist Service (8000 internal, mapped under Gateway /api/v1/ai-stylist)
 ```
 
 **Luồng kết nối:**
 - Frontend gọi API thông qua API Gateway (Port 3000)
-- Gateway routing requests đến các microservices tương ứng
+- Gateway routing requests đến các microservices tương ứng (AI Stylist được route từ `/api/v1/ai-stylist/**` về `http://ai-stylist-service:8000`)
 - Auth Service phát hành JWT tokens (RSA-2048)
 - Các services khác verify JWT tokens bằng public key
 
@@ -193,16 +193,16 @@ docker compose ps
 | Order Service | 8087 | Order processing & management |
 | Payment Service | 8088 | Payment simulation |
 | Notification Service | 8089 | Notification logging |
-| AI Agent Service | 8085 | AI Stylist & chatbot |
+| AI Stylist Service | 8000 (Internal) | AI Stylist recommendation agent (Python FastAPI) |
 
 ### 2.6. Infrastructure Components
 
 | Component | Port | Mô tả |
 |-----------|------|-------|
-| PostgreSQL | 5433-5440 | 9 databases cho các services |
+| PostgreSQL | 5433-5441 | 10 databases cho các services (ai_stylist dùng port 5441) |
 | Redis | 6379 | Caching & session storage |
 | Qdrant | 6333 | Vector DB cho product search |
-| Neo4j | 7474, 7687 | Graph DB cho fashion taxonomy |
+| Neo4j | 7474, 7687 | Graph DB cho fashion taxonomy & knowledge graph |
 | MinIO | 9000, 9001 | S3-compatible image storage |
 
 ### 2.7. Cơ chế Fail-Fast
@@ -217,7 +217,8 @@ docker compose ps
 **Environment variables bắt buộc:**
 - `JWT_PRIVATE_KEY_PATH` - Auth Service only
 - `JWT_PUBLIC_KEY_PATH` - Tất cả services
-- `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` - AI Agent Service only
+- `GEMINI_API_KEY` - AI Stylist Service (Bắt buộc để chạy LLM/Embedding agent)
+- `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` - AI Stylist Service & Java Product Service
 
 ### 2.8. Rebuild Services
 
@@ -256,6 +257,23 @@ docker compose --profile all up -d --build
 ```
 
 Lưu ý: Lệnh này sẽ **XÓA TẤT CẢ DỮ LIỆU** trong databases.
+
+### 2.9. Tự động Khởi tạo Dữ liệu (Auto-seeding / Initialization)
+
+Khi khởi động toàn bộ hệ thống bằng Docker Compose với profile `all` (`docker compose --profile all up -d`):
+- Container `ai-stylist-service` khi bắt đầu khởi chạy sẽ **tự động thực thi tuần tự 3 script seeding** trước khi khởi động API server:
+  1. `init_concepts.py` — Khởi tạo các khái niệm thời trang (Fashion Concepts).
+  2. `init_graphdb.py --clear` — Khởi tạo Đồ thị tri thức (Knowledge Graph) trên Neo4j.
+  3. `init_qdrant.py --recreate` — Khởi tạo và lập chỉ mục (index) dữ liệu sản phẩm trên Qdrant.
+- Vì thế, các developers **không cần chạy thủ công** các script python này. Dữ liệu thời trang và sản phẩm cần thiết cho AI Stylist sẽ tự động được setup đầy đủ.
+
+*Lưu ý: Nếu bạn muốn chạy thủ công các script này (ví dụ ở môi trường local chạy trực tiếp bằng python ngoài Docker)*:
+```bash
+cd ../MSS301-AI-Service-real/AI-stylist-recommendation
+uv run python scripts/init_concepts.py
+uv run python scripts/init_graphdb.py --clear
+uv run python scripts/init_qdrant.py --recreate
+```
 
 ---
 
@@ -325,8 +343,8 @@ curl.exe -s http://localhost:8088/actuator/health
 # Notification Service
 curl.exe -s http://localhost:8089/actuator/health
 
-# AI Agent Service
-curl.exe -s http://localhost:8085/actuator/health
+# AI Stylist Service (qua API Gateway)
+curl.exe -s http://localhost:3000/api/v1/ai-stylist/health
 ```
 
 ### 4.2. Kiểm tra Gateway Routing
