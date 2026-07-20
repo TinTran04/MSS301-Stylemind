@@ -638,9 +638,9 @@ services:
     depends_on:
       postgres-ai-stylist:
         condition: service_healthy
-      stylemind-neo4j:
+      neo4j:
         condition: service_healthy
-      stylemind-qdrant:
+      qdrant:
         condition: service_started
     networks:
       - stylemind-network
