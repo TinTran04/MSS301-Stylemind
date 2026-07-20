@@ -188,7 +188,7 @@ export default function AIStylistChatPage() {
             <div key={msg.id}>
               <ChatBubble message={msg} isAI={msg.role === 'ai'} />
               {msg.outfitPlan && (
-                <div className="mt-3 ml-11">
+                <div className="mt-3 ml-11 max-w-[70%]">
                   <OutfitPlanBlock plan={msg.outfitPlan} messageId={msg.id} />
                 </div>
               )}
