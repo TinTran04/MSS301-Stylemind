@@ -308,9 +308,6 @@ services:
       dockerfile: auth-service/Dockerfile
     image: stylemind/auth-service:latest
     container_name: auth-service
-    ports:
-      - "8081:8081"
-      - "5006:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/auth_db
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
@@ -347,9 +344,6 @@ services:
       dockerfile: user-service/Dockerfile
     image: stylemind/user-service:latest
     container_name: user-service
-    ports:
-      - "8082:8082"
-      - "5007:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/user_db
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
@@ -380,9 +374,6 @@ services:
       dockerfile: product-service/Dockerfile
     image: stylemind/product-service:latest
     container_name: product-service
-    ports:
-      - "8083:8083"
-      - "5008:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-product:5432/product_db
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
@@ -422,9 +413,6 @@ services:
       dockerfile: cart-service/Dockerfile
     image: stylemind/cart-service:latest
     container_name: cart-service
-    ports:
-      - "8086:8086"
-      - "5011:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-cart:5432/cart_db
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
@@ -456,9 +444,6 @@ services:
       dockerfile: order-service/Dockerfile
     image: stylemind/order-service:latest
     container_name: order-service
-    ports:
-      - "8087:8087"
-      - "5012:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/order_db
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
@@ -494,9 +479,6 @@ services:
       dockerfile: payment-service/Dockerfile
     image: stylemind/payment-service:latest
     container_name: payment-service
-    ports:
-      - "8088:8088"
-      - "5013:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/payment_db
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
@@ -538,9 +520,6 @@ services:
       dockerfile: notification-service/Dockerfile
     image: stylemind/notification-service:latest
     container_name: notification-service
-    ports:
-      - "8089:8089"
-      - "5014:5005"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-notification:5432/notification_db
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
