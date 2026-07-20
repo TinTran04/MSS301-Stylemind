@@ -4,7 +4,7 @@ Mở file service tương ứng khi bạn đang code service đó.
 
 | Service | Port | DB | File |
 |---|---|---|---|
-| api-gateway | 3001 | — | `api-gateway.md` |
+| api-gateway | 3000 | — | `api-gateway.md` |
 | auth-service | 8081 | auth_db | `auth-service.md` |
 | user-service | 8082 | user_db | `user-service.md` |
 | product-service | 8083 | product_db | `product-service.md` |

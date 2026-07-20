@@ -11,7 +11,7 @@ Hệ thống theo mô hình **microservices**: mỗi service phụ trách một 
 | Mô hình | Microservices Spring Boot + ReactJS |
 | Frontend | ReactJS / Vite |
 | Backend | Spring Boot Microservices |
-| Gateway | API Gateway (`:3001`) |
+| Gateway | API Gateway (`:3000`) |
 | Database | Database per service |
 | Payment | COD và SePay (VietQR – Open Banking, xác nhận qua Webhook) |
 | API versioning | `/api/v1/...` (public & admin), `/internal/v1/...` (nội bộ) |

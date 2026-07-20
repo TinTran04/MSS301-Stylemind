@@ -17,7 +17,7 @@ const paymentMethods = [
 ]
 
 export default function CheckoutPage() {
-  const { items, subtotal, clearCart } = useCart()
+  const { items, subtotal, clearCart, loadCart } = useCart()
   const { status, steps, error, method, setMethod, processPayment, stopPolling, reset, lastOrder } = usePaymentStore()
   const location = useLocation()
   const navigate = useNavigate()
@@ -29,12 +29,17 @@ export default function CheckoutPage() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [cancelError, setCancelError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const displayItems = items
   const displaySubtotal = subtotal
   const shipping = displaySubtotal > 200 ? 0 : 15
   const tax = Math.round(displaySubtotal * TAX_RATE * 100) / 100
   const total = displaySubtotal + shipping + tax
+
+  useEffect(() => {
+    loadCart()
+  }, [loadCart])
 
   useEffect(() => {
     if (items.length === 0 && status === 'idle') {
@@ -69,6 +74,15 @@ export default function CheckoutPage() {
     }
   }, [location.state, reset])
 
+  useEffect(() => {
+    return () => {
+      const currentStatus = usePaymentStore.getState().status
+      if (currentStatus === 'success' || currentStatus === 'failed') {
+        usePaymentStore.getState().reset()
+      }
+    }
+  }, [])
+
   // Cart is cleared here (rather than only in the sandbox-confirm handler) so
   // it also happens if a PAID transition is ever observed purely via polling.
   useEffect(() => {
@@ -80,19 +94,22 @@ export default function CheckoutPage() {
   useEffect(() => stopPolling, [stopPolling])
 
   const handlePlaceOrder = async () => {
+    if (isSubmitting || status === 'processing' || status === 'awaiting_confirmation') return
     if (!selectedAddressId || !addresses.some((address) => address.id === selectedAddressId && isCheckoutEligibleAddress(address))) {
       setAddressError('Vui lòng chọn một địa chỉ giao hàng đã được xác thực.')
       return
     }
     setAddressError('')
-    // Cart is cleared by the status === 'success' effect above, not here -
-    // COD resolves synchronously, but SePay only resolves once payment is
-    // confirmed (manually or via polling), so a single effect covers both.
-    await processPayment({
-      addressId: selectedAddressId,
-      items: displayItems,
-      total,
-    })
+    setIsSubmitting(true)
+    try {
+      await processPayment({
+        addressId: selectedAddressId,
+        items: displayItems,
+        total,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleTryAgain = () => {
@@ -528,10 +545,18 @@ export default function CheckoutPage() {
               </div>
               <button
                 onClick={handlePlaceOrder}
-                disabled={displayItems.length === 0 || addressLoading || !selectedAddressId || !addresses.some(isCheckoutEligibleAddress)}
+                disabled={isSubmitting || status === 'processing' || displayItems.length === 0 || addressLoading || !selectedAddressId || !addresses.some(isCheckoutEligibleAddress)}
                 className="w-full bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 transition-opacity tracking-[0.1em] uppercase flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Lock size={14} /> Đặt hàng
+                {isSubmitting || status === 'processing' ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" /> Đang xử lý...
+                  </>
+                ) : (
+                  <>
+                    <Lock size={14} /> Đặt hàng
+                  </>
+                )}
               </button>
               <div className="flex items-center justify-center gap-1.5 text-xs text-on-surface-variant">
                 <Lock size={12} /> Thanh toán an toàn

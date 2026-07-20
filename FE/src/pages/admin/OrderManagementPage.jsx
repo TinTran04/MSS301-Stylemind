@@ -12,7 +12,7 @@ import {
 } from '../../features/orders/orderStatus'
 import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatCurrency } from '../../utils/formatCurrency'
-import { formatDate } from '../../utils/formatDate'
+import { formatDateTime } from '../../utils/formatDate'
 import { buildAdminOrderDetailPath } from './adminOrderDetail.utils'
 
 const STATUS_OPTIONS = ['All', ...Object.keys(ORDER_STATUS_TRANSITIONS)]
@@ -173,7 +173,7 @@ export default function OrderManagementPage() {
                 <tr key={order.id} className="hover:bg-surface-container-high/30">
                   <td className="px-4 py-3 text-sm font-medium text-primary">{order.id}</td>
                   <td className="px-4 py-3 text-sm text-on-surface">{order.customerName || order.userId || 'Khách vãng lai'}</td>
-                  <td className="px-4 py-3 text-sm text-on-surface-variant">{formatDate(order.createdAt || order.date)}</td>
+                  <td className="px-4 py-3 text-sm text-on-surface-variant">{formatDateTime(order.createdAt || order.date)}</td>
                   <td className="px-4 py-3 text-sm text-primary font-medium">{formatCurrency(order.totalAmount || order.total || 0)}</td>
                   <td className="px-4 py-3"><StatusBadge status={getOrderStatus(order).toLowerCase()} /></td>
                   <td className="px-4 py-3">

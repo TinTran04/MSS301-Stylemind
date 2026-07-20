@@ -1,5 +1,7 @@
 package com.stylemind.user.dto;
 
+import com.stylemind.user.validation.ValidVietnameseLocation;
+import com.stylemind.user.validation.ValidVietnamesePhone;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -14,6 +16,7 @@ public class DeliveryAddressRequest {
 
     @NotBlank(message = "Số điện thoại không được để trống")
     @Size(max = 20, message = "Số điện thoại tối đa 20 ký tự")
+    @ValidVietnamesePhone
     private String phoneNumber;
 
     @NotBlank(message = "Địa chỉ không được để trống")
@@ -30,6 +33,7 @@ public class DeliveryAddressRequest {
 
     /** Legacy field accepted only during the migration window; it is not authoritative. */
     @Deprecated
+    @ValidVietnameseLocation
     private String city;
 
     @Builder.Default

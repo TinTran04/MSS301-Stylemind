@@ -129,4 +129,4 @@ available.
 
 ## SePay testing
 
-Use the ngrok instructions in [README.md](README.md#testing-sepay-payment-locally-with-ngrok). The tunnel must expose API Gateway port `3001`, not payment-service port `8088`.
+Use the ngrok instructions in [README.md](README.md#testing-sepay-payment-locally-with-ngrok). The tunnel must expose API Gateway port `3000`, not payment-service port `8088`.

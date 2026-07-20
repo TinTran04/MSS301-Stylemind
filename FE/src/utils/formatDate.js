@@ -8,13 +8,16 @@ export function formatDate(dateStr) {
 }
 
 export function formatDateTime(dateStr) {
+  if (!dateStr) return ''
   const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+  if (isNaN(date.getTime())) return String(dateStr)
+  return date.toLocaleString('vi-VN', {
     hour: '2-digit',
     minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour12: false,
   })
 }
 

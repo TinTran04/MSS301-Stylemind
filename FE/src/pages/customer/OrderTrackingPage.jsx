@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { Package, Download, Truck } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import { getOrders } from '../../features/orders/order.api'
-import { formatDate } from '../../utils/formatDate'
+import { formatDateTime } from '../../utils/formatDate'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/orderStatus'
 
@@ -111,7 +111,7 @@ export default function OrderTrackingPage() {
                     {formatStatusLabel(order.status)}
                   </Badge>
                 </div>
-                <p className="text-xs text-on-surface-variant">{formatDate(order.date)}</p>
+                <p className="text-xs text-on-surface-variant">{formatDateTime(order.date)}</p>
                 <div className="flex gap-2 mt-2">
                   {order.items.slice(0, 3).map((item, idx) => (
                     <img key={idx} src={item.image} alt={item.name} className="w-10 h-10 object-cover rounded-lg" />
@@ -130,7 +130,7 @@ export default function OrderTrackingPage() {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="font-title-lg text-primary">{selectedOrder.id}</h2>
-                  <p className="text-xs text-on-surface-variant mt-1">Đặt lúc {formatDate(selectedOrder.date)}</p>
+                  <p className="text-xs text-on-surface-variant mt-1">Đặt lúc {formatDateTime(selectedOrder.date)}</p>
                 </div>
                 {selectedOrder.carrier && (
                   <div className="text-right">

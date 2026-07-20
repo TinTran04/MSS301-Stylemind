@@ -2,10 +2,7 @@
 
 E-commerce (fashion) platform backend for **MSS301-StyleMind**. A Spring Boot microservices system
 behind a single API Gateway, orchestrated with Docker Compose. The frontend talks to everything
-through the gateway on port **3001**.
-
-> Looking for the Harness Intelligence OS agent tooling that used to live here? It moved to
-> [`README.harness.md`](README.harness.md).
+through the gateway on port **3000**.
 
 ---
 
@@ -36,7 +33,7 @@ You do **not** need a local JDK if you only run the full stack in Docker (mode A
 BE/
 ├── pom.xml                     # Maven reactor (parent)
 ├── common-lib/                 # shared DTOs, security, exceptions, correlation-id filter
-├── api-gateway/                # routing, JWT validate, rate-limit, CORS  (port 3001)
+├── api-gateway/                # routing, JWT validate, rate-limit, CORS  (port 3000)
 ├── auth-service/               # login, register, JWT issue               (8081)
 ├── user-service/               # customer profile, addresses              (8082)
 ├── product-service/            # catalog, categories, images              (8083)
@@ -70,7 +67,7 @@ BE/
 
 | Service | Port | Database | Purpose |
 |---------|------|----------|---------|
-| api-gateway | 3001 | — | Routing, JWT validate, rate-limit, CORS |
+| api-gateway | 3000 | — | Routing, JWT validate, rate-limit, CORS |
 | auth-service | 8081 | auth_db | Login, register, JWT issue |
 | user-service | 8082 | user_db | Customer profile, addresses |
 | product-service | 8083 | product_db | Catalog, categories, images |
@@ -119,7 +116,7 @@ make logs           # tail all service logs
 make full-down      # stop everything
 ```
 
-Gateway is then reachable at `http://localhost:3001`.
+Gateway is then reachable at `http://localhost:3000`.
 
 ---
 
@@ -136,7 +133,7 @@ make check-ports    # verify what's listening
 
 Then, in IntelliJ, run the applications you need (Run → each `*Application` main class):
 
-- **Always start `ApiGatewayApplication`** (port 3001) — the frontend only talks to the gateway.
+- **Always start `ApiGatewayApplication`** (port 3000) — the frontend only talks to the gateway.
 - **Login** needs `AuthServiceApplication` (8081).
 - **Register** additionally needs `NotificationServiceApplication` (8089) — it sends the OTP/verification email.
 - Start other services (product, cart, order, payment, …) as the feature you're testing requires.
@@ -160,10 +157,10 @@ Verify the gateway and a login round-trip:
 
 ```bash
 # Gateway health — expect HTTP 200
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/actuator/health
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/actuator/health
 
 # Login through the gateway — expect a JWT in the response
-curl -s -X POST http://localhost:3001/api/v1/auth/login \
+curl -s -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@stylemind.ai","password":"admin123"}'
 ```
@@ -228,4 +225,4 @@ mvn test
 
 - [`PROJECT_SPEC.md`](PROJECT_SPEC.md) — services, admin scope, security pattern, known issues, roadmap
 - [`docs/`](docs/) — architecture and requirements docs
-- [`README.harness.md`](README.harness.md) · [`AGENTS.md`](AGENTS.md) · [`scripts/README.md`](scripts/README.md) — Harness Intelligence OS agent tooling
+- [`AGENTS.md`](AGENTS.md) — Developer blueprint for AI agents and developers

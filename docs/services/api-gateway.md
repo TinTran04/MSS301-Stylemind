@@ -1,6 +1,6 @@
 # api-gateway
 
-**Port:** `3001` &nbsp;|&nbsp; **Database:** `—`
+**Port:** `3000` &nbsp;|&nbsp; **Database:** `—`
 
 ## Purpose
 Cửa ngõ duy nhất cho frontend. Lo routing tới các service, CORS, validate JWT, admin guard, và inject user context.

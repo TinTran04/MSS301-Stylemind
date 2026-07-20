@@ -266,6 +266,7 @@ public class OrderService {
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
         OrderResponse response = buildOrderResponse(order, items);
         applyPaymentStatusIfAvailable(orderId, response);
+        enrichOrderItems(response);
         return response;
     }
 
@@ -321,7 +322,11 @@ public class OrderService {
     public List<OrderResponse> getOrders(String userId) {
         List<Order> orders = orderRepository.findByUserId(userId);
         return orders.stream()
-                .map(order -> buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId())))
+                .map(order -> {
+                    OrderResponse response = buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId()));
+                    enrichOrderItems(response);
+                    return response;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -543,16 +548,8 @@ public class OrderService {
         orderResponse.setPaidAt(paymentResponse.getPaidAt());
     }
 
-    private void enrichAdminOrderDetails(OrderResponse response) {
-        try {
-            var userResponse = userClient.getUserEmail(response.getUserId());
-            if (userResponse != null && userResponse.isSuccess() && userResponse.getData() != null) {
-                response.setCustomerEmail(userResponse.getData().getEmail());
-            }
-        } catch (Exception ex) {
-            log.debug("Customer enrichment unavailable for admin order {}: {}", response.getId(), ex.getMessage());
-        }
-
+    private void enrichOrderItems(OrderResponse response) {
+        if (response == null || response.getItems() == null) return;
         response.getItems().forEach(item -> {
             try {
                 var variantResponse = productClient.getVariantSnapshot(item.getVariantId());
@@ -569,9 +566,22 @@ public class OrderService {
                 item.setMaterial(variant.getMaterial());
                 item.setPrimaryImageUrl(variant.getPrimaryImageUrl());
             } catch (Exception ex) {
-                log.debug("Variant enrichment unavailable for admin order item {}: {}", item.getId(), ex.getMessage());
+                log.debug("Variant enrichment unavailable for order item {}: {}", item.getId(), ex.getMessage());
             }
         });
+    }
+
+    private void enrichAdminOrderDetails(OrderResponse response) {
+        try {
+            var userResponse = userClient.getUserEmail(response.getUserId());
+            if (userResponse != null && userResponse.isSuccess() && userResponse.getData() != null) {
+                response.setCustomerEmail(userResponse.getData().getEmail());
+            }
+        } catch (Exception ex) {
+            log.debug("Customer enrichment unavailable for admin order {}: {}", response.getId(), ex.getMessage());
+        }
+
+        enrichOrderItems(response);
     }
 
     private void enrichAdminStatusHistory(String orderId, OrderResponse response) {

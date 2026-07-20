@@ -8,7 +8,7 @@ Microservices + database per service + API Gateway + SPA frontend. Lý do chọn
 ## Sơ đồ tổng quan
 ```mermaid
 flowchart TD
-  FE[React/Vite Frontend] --> GW[API Gateway :3001]
+  FE[React/Vite Frontend] --> GW[API Gateway :3000]
   GW --> AUTH[auth-service :8081]
   GW --> USER[user-service :8082]
   GW --> PROD[product-service :8083]
@@ -28,7 +28,7 @@ flowchart TD
 ## Danh sách service
 | Service | Port | DB | Trách nhiệm |
 |---|---|---|---|
-| api-gateway | 3001 | — | Routing, CORS, JWT validation, admin guard, inject user context. |
+| api-gateway | 3000 | — | Routing, CORS, JWT validation, admin guard, inject user context. |
 | auth-service | 8081 | auth_db | Register/login, forgot/reset password, admin account mgmt (+ self-protection). |
 | user-service | 8082 | user_db | Style profile, delivery addresses (lazy-init). |
 | product-service | 8083 | product_db | Category/product/variant/image, internal variant snapshot (giá authoritative). |

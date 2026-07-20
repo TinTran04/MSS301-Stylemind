@@ -33,5 +33,5 @@ stylemind-docs/
 
 ## Quy ước
 - Mọi endpoint public/admin: `/api/v1/...`; nội bộ service-to-service: `/internal/v1/...`.
-- Frontend chỉ gọi API Gateway (`:3001`), không bao giờ gọi `/internal/**`.
+- Frontend chỉ gọi API Gateway (`:3000`), không bao giờ gọi `/internal/**`.
 - Thanh toán online = **SePay (VietQR / Open Banking)**, xác nhận qua **Webhook**.

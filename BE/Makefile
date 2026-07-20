@@ -33,7 +33,7 @@ check-ports:
 	@nc -zv localhost 6333 || echo "Qdrant (6333) is not running"
 	@nc -zv localhost 7687 || echo "Neo4j (7687) is not running"
 	@echo "Checking service ports on localhost..."
-	@nc -zv localhost 3001 || echo "API Gateway (3001) is not running"
+	@nc -zv localhost 3000 || echo "API Gateway (3000) is not running"
 	@nc -zv localhost 8081 || echo "Auth Service (8081) is not running"
 	@nc -zv localhost 8082 || echo "User Service (8082) is not running"
 	@nc -zv localhost 8083 || echo "Product Service (8083) is not running"

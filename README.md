@@ -6,7 +6,7 @@ Hệ thống hỗ trợ khách hàng mua sắm sản phẩm thời trang, tạo 
 
 Mục tiêu chính của hệ thống là cung cấp trải nghiệm **tư vấn thời trang cá nhân hóa**, đồng thời đảm bảo AI chỉ gợi ý các sản phẩm **thật sự tồn tại và còn hàng trong hệ thống** (chống ảo giác).
 
-**📋 Source of Truth:** Mô hình dữ liệu chuẩn được định nghĩa trong **[DATA_MODEL_DOCUMENTATION](docs/DATA_MODEL_DOCUMENTATION)** - tất cả tài liệu khác phải tuân thủ tài liệu này.
+**📋 Tài liệu chính:** Kiến trúc hệ thống và data model được mô tả chi tiết trong thư mục **[docs/](docs/)**.
 
 ---
 
@@ -49,7 +49,7 @@ Dự án được tổ chức theo hướng:
 ```text
 Frontend ReactJS
         ↓
-API Gateway (Port 3001)
+API Gateway (Port 3000)
         ↓
 Spring Boot Microservices (8 services + 8 DBs)
         ↓
@@ -106,13 +106,16 @@ MSS301-Stylemind/
 │   └── Spring Boot Microservices Backend
 │
 ├── docs/
-│   ├── DATA_MODEL_DOCUMENTATION    # 📋 SOURCE OF TRUTH - Data model chuẩn
-│   ├── MICROSERVICE_ARCHITECTURE.md # Kiến trúc chi tiết + Schema DB
-│   ├── API_CONTRACT.md             # API spec toàn hệ thống
-│   ├── DEPLOYMENT_GUIDE.md         # Hướng dẫn deploy local & Docker
-│   ├── MIGRATION_ROADMAP.md        # Lộ trình 7 bước chuyển đổi
-│   ├── PROJECT_ANALYSIS.md         # Phân tích hiện trạng FE
-│   └── README.md                   # File này
+│   ├── api/                       # API contracts & endpoints
+│   ├── architecture/              # Kiến trúc hệ thống
+│   ├── database/                  # Schema DB blueprints
+│   ├── services/                  # Tài liệu từng microservice
+│   ├── frontend/                  # Yêu cầu giao diện FE
+│   ├── business/                  # Nghiệp vụ kinh doanh
+│   ├── requirements/              # Yêu cầu hệ thống
+│   ├── decisions/                 # Quyết định kiến trúc (ADR)
+│   ├── overview/                  # Tổng quan dự án
+│   └── README.md                  # Mục lục tài liệu
 │
 ├── .gitignore
 └── README.md
@@ -142,7 +145,7 @@ FE/
 
 ```text
 BE/
-├── api-gateway/           # Port 3001 - Entry point
+├── api-gateway/           # Port 3000 - Entry point
 ├── auth-service/          # Port 8081 - auth_db (users)
 ├── user-service/          # Port 8082 - user_db (customer_style_profiles, delivery_addresses)
 ├── product-service/       # Port 8083 - product_db (categories, products, variants, images)
@@ -156,7 +159,7 @@ BE/
 
 ---
 
-## Các service backend & Data Ownership (theo DATA_MODEL_DOCUMENTATION)
+## Các service backend & Data Ownership
 
 | Service | Database | Tables Owned | Trách nhiệm chính |
 | :--- | :--- | :--- | :--- |
@@ -305,7 +308,7 @@ npm run build
 Tạo file `.env` trong thư mục `FE/`:
 
 ```env
-VITE_API_BASE_URL=http://localhost:3001
+VITE_API_BASE_URL=http://localhost:3000
 VITE_APP_NAME=StyleMind
 ```
 
@@ -358,7 +361,7 @@ Customer -> Frontend -> API Gateway -> order-service -> payment-service
 
 Prerequisites:
 
-- API Gateway đang chạy ở port `3001`.
+- API Gateway đang chạy ở port `3000`.
 - `payment-service`, `order-service` và PostgreSQL đang chạy.
 - Tài khoản ngân hàng đã liên kết với SePay và webhook SePay đang active.
 - `SEPAY_WEBHOOK_API_KEY` cùng cấu hình SePay/VietQR đã được đặt qua environment variables.
@@ -374,7 +377,7 @@ ngrok config add-authtoken <YOUR_NGROK_AUTHTOKEN>
 Start a tunnel to the API Gateway and keep this terminal open while testing:
 
 ```bash
-ngrok http 3001
+ngrok http 3000
 ```
 
 Copy the generated HTTPS domain and configure this exact webhook URL in SePay
@@ -414,7 +417,7 @@ Check local gateway connectivity before attempting a real transfer:
 
 ```bash
 curl -i -X POST \
-  http://localhost:3001/api/v1/payments/webhook/sepay \
+  http://localhost:3000/api/v1/payments/webhook/sepay \
   -H "Content-Type: application/json" \
   -H "Authorization: Apikey <YOUR_WEBHOOK_API_KEY>" \
   -d '{}'
@@ -474,7 +477,7 @@ A successful flow has `transaction.status = PAID`,
 Sau khi backend đã chạy bằng Docker Compose, kiểm tra nhanh gateway và các service:
 
 ```bash
-curl http://localhost:3001/actuator/health
+curl http://localhost:3000/actuator/health
 curl http://localhost:8083/actuator/health
 curl http://localhost:8088/actuator/health
 ```
@@ -483,7 +486,7 @@ Swagger UI của từng service có thể mở trực tiếp trên trình duyệ
 
 | Service | Swagger UI | OpenAPI JSON |
 | :--- | :--- | :--- |
-| API Gateway | http://localhost:3001/swagger-ui.html | http://localhost:3001/v3/api-docs |
+| API Gateway | http://localhost:3000/swagger-ui.html | http://localhost:3000/v3/api-docs |
 | Auth Service | http://localhost:8081/swagger-ui.html | http://localhost:8081/v3/api-docs |
 | User Service | http://localhost:8082/swagger-ui.html | http://localhost:8082/v3/api-docs |
 | Product Service | http://localhost:8083/swagger-ui.html | http://localhost:8083/v3/api-docs |
@@ -496,19 +499,19 @@ Swagger UI của từng service có thể mở trực tiếp trên trình duyệ
 Một số API public có thể test ngay không cần token:
 
 ```bash
-curl http://localhost:3001/api/v1/products
-curl http://localhost:3001/api/v1/categories
-curl http://localhost:3001/api/v1/cart
+curl http://localhost:3000/api/v1/products
+curl http://localhost:3000/api/v1/categories
+curl http://localhost:3000/api/v1/cart
 ```
 
 Với API cần đăng nhập, tạo một user test rồi đăng nhập qua gateway để lấy JWT:
 
 ```bash
-curl -X POST http://localhost:3001/api/v1/auth/register \
+curl -X POST http://localhost:3000/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"swagger-tester@example.com","password":"swagger123"}'
 
-curl -X POST http://localhost:3001/api/v1/auth/login \
+curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"swagger-tester@example.com","password":"swagger123"}'
 ```
@@ -523,7 +526,7 @@ Bearer <accessToken>
 
 Lưu ý khi test:
 
-* Frontend và client nên gọi qua API Gateway `http://localhost:3001/api/v1/...`.
+* Frontend và client nên gọi qua API Gateway `http://localhost:3000/api/v1/...`.
 * Swagger UI của từng service dùng để inspect/test nhanh API nội bộ trong môi trường local.
 * Các endpoint admin cần JWT của user có role `ADMIN`.
 * Nếu Docker Dashboard hiển thị log cũ, kiểm tra trạng thái thật bằng `docker compose -f BE/docker-compose.full.yml ps -a`.
@@ -599,14 +602,10 @@ VITE_API_BASE_URL=https://your-api-gateway-url
 * [x] Khởi tạo repository
 * [x] Tạo cấu trúc FE và BE
 * [x] Thêm ReactJS frontend
-* [x] **DATA_MODEL_DOCUMENTATION** - Complete (Source of Truth)
-* [x] **MICROSERVICE_ARCHITECTURE.md** - Aligned with Data Model
-* [x] **API_CONTRACT.md** - Aligned with Data Model
-* [x] **DEPLOYMENT_GUIDE.md** - Aligned with Data Model
-* [x] **MIGRATION_ROADMAP.md** - Aligned with Data Model
-* [ ] Xây dựng Spring Boot backend services (8 services)
-* [ ] Kết nối Frontend với Backend API
-* [ ] Tích hợp AI Stylist Service (Qdrant + Neo4j + Function Calling)
+* [x] Xây dựng Spring Boot backend services (8 services)
+* [x] Kết nối Frontend với Backend API
+* [x] Tích hợp AI Stylist Service (Qdrant + Neo4j + Function Calling)
+* [x] Thanh toán COD & SePay VietQR
 * [ ] Hoàn thiện deploy
 
 ---
@@ -631,8 +630,9 @@ Dự án được phát triển phục vụ học tập và nghiên cứu kiến
 Mục tiêu không chỉ là xây dựng một website bán hàng, mà còn là mô phỏng một hệ thống có khả năng tư vấn thời trang cá nhân hóa, quản lý thông minh và phân tích hiệu quả gợi ý của AI.
 
 **Tài liệu tham khảo chính:**
-* [DATA_MODEL_DOCUMENTATION](docs/DATA_MODEL_DOCUMENTATION) - Single Source of Truth cho data model
-* [MICROSERVICE_ARCHITECTURE.md](docs/MICROSERVICE_ARCHITECTURE.md) - Kiến trúc, DB schema, State machines, API Gateway, AI design
-* [API_CONTRACT.md](docs/API_CONTRACT.md) - Chi tiết request/response cho tất cả API
-* [DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) - Hướng dẫn chạy local & Docker
-* [MIGRATION_ROADMAP.md](docs/MIGRATION_ROADMAP.md) - Lộ trình 7 bước từ Mock → Production
+* [docs/architecture/](docs/architecture/) - Kiến trúc hệ thống, sơ đồ microservices
+* [docs/database/](docs/database/) - Schema DB blueprints cho 8 databases
+* [docs/api/](docs/api/) - API contracts & endpoint specifications
+* [docs/services/](docs/services/) - Tài liệu chi tiết từng microservice
+* [docs/requirements/](docs/requirements/) - Yêu cầu hệ thống & nghiệp vụ
+

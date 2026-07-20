@@ -4,11 +4,8 @@ const AUTH_TOKEN_KEY = 'auth_token'
 const AUTH_USER_KEY = 'auth_user'
 const GUEST_SESSION_KEY = 'guest_session_id'
 
-localStorage.removeItem(AUTH_TOKEN_KEY)
-localStorage.removeItem(AUTH_USER_KEY)
-
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -71,16 +68,17 @@ function normalizeApiError(error) {
 }
 
 export function getAuthToken() {
-  return sessionStorage.getItem(AUTH_TOKEN_KEY)
+  return localStorage.getItem(AUTH_TOKEN_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY)
 }
 
 export function getStoredUser() {
-  const raw = sessionStorage.getItem(AUTH_USER_KEY)
+  const raw = localStorage.getItem(AUTH_USER_KEY) || sessionStorage.getItem(AUTH_USER_KEY)
   if (!raw) return null
 
   try {
     return JSON.parse(raw)
   } catch {
+    localStorage.removeItem(AUTH_USER_KEY)
     sessionStorage.removeItem(AUTH_USER_KEY)
     return null
   }
@@ -88,14 +86,18 @@ export function getStoredUser() {
 
 export function setAuthSession(session) {
   if (session?.token) {
+    localStorage.setItem(AUTH_TOKEN_KEY, session.token)
     sessionStorage.setItem(AUTH_TOKEN_KEY, session.token)
   }
   if (session?.user) {
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(session.user))
     sessionStorage.setItem(AUTH_USER_KEY, JSON.stringify(session.user))
   }
 }
 
 export function clearAuthSession() {
+  localStorage.removeItem(AUTH_TOKEN_KEY)
+  localStorage.removeItem(AUTH_USER_KEY)
   sessionStorage.removeItem(AUTH_TOKEN_KEY)
   sessionStorage.removeItem(AUTH_USER_KEY)
   document.cookie.split(';').forEach((cookie) => {

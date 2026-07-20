@@ -27,6 +27,7 @@ import { buildAddressPayload, formatSavedAddress } from '../../features/profile/
 import { getVietnamesePhoneValidationMessage } from '../../features/profile/phone.utils.js'
 import { getInitials } from '../../features/auth/auth.utils'
 import { mockStyleOptions } from '../../features/profile/profile.mock'
+import { VIETNAM_PROVINCES, validateVietnamesePhone, validateVietnameseCity } from '../../utils/vietnamLocation'
 
 const tabs = [
   { id: 'style', label: 'Hồ sơ phong cách' },
@@ -390,15 +391,18 @@ export default function StyleProfilePage() {
     setAddressError('')
     setAddressSuccess('')
 
+    const phoneError = getVietnamesePhoneValidationMessage(addressForm.phoneNumber)
+    if (phoneError) {
+      setAddressError(phoneError)
+      setAddressSaving(false)
+      return
+    }
+
     try {
       const payload = buildAddressPayload(addressForm)
-      const phoneError = getVietnamesePhoneValidationMessage(addressForm.phoneNumber)
-      if (phoneError) {
-        setAddressError(phoneError)
-        return
-      }
       if (!payload.provinceCode || !payload.wardCode) {
-        setAddressError('Vui lòng chọn tỉnh/thành phố và phường/xã.')
+        setAddressError('Vui lòng chọn đầy đủ Tỉnh/thành phố và Phường/xã.')
+        setAddressSaving(false)
         return
       }
       if (editingAddressId) {

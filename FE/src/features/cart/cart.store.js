@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { peekGuestSessionId, resetGuestSessionId } from '../../services/apiClient'
 import { resolveVariant } from '../products/product.variant-selection.js'
 import { addToCart, getCart, mergeCart, removeCartItem, updateCartItem } from './cart.api'
+import usePaymentStore from '../payment/payment.store'
 
 // When no size/color is given (quick-add from a product card, AI
 // recommendations), fall back to the product's default variant. When a
@@ -23,6 +24,12 @@ const useCartStore = create((set, get) => ({
   loadCart: async () => {
     set({ loading: true, error: null })
     try {
+      if (peekGuestSessionId()) {
+        const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
+        if (token) {
+          await get().mergeGuestCart()
+        }
+      }
       const cart = await getCart()
       set({ items: cart.items, cartId: cart.cartId, loading: false })
       return cart
@@ -50,6 +57,10 @@ const useCartStore = create((set, get) => ({
       }
       const cart = await addToCart(payload)
       set({ items: cart.items, cartId: cart.cartId, loading: false })
+      const paymentStatus = usePaymentStore.getState().status
+      if (paymentStatus === 'success' || paymentStatus === 'failed') {
+        usePaymentStore.getState().reset()
+      }
       return cart
     } catch (err) {
       set({ error: 'Không thể thêm sản phẩm vào giỏ hàng.', loading: false })

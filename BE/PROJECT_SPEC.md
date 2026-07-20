@@ -5,7 +5,7 @@
 **Tên sản phẩm:** StyleMind  
 **Mã dự án:** MSS301-Stylemind  
 **Loại:** E-commerce platform (thời trang)  
-**Phạm vi BE:** Microservices backend chạy trên Docker Compose. FE tích hợp qua API Gateway port 3001.
+**Phạm vi BE:** Microservices backend chạy trên Docker Compose. FE tích hợp qua API Gateway port 3000.
 
 **Out of scope (không implement):**
 - Quản lý tồn kho / inventory tracking — hệ thống không theo dõi số lượng hàng tồn, không có inventory reservation trong order saga.
@@ -28,7 +28,7 @@
 
 | Service              | Port | Database      | Mục đích                          |
 |----------------------|------|---------------|-----------------------------------|
-| api-gateway          | 3001 | —             | Routing, JWT validate, rate-limit, CORS |
+| api-gateway          | 3000 | —             | Routing, JWT validate, rate-limit, CORS |
 | auth-service         | 8081 | auth_db       | Login, register, JWT issue        |
 | user-service         | 8082 | user_db       | Customer profile, addresses       |
 | product-service      | 8083 | product_db    | Catalog, categories, images       |
@@ -79,7 +79,7 @@
 Tất cả services UP, healthy:
 
 ```
-api-gateway :3001 — CORS ok, routing ok, rate-limit on /api/v1/ai-stylist/chat
+api-gateway :3000 — CORS ok, routing ok, rate-limit on /api/v1/ai-stylist/chat
 auth-service :8081 — JWT issue + validate ok
 user-service :8082 — customer profile/address ok
 product-service :8083 — catalog ok; admin CRUD ok

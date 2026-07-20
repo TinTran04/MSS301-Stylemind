@@ -106,9 +106,9 @@ npm install
 ### 3. Cấu hình biến môi trường (Environment Variables)
 Tạo một file `.env` ở thư mục gốc của dự án `FE` và định nghĩa địa chỉ API Gateway kết nối tới Spring Boot Backend:
 ```env
-VITE_API_BASE_URL=http://localhost:3001
+VITE_API_BASE_URL=http://localhost:3000
 ```
-*(Nếu không khai báo biến này, ứng dụng mặc định kết nối tới `http://localhost:3001`.)*
+*(Nếu không khai báo biến này, ứng dụng mặc định kết nối tới `http://localhost:3000`.)*
 
 ### 4. Khởi chạy dự án ở chế độ Phát triển (Development)
 Chạy lệnh sau để khởi chạy Vite dev server:
@@ -127,6 +127,6 @@ Thư mục đầu ra `dist/` sẽ được tạo ra chứa toàn bộ mã nguồ
 ---
 
 ## 🛡️ Xác thực & Bảo mật trên Frontend
-*   **Quản lý Token:** JWT token và cached user được lưu trong `sessionStorage` theo tab. Legacy token trong `localStorage` được xóa khi ứng dụng khởi động.
+*   **Quản lý Token:** JWT token và thông tin phiên đăng nhập được lưu giữ an toàn trong `localStorage` và `sessionStorage`. Khi mở lại trang web, token tự động được phục hồi giúp trải nghiệm người dùng liền mạch.
 *   **Request Interceptor:** Mỗi khi gọi API qua `apiClient`, interceptor sẽ tự động lấy token và đính kèm vào header `Authorization: Bearer <token>`.
 *   **Response Interceptor:** Nếu nhận được phản hồi lỗi `401 Unauthorized` từ Spring Boot Backend, hệ thống sẽ tự động xóa token và chuyển hướng người dùng về trang `/login`.

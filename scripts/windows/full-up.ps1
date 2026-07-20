@@ -14,8 +14,8 @@ function Assert-DockerReady {
     }
 }
 
-$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$composeFile = Join-Path $repositoryRoot 'BE\docker-compose.full.yml'
+$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\\..')).Path
+$composeFile = Join-Path $repositoryRoot 'BE\docker-compose.yml'
 
 if (-not (Test-Path -LiteralPath $composeFile)) {
     throw "Compose file was not found: $composeFile"
@@ -24,7 +24,7 @@ if (-not (Test-Path -LiteralPath $composeFile)) {
 Assert-DockerReady
 
 Write-Host 'Starting the full StyleMind stack. Existing volumes will be preserved.' -ForegroundColor Cyan
-& docker compose -f $composeFile up -d --build
+& docker compose -f $composeFile --profile app up -d --build
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }

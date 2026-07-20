@@ -1,6 +1,6 @@
 # Frontend Requirements
 
-Stack: ReactJS/Vite. Frontend chỉ gọi API qua Gateway (`VITE_API_BASE_URL`, vd `http://localhost:3001`), path dạng `/api/v1/...`.
+Stack: ReactJS/Vite. Frontend chỉ gọi API qua Gateway (`VITE_API_BASE_URL`, vd `http://localhost:3000`), path dạng `/api/v1/...`.
 
 ## Route structure
 ```
