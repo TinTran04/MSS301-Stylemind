@@ -17,11 +17,10 @@ import java.util.Optional;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, String> {
-    List<Order> findByUserId(String userId);
-    List<Order> findByUserIdOrderByCreatedAtDescIdDesc(String userId);
     List<Order> findByOrderStatus(OrderStatus orderStatus);
     List<Order> findByOrderStatusAndCreatedAtBefore(OrderStatus orderStatus, LocalDateTime cutoff);
     Page<Order> findByUserId(String userId, Pageable pageable);
+    Page<Order> findByUserIdAndOrderStatus(String userId, OrderStatus orderStatus, Pageable pageable);
     Optional<Order> findByIdAndUserId(String id, String userId);
 
     // ─── Admin dashboard aggregates (counts/sums only — no entities loaded) ───

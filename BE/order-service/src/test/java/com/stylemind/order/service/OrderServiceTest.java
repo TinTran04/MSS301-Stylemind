@@ -3,8 +3,11 @@ package com.stylemind.order.service;
 import com.stylemind.cart.dto.CartItemResponse;
 import com.stylemind.cart.dto.CartResponse;
 import com.stylemind.common.dto.ApiResponse;
+import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.order.dto.CreateOrderRequest;
+import com.stylemind.order.dto.OrderItemCountResponse;
+import com.stylemind.order.dto.OrderSummaryResponse;
 import com.stylemind.order.dto.OrderResponse;
 import com.stylemind.order.entity.CheckoutIdempotency;
 import com.stylemind.order.entity.Order;
@@ -25,6 +28,9 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -44,6 +50,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -155,32 +162,83 @@ class OrderServiceTest {
     }
 
     @Test
-    void getOrders_includesPaymentMethodForTimelineMapping() {
+    void getOrdersPage_returnsDatabasePageSummaryForPrincipalUserWithoutDetailEnrichment() {
         Order order = savedOrder(Order.builder()
                 .id("order-1")
                 .userId("user-1")
                 .totalAmount(new BigDecimal("399000"))
-                .orderStatus(OrderStatus.CONFIRMED)
+                .orderStatus(OrderStatus.PROCESSING)
                 .shippingAddress("123 Main Street")
                 .build());
-        PaymentClient.PaymentResponse payment = PaymentClient.PaymentResponse.builder()
-                .transactionId("txn-cod")
-                .method("cod")
-                .status("PENDING")
-                .amount(new BigDecimal("399000"))
-                .build();
+        PageRequest pageable = PageRequest.of(
+                0,
+                10,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
 
-        when(orderRepository.findByUserIdOrderByCreatedAtDescIdDesc("user-1")).thenReturn(List.of(order));
-        when(orderItemRepository.findByOrderId("order-1")).thenReturn(List.of());
-        when(paymentClient.getPaymentStatus("order-1")).thenReturn(ApiResponse.success("ok", payment));
-        when(auditLogRepository.findByOrderIdOrderByCreatedAtAsc("order-1")).thenReturn(List.of());
+        when(orderRepository.findByUserId("user-1", pageable))
+                .thenReturn(new PageImpl<>(List.of(order), pageable, 25));
+        when(orderItemRepository.countByOrderIds(List.of("order-1")))
+                .thenReturn(List.of(new OrderItemCountResponse("order-1", 3L)));
 
-        List<OrderResponse> responses = orderService.getOrders("user-1");
+        PageResponse<OrderSummaryResponse> response = orderService.getOrdersPage("user-1", pageable);
 
-        assertThat(responses).hasSize(1);
-        assertThat(responses.get(0).getPaymentMethod()).isEqualTo("cod");
-        assertThat(responses.get(0).getPaymentStatus()).isEqualTo("PENDING");
-        verify(paymentClient).getPaymentStatus("order-1");
+        assertThat(response.getPage()).isZero();
+        assertThat(response.getSize()).isEqualTo(10);
+        assertThat(response.getTotalElements()).isEqualTo(25);
+        assertThat(response.getTotalPages()).isEqualTo(3);
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getId()).isEqualTo("order-1");
+        assertThat(response.getContent().get(0).getItemCount()).isEqualTo(3);
+        assertThat(response.getContent().get(0).getOrderStatus()).isEqualTo("PROCESSING");
+        verify(orderRepository).findByUserId("user-1", pageable);
+        verify(orderItemRepository, never()).findByOrderId(anyString());
+        verifyNoInteractions(paymentClient, productClient, auditLogRepository, deliveryImageRepository);
+    }
+
+    @Test
+    void getOrdersPage_returnsEmptyPageMetadataWithoutItemCountQuery() {
+        PageRequest pageable = PageRequest.of(
+                4,
+                10,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        when(orderRepository.findByUserId("user-1", pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        PageResponse<OrderSummaryResponse> response = orderService.getOrdersPage("user-1", pageable);
+
+        assertThat(response.getContent()).isEmpty();
+        assertThat(response.getPage()).isEqualTo(4);
+        assertThat(response.getTotalElements()).isZero();
+        assertThat(response.getTotalPages()).isZero();
+        assertThat(response.isEmpty()).isTrue();
+        verify(orderItemRepository, never()).countByOrderIds(any());
+    }
+
+    @Test
+    void getOrdersPage_appliesAuthenticatedUserAndStatusFilterInRepositoryQuery() {
+        PageRequest pageable = PageRequest.of(
+                0,
+                10,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        when(orderRepository.findByUserIdAndOrderStatus("user-1", OrderStatus.PROCESSING, pageable))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        PageResponse<OrderSummaryResponse> response =
+                orderService.getOrdersPage("user-1", "processing", pageable);
+
+        assertThat(response.isEmpty()).isTrue();
+        verify(orderRepository).findByUserIdAndOrderStatus("user-1", OrderStatus.PROCESSING, pageable);
+        verify(orderRepository, never()).findByUserId("user-1", pageable);
+    }
+
+    @Test
+    void getOrdersPage_rejectsUnknownStatusFilter() {
+        PageRequest pageable = PageRequest.of(0, 10);
+
+        assertThatThrownBy(() -> orderService.getOrdersPage("user-1", "not-a-status", pageable))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "INVALID_ORDER_STATUS_FILTER");
+        verifyNoInteractions(orderRepository);
     }
 
     @Test

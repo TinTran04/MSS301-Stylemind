@@ -72,6 +72,8 @@ CREATE TABLE IF NOT EXISTS checkout_idempotency (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_orders_user_created_at_id ON orders(user_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_orders_user_status_created_at_id ON orders(user_id, order_status, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_orders_status_created_at ON orders(order_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_items_variant_id ON order_items(variant_id);

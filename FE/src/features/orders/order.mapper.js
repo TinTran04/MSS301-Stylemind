@@ -40,17 +40,20 @@ function numberOrNull(value) {
 
 function buildPricingSummary(order, items) {
   const itemSubtotal = items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
-  const subtotal = numberOrNull(order.subtotalAmount)
+  const subtotal = numberOrNull(order.productSubtotal ?? order.subtotalAmount)
+  const discount = numberOrNull(order.discountAmount) ?? 0
   const shipping = numberOrNull(order.shippingFee)
   const tax = numberOrNull(order.taxAmount)
-  const hasBackendBreakdown = subtotal !== null || shipping !== null || tax !== null
+  const hasBackendBreakdown = subtotal !== null || order.discountAmount != null || shipping !== null || tax !== null
   const fallbackPricing = calculateTotal(items, order.paymentMethod)
+  const taxableSubtotal = Math.max((subtotal ?? itemSubtotal) - discount, 0)
   const exactTotal = hasBackendBreakdown
-    ? (subtotal ?? itemSubtotal) + (shipping ?? 0) + (tax ?? 0)
+    ? (numberOrNull(order.totalAmount) ?? taxableSubtotal + (shipping ?? 0) + (tax ?? 0))
     : fallbackPricing.exactTotal
 
   return {
     subtotal: hasBackendBreakdown ? (subtotal ?? itemSubtotal) : fallbackPricing.subtotal,
+    discountAmount: hasBackendBreakdown ? discount : 0,
     shipping: hasBackendBreakdown ? (shipping ?? 0) : fallbackPricing.shipping,
     tax: hasBackendBreakdown ? (tax ?? 0) : fallbackPricing.tax,
     roundingAdjustment: 0,
@@ -83,6 +86,7 @@ export function mapOrder(order) {
     statusLabel: formatStatusLabel(order.orderStatus),
     statusHistory: order.statusHistory || [],
     subtotal: pricing.subtotal,
+    discountAmount: pricing.discountAmount,
     shippingFee: pricing.shipping,
     taxAmount: pricing.tax,
     roundingAdjustment: pricing.roundingAdjustment,
@@ -102,6 +106,20 @@ export function mapOrder(order) {
       uploadedAt: image.uploadedAt,
     })).filter((image) => image.imageDataUrl),
     timeline: buildTimeline(order),
+  }
+}
+
+export function mapOrderSummary(order) {
+  if (!order) return null
+  return {
+    ...order,
+    id: order.id,
+    date: order.createdAt,
+    status: normalizeOrderStatus(order.orderStatus || order.status).toLowerCase(),
+    total: Number(order.totalAmount || 0),
+    totalAmount: Number(order.totalAmount || 0),
+    itemCount: Number(order.itemCount || 0),
+    items: [],
   }
 }
 

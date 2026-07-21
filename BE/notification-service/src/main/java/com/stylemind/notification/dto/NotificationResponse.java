@@ -19,6 +19,8 @@ public class NotificationResponse {
     private String status;
     private String errorMessage;
     private Instant sentAt;
+    private Instant readAt;
+    private boolean read;
     private Instant createdAt;
 
     public Long getId() { return id; }
@@ -41,6 +43,10 @@ public class NotificationResponse {
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
     public Instant getSentAt() { return sentAt; }
     public void setSentAt(Instant sentAt) { this.sentAt = sentAt; }
+    public Instant getReadAt() { return readAt; }
+    public void setReadAt(Instant readAt) { this.readAt = readAt; }
+    public boolean isRead() { return read; }
+    public void setRead(boolean read) { this.read = read; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

@@ -1,6 +1,6 @@
 import apiClient from '../../services/apiClient.js'
 import { ENDPOINTS } from '../../services/endpoints.js'
-import { getOrderTimestamp, mapOrder } from './order.mapper.js'
+import { mapOrder, mapOrderSummary } from './order.mapper.js'
 
 export { mapOrder }
 
@@ -13,11 +13,14 @@ export async function createOrder(payload, options = {}) {
   return mapOrder(response)
 }
 
-export async function getOrders() {
-  const response = await apiClient.get(ENDPOINTS.ORDERS)
-  return Array.isArray(response)
-    ? response.map(mapOrder).filter(Boolean).sort((a, b) => getOrderTimestamp(b) - getOrderTimestamp(a))
-    : []
+export async function getOrders({ page = 0, size = 10, sort = 'createdAt,desc', status } = {}) {
+  const params = new URLSearchParams({ page: String(page), size: String(size), sort })
+  if (status) params.set('status', status)
+  const response = await apiClient.get(`${ENDPOINTS.ORDERS}?${params.toString()}`)
+  return {
+    ...response,
+    content: (response?.content || []).map(mapOrderSummary).filter(Boolean),
+  }
 }
 
 export async function getOrderById(id) {

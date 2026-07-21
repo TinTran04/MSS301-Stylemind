@@ -1,19 +1,20 @@
 package com.stylemind.order.controller;
 
 import com.stylemind.common.dto.ApiResponse;
+import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.security.UserPrincipal;
+import com.stylemind.common.web.PaginationSupport;
 import com.stylemind.order.dto.*;
 import com.stylemind.order.service.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -34,8 +35,14 @@ public class OrderController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<OrderResponse>>> getOrders(@AuthenticationPrincipal UserPrincipal principal) {
-        List<OrderResponse> orders = orderService.getOrders(principal.getUserId());
+    public ResponseEntity<ApiResponse<PageResponse<OrderSummaryResponse>>> getOrders(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String status) {
+        Pageable pageable = PaginationSupport.customerListPageable(page, size, sort);
+        PageResponse<OrderSummaryResponse> orders = orderService.getOrdersPage(principal.getUserId(), status, pageable);
         return ResponseEntity.ok(ApiResponse.success("Orders fetched successfully", orders));
     }
 

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { mapOrder } from './order.mapper.js'
+import { mapOrder, mapOrderSummary } from './order.mapper.js'
 import { ORDER_TIMELINE_STEPS } from './orderStatus.js'
 
 test('mapOrder builds timeline from real status history without marking skipped milestones', () => {
@@ -28,6 +28,21 @@ test('mapOrder builds timeline from real status history without marking skipped 
   assert.equal(paidStep.date, null)
   assert.equal(confirmedStep.completed, true)
   assert.equal(confirmedStep.date, '2026-07-21T09:05:00Z')
+})
+
+test('mapOrderSummary keeps list responses bounded to summary fields', () => {
+  const order = mapOrderSummary({
+    id: 'order-summary',
+    orderStatus: 'PROCESSING',
+    totalAmount: 123000,
+    itemCount: 2,
+    createdAt: '2026-07-22T10:00:00Z',
+  })
+
+  assert.equal(order.id, 'order-summary')
+  assert.equal(order.itemCount, 2)
+  assert.equal(order.total, 123000)
+  assert.deepEqual(order.items, [])
 })
 
 test('mapOrder hides payment milestones for COD orders', () => {
@@ -97,6 +112,28 @@ test('mapOrder preserves backend pricing breakdown for order details', () => {
   assert.equal(order.exactTotal, 1224300)
   assert.equal(order.total, 1224300)
   assert.equal(order.hasPricingBreakdown, true)
+  assert.equal(order.pricingSource, 'backend')
+})
+
+test('mapOrder uses the current monetary field names and discounts before VAT', () => {
+  const order = mapOrder({
+    id: 'order-current-pricing',
+    paymentMethod: 'sepay',
+    orderStatus: 'PAYMENT_PENDING',
+    productSubtotal: 100000,
+    discountAmount: 20000,
+    shippingFee: 0,
+    taxAmount: 8000,
+    totalAmount: 88000,
+    createdAt: '2026-07-22T10:00:00Z',
+    items: [{ id: 'item-1', productName: 'Áo thử nghiệm', priceAtPurchase: 100000, quantity: 1 }],
+  })
+
+  assert.equal(order.subtotal, 100000)
+  assert.equal(order.discountAmount, 20000)
+  assert.equal(order.taxAmount, 8000)
+  assert.equal(order.exactTotal, 88000)
+  assert.equal(order.total, 88000)
   assert.equal(order.pricingSource, 'backend')
 })
 

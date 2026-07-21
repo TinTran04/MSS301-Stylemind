@@ -44,6 +44,9 @@ public class NotificationLog extends BaseEntity {
     @Column(name = "sent_at")
     private java.time.LocalDateTime sentAt;
 
+    @Column(name = "read_at")
+    private java.time.LocalDateTime readAt;
+
     // Explicit getters/setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -65,4 +68,6 @@ public class NotificationLog extends BaseEntity {
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
     public java.time.LocalDateTime getSentAt() { return sentAt; }
     public void setSentAt(java.time.LocalDateTime sentAt) { this.sentAt = sentAt; }
+    public java.time.LocalDateTime getReadAt() { return readAt; }
+    public void setReadAt(java.time.LocalDateTime readAt) { this.readAt = readAt; }
 }

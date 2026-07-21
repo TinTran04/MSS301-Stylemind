@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS notification_logs (
     status VARCHAR(20) NOT NULL,
     error_message VARCHAR(500),
     sent_at TIMESTAMP,
+    read_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -21,6 +22,9 @@ CREATE TABLE IF NOT EXISTS notification_logs (
 CREATE INDEX IF NOT EXISTS idx_notification_logs_user_id ON notification_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_notification_logs_status ON notification_logs(status);
 CREATE INDEX IF NOT EXISTS idx_notification_logs_created_at ON notification_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_user_created_id ON notification_logs(user_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_user_read_created_id ON notification_logs(user_id, read_at, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_logs_user_unread_created_id ON notification_logs(user_id, created_at DESC, id DESC) WHERE read_at IS NULL;
 
 -- Seed Data for Notification Logs
 INSERT INTO notification_logs (user_id, recipient_email, type, channel, title, content, status, sent_at)

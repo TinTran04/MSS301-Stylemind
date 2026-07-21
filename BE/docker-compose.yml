@@ -602,6 +602,7 @@ services:
   # To rebuild: see FULL_GUIDE_START.md → "Manual Build & Push"
   # ----------------------------------------------------
   ai-stylist-service:
+    platform: linux/amd64
     image: ${AI_STYLIST_IMAGE:-khai2707/ai-stylist-service:latest}
     container_name: ai-stylist-service
     ports:

@@ -2,6 +2,7 @@ package com.stylemind.order.service;
 
 import com.stylemind.cart.dto.CartItemResponse;
 import com.stylemind.cart.dto.CartResponse;
+import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.util.StringUtil;
 import com.stylemind.order.dto.*;
@@ -12,6 +13,8 @@ import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -22,6 +25,7 @@ import java.math.RoundingMode;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -343,18 +347,42 @@ public class OrderService {
         }
     }
 
-    public List<OrderResponse> getOrders(String userId) {
-        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId);
-        return orders.stream()
-                .map(order -> {
-                    OrderResponse response = buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId()));
-                    applyPaymentStatusIfAvailable(order.getId(), response);
-                    enrichOrderItems(response);
-                    enrichStatusHistory(order.getId(), response);
-                    enrichDeliveryImages(order.getId(), response);
-                    return response;
-                })
-                .collect(Collectors.toList());
+    @Transactional(readOnly = true)
+    public PageResponse<OrderSummaryResponse> getOrdersPage(String userId, Pageable pageable) {
+        return getOrdersPage(userId, null, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<OrderSummaryResponse> getOrdersPage(String userId, String status, Pageable pageable) {
+        OrderStatus statusFilter = null;
+        if (StringUtils.hasText(status)) {
+            try {
+                statusFilter = OrderStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ex) {
+                throw new BusinessException("INVALID_ORDER_STATUS_FILTER", "Unknown order status: " + status, 400);
+            }
+        }
+
+        Page<Order> orders = statusFilter == null
+                ? orderRepository.findByUserId(userId, pageable)
+                : orderRepository.findByUserIdAndOrderStatus(userId, statusFilter, pageable);
+        List<String> orderIds = orders.getContent().stream()
+                .map(Order::getId)
+                .toList();
+        Map<String, Long> itemCounts = orderIds.isEmpty()
+                ? Map.of()
+                : orderItemRepository.countByOrderIds(orderIds).stream()
+                        .collect(Collectors.toMap(
+                                OrderItemCountResponse::orderId,
+                                OrderItemCountResponse::itemCount));
+
+        return PageResponse.of(orders.map(order -> OrderSummaryResponse.builder()
+                .id(order.getId())
+                .createdAt(order.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
+                .orderStatus(order.getOrderStatus().name())
+                .totalAmount(order.getTotalAmount())
+                .itemCount(itemCounts.getOrDefault(order.getId(), 0L).intValue())
+                .build()));
     }
 
     public com.stylemind.order.dto.AdminOrdersResponse getAllOrdersForAdmin(

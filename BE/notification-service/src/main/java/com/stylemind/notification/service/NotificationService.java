@@ -4,6 +4,7 @@ import com.stylemind.notification.dto.*;
 import com.stylemind.notification.entity.NotificationLog;
 import com.stylemind.notification.repository.NotificationLogRepository;
 import com.stylemind.common.constant.ErrorCode;
+import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +23,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -73,10 +73,15 @@ public class NotificationService {
         return mapToResponse(entry);
     }
 
-    public List<NotificationResponse> getNotifications(String userId) {
-        return notificationLogRepository.findByUserIdNewestFirst(userId).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+    public PageResponse<NotificationResponse> getCustomerNotifications(String userId, Boolean read, Pageable pageable) {
+        return PageResponse.of(notificationLogRepository.findCustomerPage(userId, read, pageable)
+                .map(this::mapToResponse));
+    }
+
+    public NotificationUnreadCountResponse getUnreadCount(String userId) {
+        return NotificationUnreadCountResponse.builder()
+                .unreadCount(notificationLogRepository.countByUserIdAndReadAtIsNull(userId))
+                .build();
     }
 
     public NotificationResponse getNotificationForUser(String userId, Long id) {
@@ -133,6 +138,22 @@ public class NotificationService {
         return mapToResponse(entry);
     }
 
+    public NotificationResponse markNotificationRead(String userId, Long id) {
+        NotificationLog entry = notificationLogRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOTIFICATION_NOT_FOUND));
+        if (entry.getReadAt() == null) {
+            entry.setReadAt(LocalDateTime.now());
+            entry = notificationLogRepository.save(entry);
+        }
+        return mapToResponse(entry);
+    }
+
+    public NotificationReadAllResponse markAllNotificationsRead(String userId) {
+        return NotificationReadAllResponse.builder()
+                .updatedCount(notificationLogRepository.markAllReadByUserId(userId, LocalDateTime.now()))
+                .build();
+    }
+
     private NotificationResponse mapToResponse(NotificationLog entry) {
         return NotificationResponse.builder()
                 .id(entry.getId())
@@ -145,6 +166,8 @@ public class NotificationService {
                 .status(entry.getStatus())
                 .errorMessage(entry.getErrorMessage())
                 .sentAt(toUtcInstant(entry.getSentAt()))
+                .readAt(toUtcInstant(entry.getReadAt()))
+                .read(entry.getReadAt() != null)
                 .createdAt(toUtcInstant(entry.getCreatedAt()))
                 .build();
     }
