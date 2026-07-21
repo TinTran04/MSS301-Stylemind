@@ -13,6 +13,14 @@ const navLinks = [
   { to: '/orders', label: 'Đơn hàng' },
 ]
 
+function splitTo(to) {
+  const [pathname, search = ''] = to.split('?')
+  return {
+    pathname,
+    search: search ? `?${search}` : '',
+  }
+}
+
 export default function CustomerLayout() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -54,6 +62,19 @@ export default function CustomerLayout() {
     navigate('/')
   }
 
+  const isActiveLink = (to) => {
+    const target = splitTo(to)
+    if (target.search) {
+      return location.pathname === target.pathname && location.search === target.search
+    }
+
+    if (target.pathname === '/shop') {
+      return location.pathname === '/shop' && location.search !== '?collection=new'
+    }
+
+    return location.pathname === target.pathname
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -75,7 +96,7 @@ export default function CustomerLayout() {
                 key={link.to}
                 to={link.to}
                 className={`font-label-md no-underline transition-all duration-200 ${
-                  location.pathname === link.to
+                  isActiveLink(link.to)
                     ? 'text-primary border-b-2 border-primary pb-1'
                     : 'text-on-surface-variant hover:text-primary'
                 }`}
@@ -163,7 +184,7 @@ export default function CustomerLayout() {
                 key={link.to}
                 to={link.to}
                 className={`block py-3 font-label-md no-underline ${
-                  location.pathname === link.to ? 'text-primary font-semibold' : 'text-on-surface-variant'
+                  isActiveLink(link.to) ? 'text-primary font-semibold' : 'text-on-surface-variant'
                 }`}
               >
                 {link.label}
@@ -191,15 +212,16 @@ export default function CustomerLayout() {
               '/cart': 'shopping_bag',
               '/orders': 'receipt_long',
             }
+            const { pathname } = splitTo(link.to)
             return (
               <Link
                 key={link.to}
                 to={link.to}
                 className={`flex flex-col items-center gap-1 no-underline ${
-                  location.pathname === link.to ? 'text-primary' : 'text-on-surface-variant opacity-60'
+                  isActiveLink(link.to) ? 'text-primary' : 'text-on-surface-variant opacity-60'
                 }`}
               >
-                <span className="material-symbols-outlined text-2xl">{icons[link.to] || 'home'}</span>
+                <span className="material-symbols-outlined text-2xl">{icons[pathname] || 'home'}</span>
                 <span className="text-[10px] font-medium">{link.label}</span>
               </Link>
             )

@@ -12,7 +12,6 @@ import com.stylemind.order.entity.OrderItem;
 import com.stylemind.order.entity.OrderStatus;
 import com.stylemind.order.entity.OrderStatusAuditLog;
 import com.stylemind.order.feign.CartClient;
-import com.stylemind.order.feign.NotificationClient;
 import com.stylemind.order.feign.PaymentClient;
 import com.stylemind.order.feign.ProductClient;
 import com.stylemind.order.feign.UserClient;
@@ -20,7 +19,9 @@ import com.stylemind.order.feign.UserAddressClient;
 import com.stylemind.order.repository.CheckoutIdempotencyRepository;
 import com.stylemind.order.repository.OrderItemRepository;
 import com.stylemind.order.repository.OrderRepository;
+import com.stylemind.order.repository.OrderDeliveryImageRepository;
 import com.stylemind.order.repository.OrderStatusAuditLogRepository;
+import org.springframework.mock.web.MockMultipartFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,9 +57,9 @@ class OrderServiceTest {
     @Mock ProductClient productClient;
     @Mock UserClient userClient;
     @Mock UserAddressClient userAddressClient;
-    @Mock NotificationClient notificationClient;
     @Mock OrderStatusAuditLogRepository auditLogRepository;
     @Mock OrderStatusService orderStatusService;
+    @Mock OrderDeliveryImageRepository deliveryImageRepository;
 
     @InjectMocks OrderService orderService;
 
@@ -154,6 +155,35 @@ class OrderServiceTest {
     }
 
     @Test
+    void getOrders_includesPaymentMethodForTimelineMapping() {
+        Order order = savedOrder(Order.builder()
+                .id("order-1")
+                .userId("user-1")
+                .totalAmount(new BigDecimal("399000"))
+                .orderStatus(OrderStatus.CONFIRMED)
+                .shippingAddress("123 Main Street")
+                .build());
+        PaymentClient.PaymentResponse payment = PaymentClient.PaymentResponse.builder()
+                .transactionId("txn-cod")
+                .method("cod")
+                .status("PENDING")
+                .amount(new BigDecimal("399000"))
+                .build();
+
+        when(orderRepository.findByUserIdOrderByCreatedAtDescIdDesc("user-1")).thenReturn(List.of(order));
+        when(orderItemRepository.findByOrderId("order-1")).thenReturn(List.of());
+        when(paymentClient.getPaymentStatus("order-1")).thenReturn(ApiResponse.success("ok", payment));
+        when(auditLogRepository.findByOrderIdOrderByCreatedAtAsc("order-1")).thenReturn(List.of());
+
+        List<OrderResponse> responses = orderService.getOrders("user-1");
+
+        assertThat(responses).hasSize(1);
+        assertThat(responses.get(0).getPaymentMethod()).isEqualTo("cod");
+        assertThat(responses.get(0).getPaymentStatus()).isEqualTo("PENDING");
+        verify(paymentClient).getPaymentStatus("order-1");
+    }
+
+    @Test
     void createOrder_variantPriceUnavailable_throwsBeforeSavingOrder() {
         CartResponse cart = cartWithItems();
         when(checkoutIdempotencyRepository.findByUserIdAndIdempotencyKey("user-1", "idem-1")).thenReturn(Optional.empty());
@@ -187,18 +217,50 @@ class OrderServiceTest {
         OrderResponse result = orderService.createOrder("user-1", "Bearer tok", "idem-1", codReq());
 
         assertThat(result.getOrderStatus()).isEqualTo("CONFIRMED");
-        assertThat(result.getTotalAmount()).isEqualByComparingTo("150000");
+        assertThat(result.getSubtotalAmount()).isEqualByComparingTo("150000");
+        assertThat(result.getShippingFee()).isEqualByComparingTo("15000");
+        assertThat(result.getTaxAmount()).isEqualByComparingTo("15000");
+        assertThat(result.getRoundingAdjustment()).isEqualByComparingTo("0");
+        assertThat(result.getTotalAmount()).isEqualByComparingTo("180000");
         assertThat(result.getItems().get(0).getPriceAtPurchase()).isEqualByComparingTo("150000");
         verify(paymentClient).createCodPayment(argThat(r ->
                 r.getOrderId() != null
-                        && "150000".equals(r.getAmount().stripTrailingZeros().toPlainString())
+                        && "180000".equals(r.getAmount().stripTrailingZeros().toPlainString())
         ));
         verify(paymentClient, never()).createSepayPayment(any());
         verify(cartClient).clearCart("Bearer tok");
     }
 
     @Test
-    void createOrder_cod_notificationFailureDoesNotRollBackOrder() {
+    void createOrder_codStoresExactPricingBreakdownWithoutCashRounding() {
+        CartResponse cart = cartWithItems();
+        when(checkoutIdempotencyRepository.findByUserIdAndIdempotencyKey("user-1", "idem-1")).thenReturn(Optional.empty());
+        when(checkoutIdempotencyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(cartClient.getCart(any(), any())).thenReturn(ApiResponse.success("ok", cart));
+        when(productClient.getVariantSnapshot("var-A"))
+                .thenReturn(ApiResponse.success("ok", variantSnapshot("var-A", "1113000")));
+        when(orderRepository.save(any())).thenAnswer(inv -> savedOrder(inv.getArgument(0)));
+        when(orderItemRepository.save(any())).thenAnswer(inv -> savedItem(inv.getArgument(0)));
+        when(paymentClient.createCodPayment(any())).thenReturn(ApiResponse.success("ok", paymentResponse("PENDING")));
+        when(orderStatusService.changeStatus(any(Order.class), eq(OrderStatus.CONFIRMED), eq("user-1")))
+                .thenAnswer(inv -> withStatus(inv.getArgument(0), OrderStatus.CONFIRMED));
+        when(cartClient.clearCart(any())).thenReturn(ApiResponse.success("ok", null));
+
+        OrderResponse result = orderService.createOrder("user-1", "Bearer tok", "idem-1", codReq());
+
+        assertThat(result.getSubtotalAmount()).isEqualByComparingTo("1113000");
+        assertThat(result.getShippingFee()).isEqualByComparingTo("0");
+        assertThat(result.getTaxAmount()).isEqualByComparingTo("111300");
+        assertThat(result.getRoundingAdjustment()).isEqualByComparingTo("0");
+        assertThat(result.getTotalAmount()).isEqualByComparingTo("1224300");
+        verify(paymentClient).createCodPayment(argThat(r ->
+                r.getOrderId() != null
+                        && "1224300".equals(r.getAmount().stripTrailingZeros().toPlainString())
+        ));
+    }
+
+    @Test
+    void createOrder_cod_confirmsEvenThoughNotificationIsDeferredAfterCommit() {
         CartResponse cart = cartWithItems();
         when(checkoutIdempotencyRepository.findByUserIdAndIdempotencyKey("user-1", "idem-1")).thenReturn(Optional.empty());
         when(checkoutIdempotencyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -211,7 +273,6 @@ class OrderServiceTest {
         when(orderStatusService.changeStatus(any(Order.class), eq(OrderStatus.CONFIRMED), eq("user-1")))
                 .thenAnswer(inv -> withStatus(inv.getArgument(0), OrderStatus.CONFIRMED));
         when(cartClient.clearCart(any())).thenReturn(ApiResponse.success("ok", null));
-        when(userClient.getUserEmail("user-1")).thenThrow(new RuntimeException("auth-service unreachable"));
 
         OrderResponse result = orderService.createOrder("user-1", "Bearer tok", "idem-1", codReq());
 
@@ -236,11 +297,16 @@ class OrderServiceTest {
         assertThat(result.getOrderStatus()).isEqualTo("PAYMENT_PENDING");
         assertThat(result.getPaymentTransactionId()).isEqualTo("txn-1");
         assertThat(result.getPaymentStatus()).isEqualTo("PENDING");
+        assertThat(result.getSubtotalAmount()).isEqualByComparingTo("150000");
+        assertThat(result.getShippingFee()).isEqualByComparingTo("15000");
+        assertThat(result.getTaxAmount()).isEqualByComparingTo("15000");
+        assertThat(result.getRoundingAdjustment()).isEqualByComparingTo("0");
+        assertThat(result.getTotalAmount()).isEqualByComparingTo("180000");
         assertThat(result.getQrImageUrl()).isEqualTo("https://img.vietqr.io/fake");
         assertThat(result.getTransferContent()).isEqualTo("STYLEMIND ORDorder-generated-id");
         verify(paymentClient).createSepayPayment(argThat(r ->
                 r.getOrderId() != null
-                        && "150000".equals(r.getAmount().stripTrailingZeros().toPlainString())
+                        && "180000".equals(r.getAmount().stripTrailingZeros().toPlainString())
         ));
         verify(paymentClient, never()).createCodPayment(any());
         verify(cartClient, never()).clearCart(any());
@@ -282,17 +348,12 @@ class OrderServiceTest {
     }
 
     @Test
-    void updateOrderStatusFromPayment_notificationClientThrows_orderRemainsPaid() {
+    void updateOrderStatusFromPayment_paidDoesNotMoveToFailedWhenPostProcessingSucceeds() {
         Order order = pendingPaymentOrder();
         when(orderRepository.findById("order-1")).thenReturn(Optional.of(order));
         when(orderStatusService.changeStatus(any(Order.class), eq(OrderStatus.PAID), eq("PAYMENT_WEBHOOK")))
                 .thenAnswer(inv -> withStatus(inv.getArgument(0), OrderStatus.PAID));
         when(cartClient.clearCartByUserId("user-1")).thenReturn(ApiResponse.success("ok", null));
-        UserClient.UserEmail userEmail = new UserClient.UserEmail();
-        userEmail.setEmail("buyer@example.com");
-        when(userClient.getUserEmail("user-1")).thenReturn(ApiResponse.success("ok", userEmail));
-        when(notificationClient.sendEmail(any()))
-                .thenThrow(new RuntimeException("notification-service unreachable"));
 
         orderService.updateOrderStatusFromPayment("order-1", "PAID");
 
@@ -421,6 +482,74 @@ class OrderServiceTest {
         verify(paymentClient, never()).createSepayPayment(any());
         verify(paymentClient, never()).createCodPayment(any());
         verify(cartClient, never()).getCart(any(), any());
+    }
+
+    @Test
+    void uploadDeliveryImage_requiresCompletedOrder() {
+        Order order = savedOrder(Order.builder()
+                .id("order-1")
+                .userId("user-1")
+                .totalAmount(new BigDecimal("177000"))
+                .orderStatus(OrderStatus.SHIPPED)
+                .shippingAddress("123 Main Street")
+                .build());
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "received.jpg",
+                "image/jpeg",
+                new byte[] { 1, 2, 3 }
+        );
+        when(orderRepository.findByIdAndUserId("order-1", "user-1")).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.uploadDeliveryImage("user-1", "order-1", file))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("giao thành công");
+
+        verify(deliveryImageRepository, never()).save(any());
+    }
+
+    @Test
+    void uploadDeliveryImage_savesProofForCompletedOrderAndReturnsImages() {
+        Order order = savedOrder(Order.builder()
+                .id("order-1")
+                .userId("user-1")
+                .totalAmount(new BigDecimal("177000"))
+                .orderStatus(OrderStatus.COMPLETED)
+                .shippingAddress("123 Main Street")
+                .build());
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "received.jpg",
+                "image/jpeg",
+                new byte[] { 1, 2, 3 }
+        );
+
+        when(orderRepository.findByIdAndUserId("order-1", "user-1")).thenReturn(Optional.of(order));
+        when(deliveryImageRepository.countByOrderId("order-1")).thenReturn(0L);
+        when(deliveryImageRepository.save(any())).thenAnswer(invocation -> {
+            com.stylemind.order.entity.OrderDeliveryImage image = invocation.getArgument(0);
+            image.setCreatedAt(LocalDateTime.parse("2026-07-21T10:00:00"));
+            image.setUpdatedAt(LocalDateTime.parse("2026-07-21T10:00:00"));
+            return image;
+        });
+        when(orderItemRepository.findByOrderId("order-1")).thenReturn(List.of());
+        when(auditLogRepository.findByOrderIdOrderByCreatedAtAsc("order-1")).thenReturn(List.of());
+        when(deliveryImageRepository.findByOrderIdOrderByCreatedAtDesc("order-1"))
+                .thenReturn(List.of(com.stylemind.order.entity.OrderDeliveryImage.builder()
+                        .id("img-1")
+                        .orderId("order-1")
+                        .userId("user-1")
+                        .fileName("received.jpg")
+                        .contentType("image/jpeg")
+                        .sizeBytes(3L)
+                        .imageData(new byte[] { 1, 2, 3 })
+                        .build()));
+
+        OrderResponse response = orderService.uploadDeliveryImage("user-1", "order-1", file);
+
+        assertThat(response.getDeliveryImages()).hasSize(1);
+        assertThat(response.getDeliveryImages().get(0).getImageDataUrl()).startsWith("data:image/jpeg;base64,");
+        verify(deliveryImageRepository).save(any());
     }
 
     private Order withStatus(Order order, OrderStatus status) {

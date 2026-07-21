@@ -11,7 +11,7 @@ test('normalizeOrderStatus maps delivered aliases to completed', () => {
 
 test('formatStatusLabel returns Vietnamese labels and unknown fallback', () => {
   assert.equal(formatStatusLabel('payment_pending'), 'Chờ thanh toán')
-  assert.equal(formatStatusLabel('completed'), 'Hoàn tất')
+  assert.equal(formatStatusLabel('completed'), 'Đã giao thành công')
   assert.equal(formatStatusLabel('does-not-exist'), 'Không xác định')
 })
 

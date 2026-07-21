@@ -15,6 +15,10 @@ public class OrderResponse {
     private String userId;
     private String customerEmail;
     private BigDecimal totalAmount;
+    private BigDecimal subtotalAmount;
+    private BigDecimal shippingFee;
+    private BigDecimal taxAmount;
+    private BigDecimal roundingAdjustment;
     private String orderStatus;
     private List<String> availableTransitions;
     private String paymentTransactionId;
@@ -38,6 +42,7 @@ public class OrderResponse {
     private String shippingAddressLine;
     private String shippingNote;
     private List<OrderItemResponse> items;
+    private List<OrderDeliveryImageResponse> deliveryImages;
     private List<OrderStatusHistoryResponse> statusHistory;
     private Instant createdAt;
     private Instant updatedAt;
@@ -50,6 +55,14 @@ public class OrderResponse {
     public void setCustomerEmail(String customerEmail) { this.customerEmail = customerEmail; }
     public BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(BigDecimal totalAmount) { this.totalAmount = totalAmount; }
+    public BigDecimal getSubtotalAmount() { return subtotalAmount; }
+    public void setSubtotalAmount(BigDecimal subtotalAmount) { this.subtotalAmount = subtotalAmount; }
+    public BigDecimal getShippingFee() { return shippingFee; }
+    public void setShippingFee(BigDecimal shippingFee) { this.shippingFee = shippingFee; }
+    public BigDecimal getTaxAmount() { return taxAmount; }
+    public void setTaxAmount(BigDecimal taxAmount) { this.taxAmount = taxAmount; }
+    public BigDecimal getRoundingAdjustment() { return roundingAdjustment; }
+    public void setRoundingAdjustment(BigDecimal roundingAdjustment) { this.roundingAdjustment = roundingAdjustment; }
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
     public List<String> getAvailableTransitions() { return availableTransitions; }
@@ -96,6 +109,8 @@ public class OrderResponse {
     public void setShippingNote(String shippingNote) { this.shippingNote = shippingNote; }
     public List<OrderItemResponse> getItems() { return items; }
     public void setItems(List<OrderItemResponse> items) { this.items = items; }
+    public List<OrderDeliveryImageResponse> getDeliveryImages() { return deliveryImages; }
+    public void setDeliveryImages(List<OrderDeliveryImageResponse> deliveryImages) { this.deliveryImages = deliveryImages; }
     public List<OrderStatusHistoryResponse> getStatusHistory() { return statusHistory; }
     public void setStatusHistory(List<OrderStatusHistoryResponse> statusHistory) { this.statusHistory = statusHistory; }
     public Instant getCreatedAt() { return createdAt; }

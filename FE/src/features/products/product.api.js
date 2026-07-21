@@ -24,6 +24,8 @@ export async function getProductPage(filters = {}) {
   if (filters.targetDemographic) params.targetDemographic = filters.targetDemographic
   if (filters.category && !Number.isNaN(Number(filters.category))) {
     params.category = Number(filters.category)
+  } else if (filters.categorySlug) {
+    params.categorySlug = filters.categorySlug
   }
 
   const response = await apiClient.get(ENDPOINTS.PRODUCTS, { params })

@@ -16,6 +16,7 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -116,6 +117,45 @@ class NotificationServiceTest {
         var response = notificationService.getNotificationForUser("user-1", 1L);
 
         assertThat(response.getId()).isEqualTo(1L);
+    }
+
+    @Test
+    void getNotifications_returnsRepositoryNewestFirstOrder() {
+        NotificationLog newest = NotificationLog.builder()
+                .id(2L).userId("user-1").recipientEmail("user@example.com")
+                .type("ORDER_CONFIRMED").channel("email").status("sent")
+                .sentAt(LocalDateTime.of(2026, 7, 21, 9, 43))
+                .build();
+        NotificationLog older = NotificationLog.builder()
+                .id(1L).userId("user-1").recipientEmail("user@example.com")
+                .type("WELCOME").channel("email").status("sent")
+                .sentAt(LocalDateTime.now().minusDays(1))
+                .build();
+        when(notificationLogRepository.findByUserIdNewestFirst("user-1")).thenReturn(List.of(newest, older));
+
+        var response = notificationService.getNotifications("user-1");
+
+        assertThat(response).extracting("id").containsExactly(2L, 1L);
+        assertThat(response.get(0).getSentAt().toString()).isEqualTo("2026-07-21T09:43:00Z");
+        verify(notificationLogRepository).findByUserIdNewestFirst("user-1");
+    }
+
+    @Test
+    void getNotifications_translatesLegacyOrderNotificationCopy() {
+        NotificationLog entry = NotificationLog.builder()
+                .id(2L).userId("user-1").recipientEmail("user@example.com")
+                .type("ORDER_CONFIRMED").channel("EMAIL").status("SENT")
+                .title("Order confirmed")
+                .content("Your order 42 has been confirmed and will be paid on delivery.")
+                .sentAt(LocalDateTime.now())
+                .build();
+        when(notificationLogRepository.findByUserIdNewestFirst("user-1")).thenReturn(List.of(entry));
+
+        var response = notificationService.getNotifications("user-1");
+
+        assertThat(response.get(0).getTitle()).isEqualTo("Đơn hàng đã được xác nhận");
+        assertThat(response.get(0).getContent())
+                .isEqualTo("Đơn hàng #42 của bạn đã được xác nhận. Bạn sẽ thanh toán khi nhận hàng.");
     }
 
     @Test

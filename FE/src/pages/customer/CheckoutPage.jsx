@@ -9,7 +9,7 @@ import Modal from '../../components/common/Modal'
 import { cancelOrder } from '../../features/orders/order.api'
 import { getAddresses } from '../../features/profile/profile.api'
 import { formatSavedAddress, isCheckoutEligibleAddress } from '../../features/profile/address.utils'
-import { TAX_LABEL, TAX_RATE } from '../../features/cart/cart.utils'
+import { calculateTotal, isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
 
 const paymentMethods = [
   { id: 'cod', label: 'Thanh toán khi nhận hàng', icon: Banknote, description: 'Thanh toán khi đơn hàng được giao đến bạn' },
@@ -17,10 +17,11 @@ const paymentMethods = [
 ]
 
 export default function CheckoutPage() {
-  const { items, subtotal, clearCart, loadCart } = useCart()
-  const { status, steps, error, method, setMethod, processPayment, stopPolling, reset, lastOrder } = usePaymentStore()
+  const { items, clearCart, loadCart } = useCart()
+  const { status, steps, error, method, setMethod, processPayment, resumeSepayPayment, stopPolling, reset, lastOrder } = usePaymentStore()
   const location = useLocation()
   const navigate = useNavigate()
+  const resumePaymentOrder = location.state?.resumePaymentOrder || null
 
   const [addresses, setAddresses] = useState([])
   const [addressLoading, setAddressLoading] = useState(true)
@@ -32,20 +33,26 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const displayItems = items
-  const displaySubtotal = subtotal
-  const shipping = displaySubtotal > 200 ? 0 : 15
-  const tax = Math.round(displaySubtotal * TAX_RATE * 100) / 100
-  const total = displaySubtotal + shipping + tax
+  const {
+    subtotal: displaySubtotal,
+    shipping,
+    tax,
+    total,
+  } = calculateTotal(displayItems, method)
+  const isCod = isCodPaymentMethod(method)
+  const awaitingPaymentTotal = status === 'awaiting_confirmation' && lastOrder
+    ? Number(lastOrder.total || lastOrder.exactTotal || total)
+    : total
 
   useEffect(() => {
     loadCart()
   }, [loadCart])
 
   useEffect(() => {
-    if (items.length === 0 && status === 'idle') {
+    if (items.length === 0 && status === 'idle' && !resumePaymentOrder) {
       navigate('/shop')
     }
-  }, [items.length, status, navigate])
+  }, [items.length, status, navigate, resumePaymentOrder])
 
   useEffect(() => {
     let active = true
@@ -71,8 +78,10 @@ export default function CheckoutPage() {
   useLayoutEffect(() => {
     if (location.state?.freshCheckout) {
       reset()
+    } else if (resumePaymentOrder) {
+      resumeSepayPayment(resumePaymentOrder)
     }
-  }, [location.state, reset])
+  }, [location.state, reset, resumePaymentOrder, resumeSepayPayment])
 
   useEffect(() => {
     return () => {
@@ -102,11 +111,14 @@ export default function CheckoutPage() {
     setAddressError('')
     setIsSubmitting(true)
     try {
-      await processPayment({
+      const result = await processPayment({
         addressId: selectedAddressId,
         items: displayItems,
         total,
       })
+      if (result?.requiresConfirmation) {
+        await clearCart()
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -201,7 +213,7 @@ export default function CheckoutPage() {
           <div className="bg-surface-container-lowest rounded-xl p-8 ambient-shadow mb-6">
             <h2 className="font-headline-md text-primary text-center mb-2">Quét mã &amp; chuyển khoản</h2>
             <p className="text-sm text-on-surface-variant text-center mb-4">
-              Quét mã VietQR này bằng ứng dụng ngân hàng và chuyển đúng {formatCurrency(total)}.
+              Quét mã VietQR này bằng ứng dụng ngân hàng và chuyển đúng {formatCurrency(awaitingPaymentTotal)}.
             </p>
 
             {lastOrder?.qrImageUrl ? (
@@ -540,7 +552,7 @@ export default function CheckoutPage() {
                 <div className="flex justify-between"><span className="text-on-surface-variant">Phí vận chuyển</span><span className={shipping === 0 ? 'text-green-status' : ''}>{shipping === 0 ? 'Miễn phí' : formatCurrency(shipping)}</span></div>
                 <div className="flex justify-between"><span className="text-on-surface-variant">{TAX_LABEL}</span><span>{formatCurrency(tax)}</span></div>
                 <div className="border-t border-outline-variant/20 pt-2 flex justify-between font-semibold text-primary text-lg">
-                  <span>Tổng cộng</span><span>{formatCurrency(total)}</span>
+                  <span>{isCod ? 'Số tiền thu hộ COD' : 'Tổng cộng'}</span><span>{formatCurrency(total)}</span>
                 </div>
               </div>
               <button

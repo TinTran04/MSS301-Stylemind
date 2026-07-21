@@ -8,5 +8,8 @@ import lombok.*;
 @AllArgsConstructor
 @Builder
 public class AdminNotificationSummaryResponse {
+    private long totalNotifications;
+    private long sentNotifications;
+    private long pendingNotifications;
     private long failedNotifications;
 }

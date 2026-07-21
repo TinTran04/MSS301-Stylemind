@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, Copy, CreditCard, ImageOff, MapPin, Package, RefreshCw, UserRound } from 'lucide-react'
+import { ArrowLeft, Check, Copy, CreditCard, ImageIcon, ImageOff, MapPin, Package, RefreshCw, UserRound } from 'lucide-react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Card from '../../components/common/Card'
 import Badge from '../../components/common/Badge'
@@ -10,11 +10,12 @@ import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/o
 import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatDateTime } from '../../utils/formatDate'
+import { isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
 import {
   displayValue,
   getOrderItemDisplay,
   getOrderItemLineTotal,
-  getOrderSubtotal,
+  getOrderPricingSummary,
   resolveAdminOrderBackUrl,
 } from './adminOrderDetail.utils'
 import { getAdminOrderStatusOptions, getStatusUpdateErrorMessage } from './adminOrderStatus.utils'
@@ -152,6 +153,34 @@ function OrderStatusHistory({ history }) {
   )
 }
 
+function DeliveryImagesSection({ images }) {
+  return (
+    <DetailSection title="Ảnh nhận hàng" icon={ImageIcon}>
+      {images?.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3">
+          {images.map((image) => (
+            <a
+              key={image.id}
+              href={image.imageDataUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="group block overflow-hidden rounded-lg border border-outline-variant/20 bg-surface-container-low"
+            >
+              <img
+                src={image.imageDataUrl}
+                alt={image.fileName || 'Ảnh nhận hàng'}
+                className="aspect-square w-full object-cover transition-transform group-hover:scale-105"
+              />
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-on-surface-variant">Khách hàng chưa tải ảnh nhận hàng.</p>
+      )}
+    </DetailSection>
+  )
+}
+
 export default function AdminOrderDetailPage() {
   const { orderId } = useParams()
   const location = useLocation()
@@ -207,7 +236,7 @@ export default function AdminOrderDetailPage() {
   const statusOptions = getAdminOrderStatusOptions(order)
   const paymentStatus = order.paymentStatus ? normalizeOrderStatus(order.paymentStatus) : null
   const items = order.items || []
-  const subtotal = getOrderSubtotal(items)
+  const pricing = getOrderPricingSummary(order, items)
   const paymentMethodValue = order.paymentMethod?.toLowerCase()
   const paymentMethod = paymentMethodValue === 'cod'
     ? 'COD'
@@ -306,10 +335,17 @@ export default function AdminOrderDetailPage() {
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.85fr)_minmax(280px,1fr)] gap-6 items-start">
         <div className="space-y-6 min-w-0">
           <OrderItemsSection items={items} />
+          <DeliveryImagesSection images={order.deliveryImages} />
           <DetailSection title="Tóm tắt giá">
             <dl>
-              <InfoRow label="Tạm tính" value={formatCurrency(subtotal)} />
-              <InfoRow label="Tổng cộng" value={formatCurrency(order.totalAmount)} />
+              <InfoRow label="Tạm tính" value={formatCurrency(pricing.subtotal)} />
+              {pricing.hasBreakdown && (
+                <>
+                  <InfoRow label="Phí vận chuyển" value={pricing.shippingFee === 0 ? 'Miễn phí' : formatCurrency(pricing.shippingFee)} />
+                  <InfoRow label={TAX_LABEL} value={formatCurrency(pricing.taxAmount)} />
+                </>
+              )}
+              <InfoRow label={isCodPaymentMethod(order.paymentMethod) ? 'Số tiền thu hộ COD' : 'Tổng cộng'} value={formatCurrency(pricing.totalAmount)} />
             </dl>
           </DetailSection>
           <OrderStatusHistory history={order.statusHistory} />
@@ -333,7 +369,7 @@ export default function AdminOrderDetailPage() {
             <dl>
               <InfoRow label="Phương thức" value={paymentMethod} />
               <InfoRow label="Trạng thái" value={paymentStatus ? formatStatusLabel(paymentStatus) : null} />
-              <InfoRow label="Số tiền" value={formatCurrency(order.totalAmount)} />
+              <InfoRow label={isCodPaymentMethod(order.paymentMethod) ? 'Số tiền thu hộ' : 'Số tiền'} value={formatCurrency(pricing.totalAmount)} />
               <InfoRow label="Mã tham chiếu" value={order.paymentReference} mono />
               <InfoRow label="Nội dung chuyển khoản" value={order.transferContent} mono />
               <InfoRow label="Mã giao dịch cổng" value={order.gatewayTransactionId} mono />

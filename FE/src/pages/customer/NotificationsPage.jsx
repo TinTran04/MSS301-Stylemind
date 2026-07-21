@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react'
 import { Bell, ShoppingCart, AlertTriangle } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import { getMyNotifications } from '../../features/notifications/notification.api'
+import {
+  formatNotificationContent,
+  formatNotificationStatus,
+  formatNotificationTitle,
+  isOrderNotification,
+  sortNotificationsNewestFirst,
+} from '../../features/notifications/notification.display'
 import { formatDateTime } from '../../utils/formatDate'
 
 const STATUS_VARIANT = {
@@ -9,24 +16,6 @@ const STATUS_VARIANT = {
   PENDING: 'warning',
   FAILED: 'error',
   SKIPPED: 'default',
-}
-
-const STATUS_LABEL = {
-  SENT: 'Đã gửi',
-  PENDING: 'Đang chờ',
-  FAILED: 'Thất bại',
-  SKIPPED: 'Đã bỏ qua',
-}
-
-const TYPE_LABEL = {
-  ORDER: 'Đơn hàng',
-  ORDER_CONFIRMATION: 'Xác nhận đơn hàng',
-  SYSTEM: 'Hệ thống',
-}
-
-const TYPE_ICON = {
-  ORDER: ShoppingCart,
-  ORDER_CONFIRMATION: ShoppingCart,
 }
 
 export default function NotificationsPage() {
@@ -41,7 +30,7 @@ export default function NotificationsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const sorted = [...notifications].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  const sorted = sortNotificationsNewestFirst(notifications)
 
   return (
     <div className="max-w-[900px] mx-auto px-6 md:px-16 py-8">
@@ -63,7 +52,8 @@ export default function NotificationsPage() {
       {!loading && !error && sorted.length > 0 && (
         <div className="bg-surface-container-lowest rounded-xl ambient-shadow divide-y divide-outline-variant/10">
           {sorted.map((n) => {
-            const Icon = TYPE_ICON[n.type] || AlertTriangle
+            const Icon = isOrderNotification(n.type) ? ShoppingCart : AlertTriangle
+            const displayContent = formatNotificationContent(n)
             return (
               <div key={n.id} className="flex items-start gap-4 px-5 py-4">
                 <div className="mt-0.5 w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-primary/10">
@@ -71,11 +61,11 @@ export default function NotificationsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-on-surface">{n.title || TYPE_LABEL[n.type] || n.type}</p>
-                    <Badge variant={STATUS_VARIANT[n.status] || 'default'}>{STATUS_LABEL[n.status] || n.status}</Badge>
+                    <p className="text-sm font-medium text-on-surface">{formatNotificationTitle(n)}</p>
+                    <Badge variant={STATUS_VARIANT[String(n.status || '').toUpperCase()] || 'default'}>{formatNotificationStatus(n.status)}</Badge>
                   </div>
-                  {n.content && <p className="text-xs text-on-surface-variant mt-0.5">{n.content}</p>}
-                  <p className="text-xs text-on-surface-variant/60 mt-1">{formatDateTime(n.createdAt)}</p>
+                  {displayContent && <p className="text-xs text-on-surface-variant mt-0.5">{displayContent}</p>}
+                  <p className="text-xs text-on-surface-variant/60 mt-1">{formatDateTime(n.sentAt || n.createdAt)}</p>
                 </div>
               </div>
             )

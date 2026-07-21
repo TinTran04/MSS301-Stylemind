@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
-import { Package, Truck } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { ArrowRight, Package, Truck } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import { getOrders } from '../../features/orders/order.api'
 import { formatDateTime } from '../../utils/formatDate'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/orderStatus'
+import { isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
 
 const statusTabs = [
   { key: 'All', label: 'Tất cả' },
   { key: 'Processing', label: 'Đang xử lý' },
   { key: 'Shipped', label: 'Đang giao' },
-  { key: 'Completed', label: 'Hoàn tất' },
+  { key: 'Completed', label: 'Đã giao thành công' },
 ]
 
 const badgeVariants = {
@@ -34,6 +35,7 @@ export default function OrderTrackingPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const location = useLocation()
+  const navigate = useNavigate()
 
   useEffect(() => {
     getOrders()
@@ -48,6 +50,17 @@ export default function OrderTrackingPage() {
   const filteredOrders = selectedTab === 'All'
     ? orders
     : orders.filter((o) => normalizeOrderStatus(o.status).toLowerCase() === selectedTab.toLowerCase())
+  const selectedOrderStatus = normalizeOrderStatus(selectedOrder?.status)
+  const canContinueSepayPayment = selectedOrder
+    && selectedOrderStatus === 'PAYMENT_PENDING'
+    && String(selectedOrder.paymentMethod || '').toLowerCase() === 'sepay'
+
+  const handleContinuePayment = () => {
+    if (!selectedOrder) return
+    navigate('/checkout', {
+      state: { resumePaymentOrder: selectedOrder },
+    })
+  }
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 md:px-16 py-8">
@@ -98,7 +111,9 @@ export default function OrderTrackingPage() {
             {filteredOrders.map((order) => (
               <button
                 key={order.id}
-                onClick={() => setSelectedOrder(order)}
+                onClick={() => {
+                  setSelectedOrder(order)
+                }}
                   className={`w-full text-left bg-surface-container-lowest rounded-xl p-4 transition-all border-l-4 ${
                     selectedOrder?.id === order.id
                       ? 'border-primary ambient-shadow'
@@ -126,7 +141,7 @@ export default function OrderTrackingPage() {
         {/* Right: Order Detail */}
         {selectedOrder && (
           <div className="hidden lg:block w-7/12">
-            <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow sticky top-28">
+            <div className="custom-scrollbar sticky top-28 max-h-[calc(100vh-8rem)] overflow-y-auto bg-surface-container-lowest rounded-xl p-6 ambient-shadow">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="font-title-lg text-primary">{selectedOrder.id}</h2>
@@ -147,13 +162,19 @@ export default function OrderTrackingPage() {
                 <div className="flex items-center justify-between relative">
                   <div className="absolute top-4 left-4 right-4 h-px bg-outline-variant/30" />
                   {selectedOrder.timeline.map((step, idx) => (
-                      <div key={idx} className="relative flex flex-col items-center z-10">
+                      <div
+                        key={idx}
+                        className={`relative flex min-w-0 flex-col items-center z-10 text-center ${
+                          selectedOrder.timeline.length <= 5 ? 'max-w-28' : 'max-w-20'
+                        }`}
+                      >
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
                           step.completed ? 'bg-primary text-on-primary' : 'bg-surface-container-lowest border-2 border-outline-variant text-on-surface-variant'
                         }`}>
                           {step.completed ? '✓' : idx + 1}
                         </div>
-                      <span className="mt-2 text-[10px] text-on-surface-variant whitespace-nowrap">{step.label}</span>
+                      <span className="mt-2 text-[10px] leading-tight text-on-surface-variant break-words">{step.label}</span>
+                      {step.date && <span className="mt-1 text-[9px] leading-tight text-on-surface-variant/70">{formatDateTime(step.date)}</span>}
                       </div>
                   ))}
                 </div>
@@ -168,7 +189,10 @@ export default function OrderTrackingPage() {
                     <div>
                       <p className="text-sm font-medium text-primary">{item.name}</p>
                       <p className="text-xs text-on-surface-variant">Kích cỡ: {item.size} / Màu sắc: {item.color}</p>
-                      <p className="text-sm font-semibold text-primary mt-1">{formatCurrency(item.price)}</p>
+                      <p className="text-xs text-on-surface-variant mt-1">
+                        {item.quantity || 1} × {formatCurrency(item.price)}
+                      </p>
+                      <p className="text-sm font-semibold text-primary mt-1">{formatCurrency(item.price * (item.quantity || 1))}</p>
                     </div>
                   </div>
                 ))}
@@ -176,12 +200,48 @@ export default function OrderTrackingPage() {
 
               {/* Summary */}
               <div className="border-t border-outline-variant/20 pt-4">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-on-surface-variant">Tổng cộng</span>
-                  <span className="font-semibold text-primary">{formatCurrency(selectedOrder.total)}</span>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-on-surface-variant">Tạm tính</span>
+                    <span className="text-primary">{formatCurrency(selectedOrder.subtotal)}</span>
+                  </div>
+                  {selectedOrder.hasPricingBreakdown && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-on-surface-variant">Phí vận chuyển</span>
+                        <span className={selectedOrder.shippingFee === 0 ? 'text-green-status' : 'text-primary'}>
+                          {selectedOrder.shippingFee === 0 ? 'Miễn phí' : formatCurrency(selectedOrder.shippingFee)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-on-surface-variant">{TAX_LABEL}</span>
+                        <span className="text-primary">{formatCurrency(selectedOrder.taxAmount)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="border-t border-outline-variant/20 pt-2 flex justify-between font-semibold text-primary">
+                    <span>{isCodPaymentMethod(selectedOrder.paymentMethod) ? 'Số tiền thu hộ COD' : 'Tổng cộng'}</span>
+                    <span>{formatCurrency(selectedOrder.total)}</span>
+                  </div>
                 </div>
               </div>
 
+              {canContinueSepayPayment && (
+                <div className="mt-6 border-t border-outline-variant/20 pt-5">
+                  {selectedOrder.paymentExpiresAt && (
+                    <p className="mb-3 text-xs leading-relaxed text-on-surface-variant">
+                      Phiên thanh toán hết hạn lúc {formatDateTime(selectedOrder.paymentExpiresAt)}.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleContinuePayment}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 active:scale-95"
+                  >
+                    Tiếp tục thanh toán <ArrowRight size={16} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

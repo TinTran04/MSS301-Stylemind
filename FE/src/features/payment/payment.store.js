@@ -8,6 +8,14 @@ const TERMINAL_FAILURE_STATUSES = ['EXPIRED', 'CANCELLED', 'FAILED']
 let pollTimer = null
 let attemptSequence = 0
 
+function buildSepayAwaitingSteps() {
+  return [
+    { label: 'Đơn hàng đã tạo', status: 'completed' },
+    { label: 'Tạo mã VietQR', status: 'completed' },
+    { label: 'Chờ chuyển khoản từ ngân hàng', status: 'processing' },
+  ]
+}
+
 const usePaymentStore = create((set, get) => ({
   status: 'idle',
   steps: [],
@@ -20,6 +28,24 @@ const usePaymentStore = create((set, get) => ({
   method: 'cod',
 
   setMethod: (method) => set({ method }),
+
+  resumeSepayPayment: (order) => {
+    if (!order?.id) return
+    get().stopPolling()
+    const attemptId = ++attemptSequence
+    set({
+      status: 'awaiting_confirmation',
+      steps: buildSepayAwaitingSteps(),
+      currentStep: 2,
+      error: null,
+      lastOrder: order,
+      activeOrderId: order.id,
+      idempotencyKey: null,
+      attemptId,
+      method: 'sepay',
+    })
+    get().startPollingOrderStatus(order.id, attemptId)
+  },
 
   processPayment: async (orderData) => {
     const currentStatus = get().status

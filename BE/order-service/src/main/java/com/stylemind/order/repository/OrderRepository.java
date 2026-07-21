@@ -18,6 +18,7 @@ import java.util.Optional;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, String> {
     List<Order> findByUserId(String userId);
+    List<Order> findByUserIdOrderByCreatedAtDescIdDesc(String userId);
     List<Order> findByOrderStatus(OrderStatus orderStatus);
     List<Order> findByOrderStatusAndCreatedAtBefore(OrderStatus orderStatus, LocalDateTime cutoff);
     Page<Order> findByUserId(String userId, Pageable pageable);
