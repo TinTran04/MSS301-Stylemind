@@ -51,6 +51,7 @@ export default function OrderManagementPage() {
       const params = {
         size: PAGE_SIZE,
         page,
+        sort: 'createdAt,desc',
         status: statusFilter === 'All' ? undefined : statusFilter,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,

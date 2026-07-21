@@ -274,12 +274,6 @@ export default function AdminOrderDetailPage() {
           <p className="mt-1 text-xs text-on-surface-variant">Tạo lúc {formatDateTime(order.createdAt)}</p>
         </div>
         <div className="flex flex-col items-stretch gap-4 lg:items-end">
-          {paymentStatus && (
-            <div className="text-left lg:text-right">
-              <p className="text-xs uppercase tracking-wide text-on-surface-variant">Trạng thái thanh toán</p>
-              <StatusBadge status={paymentStatus.toLowerCase()} label={formatStatusLabel(paymentStatus)} />
-            </div>
-          )}
           <div className="w-full lg:w-64">
             {statusOptions.length > 0 ? (
               <>
@@ -297,9 +291,7 @@ export default function AdminOrderDetailPage() {
                   {statusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </>
-            ) : (
-              <p className="text-xs text-on-surface-variant">Trạng thái này đã kết thúc, không có chuyển đổi khả dụng.</p>
-            )}
+            ) : null}
           </div>
         </div>
       </header>
@@ -328,14 +320,13 @@ export default function AdminOrderDetailPage() {
             <dl>
               <InfoRow label="Email" value={order.customerEmail} />
               <InfoRow label="Mã người dùng" value={order.userId} mono />
-              <InfoRow label="Họ tên" value={null} />
-              <InfoRow label="Số điện thoại" value={null} />
+              <InfoRow label="Họ tên" value={order.shippingRecipientName} />
+              <InfoRow label="Số điện thoại" value={order.shippingPhone} />
             </dl>
           </DetailSection>
 
           <DetailSection title="Địa chỉ giao hàng" icon={MapPin}>
             <p className="text-sm leading-6 text-on-surface whitespace-pre-wrap">{displayValue(order.shippingAddress)}</p>
-            <p className="mt-3 text-xs text-on-surface-variant">Đây là địa chỉ chụp tại thời điểm đặt hàng.</p>
           </DetailSection>
 
           <DetailSection title="Thanh toán" icon={CreditCard}>

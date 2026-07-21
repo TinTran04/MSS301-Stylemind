@@ -22,7 +22,7 @@ export function validateProductFields(product) {
   const errors = {}
   if (!product?.name?.trim()) errors.name = 'Tên sản phẩm là bắt buộc.'
   if (!Number.isFinite(Number(product?.basePrice)) || Number(product.basePrice) <= 0) {
-    errors.basePrice = 'Giá gốc phải lớn hơn 0.'
+    errors.basePrice = 'Giá sản phẩm phải lớn hơn 0.'
   }
   if (!Array.isArray(product?.categoryIds) || product.categoryIds.length === 0) {
     errors.categoryIds = 'Vui lòng chọn ít nhất một danh mục.'
@@ -40,7 +40,7 @@ export function validateVariantFields(variant) {
   if (!variant?.color?.trim()) errors.color = 'Màu sắc là bắt buộc.'
   if (variant?.priceOverride !== '' && variant?.priceOverride != null
       && (!Number.isFinite(Number(variant.priceOverride)) || Number(variant.priceOverride) <= 0)) {
-    errors.priceOverride = 'Giá ghi đè phải lớn hơn 0 nếu được nhập.'
+    errors.priceOverride = 'Giá riêng cho biến thể phải lớn hơn 0 nếu được nhập.'
   }
   if (variant?.stockQuantity === '' || variant?.stockQuantity == null
       || !Number.isFinite(Number(variant.stockQuantity)) || Number(variant.stockQuantity) < 0) {
@@ -130,7 +130,7 @@ export function getAdminProductErrorMessage(error, context = {}) {
   if (code === 'VALIDATION_ERROR' && context.action === 'saveVariant') {
     return {
       title: 'Vui lòng kiểm tra thông tin biến thể',
-      message: 'SKU, kích cỡ và màu sắc là bắt buộc. Giá ghi đè phải lớn hơn 0 nếu được nhập.',
+      message: 'SKU, kích cỡ và màu sắc là bắt buộc. Giá riêng cho biến thể phải lớn hơn 0 nếu được nhập.',
       targetStep: CREATE_PRODUCT_STEPS.VARIANTS,
       fieldErrors: context.fieldErrors || {},
       errorCode: code,

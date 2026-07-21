@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Package, Download, Truck } from 'lucide-react'
+import { Package, Truck } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import { getOrders } from '../../features/orders/order.api'
 import { formatDateTime } from '../../utils/formatDate'
@@ -182,9 +182,6 @@ export default function OrderTrackingPage() {
                 </div>
               </div>
 
-              <button className="w-full mt-4 bg-surface-container text-on-surface rounded-lg py-2.5 text-sm font-medium hover:bg-surface-container-high transition-colors flex items-center justify-center gap-2">
-                <Download size={14} /> Tải hóa đơn
-              </button>
             </div>
           </div>
         )}

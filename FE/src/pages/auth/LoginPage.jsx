@@ -4,6 +4,7 @@ import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import useAuthStore from '../../features/auth/auth.store'
 import { loginUser } from '../../features/auth/auth.api'
 import { getEmailValidationMessage, normalizeEmailInput } from '../../features/auth/auth.validation'
+import heroImage from '../../assets/hero1.png'
 
 function messageForError(err, fallback) {
   if (err?.status === 401) return 'Email hoặc mật khẩu không đúng.'
@@ -55,7 +56,7 @@ export default function LoginPage() {
       {/* Left: Editorial Image */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img
-          src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=1200&h=1600&fit=crop"
+          src={heroImage}
           alt="Ảnh biên tập thời trang"
           className="w-full h-full object-cover"
         />

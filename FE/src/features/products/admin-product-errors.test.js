@@ -163,7 +163,7 @@ test('product field validation identifies required and invalid values', () => {
     status: 'UNKNOWN',
   }), {
     name: 'Tên sản phẩm là bắt buộc.',
-    basePrice: 'Giá gốc phải lớn hơn 0.',
+    basePrice: 'Giá sản phẩm phải lớn hơn 0.',
     categoryIds: 'Vui lòng chọn ít nhất một danh mục.',
     status: 'Vui lòng chọn trạng thái sản phẩm hợp lệ.',
   })
@@ -190,7 +190,7 @@ test('variant field validation identifies required and invalid values', () => {
     sku: 'SKU là bắt buộc.',
     size: 'Kích cỡ là bắt buộc.',
     color: 'Màu sắc là bắt buộc.',
-    priceOverride: 'Giá ghi đè phải lớn hơn 0 nếu được nhập.',
+    priceOverride: 'Giá riêng cho biến thể phải lớn hơn 0 nếu được nhập.',
     stockQuantity: 'Số lượng tồn kho phải lớn hơn hoặc bằng 0.',
   })
 })

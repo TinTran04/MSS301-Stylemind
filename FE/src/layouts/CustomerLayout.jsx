@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
-import { ShoppingBag, User, Menu, X, Search, LogOut, Settings, Bell } from 'lucide-react'
+import { ShoppingBag, User, Menu, X, LogOut, Settings, Bell } from 'lucide-react'
 import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import { getInitials } from '../features/auth/auth.utils'
@@ -10,7 +10,6 @@ const navLinks = [
   { to: '/', label: 'Trang chủ' },
   { to: '/shop', label: 'Cửa hàng' },
   { to: '/ai-stylist', label: 'Stylist AI' },
-  { to: '/shop?collection=new', label: 'Bộ sưu tập' },
   { to: '/orders', label: 'Đơn hàng' },
 ]
 
@@ -87,9 +86,6 @@ export default function CustomerLayout() {
           </div>
 
           <div className="flex items-center gap-4">
-            <Link to="/shop" className="p-2 rounded-full hover:bg-surface-container transition-colors" aria-label="Tìm kiếm" title="Tìm kiếm">
-              <Search size={20} className="text-on-surface-variant" />
-            </Link>
             <Link to="/cart" className="p-2 rounded-full hover:bg-surface-container transition-colors relative" aria-label="Giỏ hàng" title="Giỏ hàng">
               <ShoppingBag size={20} className="text-on-surface-variant" />
               {itemCount > 0 && (

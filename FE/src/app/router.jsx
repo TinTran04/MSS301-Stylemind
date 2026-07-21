@@ -27,7 +27,6 @@ import UserManagementPage from '../pages/admin/UserManagementPage'
 import AIPipelinePage from '../pages/admin/AIPipelinePage'
 import KnowledgeGraphPage from '../pages/admin/KnowledgeGraphPage'
 import RecommendationAnalyticsPage from '../pages/admin/RecommendationAnalyticsPage'
-import AdminSettingsPage from '../pages/admin/AdminSettingsPage'
 import NotificationManagementPage from '../pages/admin/NotificationManagementPage'
 
 export default function AppRouter() {
@@ -74,7 +73,6 @@ export default function AppRouter() {
           <Route path="/admin/knowledge-graph" element={<KnowledgeGraphPage />} />
           <Route path="/admin/recommendations" element={<RecommendationAnalyticsPage />} />
           <Route path="/admin/notifications" element={<NotificationManagementPage />} />
-          <Route path="/admin/settings" element={<AdminSettingsPage />} />
         </Route>
       </Route>
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Heart, Share2, ShoppingBag } from 'lucide-react'
+import { ShoppingBag } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import ProductCard from '../../components/customer/ProductCard'
 import ProductImage from '../../components/customer/ProductImage'
@@ -229,29 +229,13 @@ export default function ProductDetailPage() {
               <ShoppingBag size={16} aria-hidden="true" />
               Thêm vào giỏ hàng
             </button>
-            <button
-              type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-outline-variant/30 hover:bg-surface-container"
-              title="Yêu thích"
-              aria-label="Yêu thích"
-            >
-              <Heart size={18} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-outline-variant/30 hover:bg-surface-container"
-              title="Chia sẻ"
-              aria-label="Chia sẻ"
-            >
-              <Share2 size={18} aria-hidden="true" />
-            </button>
           </div>
         </div>
       </div>
 
       {recommendations.length > 0 ? (
         <section className="mt-16 border-t border-outline-variant/20 pt-10">
-          <h2 className="font-headline-md text-primary">Có thể bạn cũng thích</h2>
+          <h2 className="font-headline-md text-primary">Các sản phẩm khác</h2>
           <div className="mt-7 grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 md:gap-x-5">
             {recommendations.map((recommendation) => (
               <ProductCard key={recommendation.id} product={recommendation} />

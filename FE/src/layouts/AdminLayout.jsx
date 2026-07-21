@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingCart, UserCog,
-  Brain, Network, BarChart3, Settings, Bell, Search, LogOut, ChevronLeft, ChevronRight, Store
+  Network, Bell, LogOut, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { getInitials } from '../features/auth/auth.utils'
@@ -13,10 +13,7 @@ const sidebarLinks = [
   { to: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { to: '/admin/users', label: 'Quản lý người dùng', icon: UserCog },
   { to: '/admin/notifications', label: 'Thông báo', icon: Bell },
-  { to: '/admin/ai-pipeline', label: 'Quy trình AI', icon: Brain },
   { to: '/admin/knowledge-graph', label: 'Đồ thị tri thức', icon: Network },
-  { to: '/admin/recommendations', label: 'Gợi ý AI', icon: BarChart3 },
-  { to: '/admin/settings', label: 'Cài đặt', icon: Settings },
 ]
 
 export default function AdminLayout() {
@@ -99,17 +96,6 @@ export default function AdminLayout() {
         </nav>
 
         <div className={`p-3 border-t border-outline-variant/20 space-y-1 ${collapsed ? 'px-2' : ''}`}>
-          <Link
-            to="/"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm no-underline text-on-surface-variant hover:bg-surface-container-high transition-all ${
-              collapsed ? 'justify-center' : ''
-            }`}
-            aria-label="Quay lại cửa hàng"
-            title="Quay lại cửa hàng"
-          >
-            <Store size={18} />
-            {!collapsed && <span className="hidden md:inline">Quay lại cửa hàng</span>}
-          </Link>
           <button
             onClick={handleLogout}
             aria-label="Đăng xuất"
@@ -133,40 +119,6 @@ export default function AdminLayout() {
 
       {/* Main Content Area */}
       <div className={`transition-all duration-300 ml-[72px] ${responsiveContentMargin}`}>
-        {/* Top Bar */}
-        <header className="sticky top-0 z-30 glass-header h-16 flex items-center justify-between px-4 md:px-8">
-          <div className="flex items-center gap-4 flex-1">
-            <div className="relative max-w-md w-full hidden md:block">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm..."
-                className="w-full pl-9 pr-4 py-2 bg-surface-container rounded-lg text-sm border-0 outline-none focus:ring-1 focus:ring-tertiary-container"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link
-              to="/admin/notifications"
-              className="p-2 rounded-full hover:bg-surface-container-high relative transition-colors"
-            >
-              <Bell size={20} className="text-on-surface-variant" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-error hover:bg-error-container/20 transition-colors"
-              title="Đăng xuất"
-            >
-              <LogOut size={16} />
-              <span className="hidden md:inline">Đăng xuất</span>
-            </button>
-            <div className="w-9 h-9 rounded-full bg-primary text-on-primary flex items-center justify-center text-sm font-semibold">
-              {initials}
-            </div>
-          </div>
-        </header>
-
         {/* Page Content */}
         <main className="p-6 md:p-8 min-h-[calc(100vh-4rem)]">
           <Outlet />

@@ -92,15 +92,12 @@ export default function ProductCatalogPage() {
   return (
     <main className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 md:px-10 lg:px-16 lg:py-12">
       <header className="border-b border-outline-variant/20 pb-6">
-        <p className="mb-2 text-xs font-medium uppercase text-tertiary">Bộ sưu tập StyleMind</p>
+        <p className="mb-2 text-xs font-medium uppercase text-tertiary">Cửa hàng StyleMind</p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="font-headline-md text-primary">
-              {activeCategory?.name || 'Bộ sưu tập'}
+              {activeCategory?.name || 'Cửa hàng'}
             </h1>
-            <p className="mt-2 text-sm text-on-surface-variant">
-              {productPage.totalElements} sản phẩm đang hoạt động
-            </p>
           </div>
         </div>
       </header>
@@ -178,9 +175,6 @@ export default function ProductCatalogPage() {
         </button>
 
         <div className="flex items-center gap-4">
-          <span className="hidden text-sm text-on-surface-variant sm:inline">
-            {productPage.totalElements} kết quả
-          </span>
           <label className="relative">
             <span className="sr-only">Sắp xếp sản phẩm</span>
             <select

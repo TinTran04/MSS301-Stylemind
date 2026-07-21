@@ -798,7 +798,7 @@ export default function ProductManagementPage() {
               <tr className="bg-surface-container-low/50">
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Sản phẩm</th>
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Danh mục</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Giá gốc</th>
+                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Giá sản phẩm</th>
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Biến thể</th>
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Trạng thái</th>
                 <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Thao tác</th>
@@ -957,7 +957,7 @@ export default function ProductManagementPage() {
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full bg-surface-container rounded-lg px-3 py-2 text-sm border-0 outline-none" />
               </div>
               <div>
-                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Giá gốc</label>
+                <label className="block font-label-sm uppercase tracking-wider text-on-surface-variant mb-2">Giá sản phẩm</label>
                 <input
                   required
                   type="number"
@@ -1129,7 +1129,7 @@ export default function ProductManagementPage() {
                               <p className="mt-0.5 text-primary">{v.color || '-'}</p>
                             </div>
                             <div>
-                              <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">Số lượng tồn kho</p>
+                              <p className="text-[11px] uppercase tracking-wider text-on-surface-variant">Số lượng</p>
                               <p className={`mt-0.5 font-medium ${Number(v.stockQuantity || 0) > 0 ? 'text-primary' : 'text-error'}`}>
                                 {formatVariantStock(v.stockQuantity)}
                               </p>
@@ -1204,7 +1204,7 @@ export default function ProductManagementPage() {
                   <input value={variantForm.material} onChange={(e) => setVariantForm({ ...variantForm, material: e.target.value })} className="w-full bg-surface-container rounded-lg px-3 py-2 text-xs border-0 outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Giá ghi đè</label>
+                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Giá riêng cho biến thể</label>
                   <input
                     min="0.01"
                     type="number"
@@ -1220,7 +1220,7 @@ export default function ProductManagementPage() {
                   {variantFieldErrors.priceOverride && <p className="mt-1 text-xs text-error">{variantFieldErrors.priceOverride}</p>}
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Số lượng tồn kho</label>
+                  <label className="block text-[11px] font-medium text-on-surface-variant mb-1">Số lượng</label>
                   <input
                     min="0"
                     type="number"

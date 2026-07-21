@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, Mail, Sparkles, ShoppingBag } from 'lucide-react'
+import { ArrowRight, Sparkles } from 'lucide-react'
 import ProductCard from '../../components/customer/ProductCard'
 import { getProducts } from '../../features/products/product.api'
 
 const categories = [
-  { label: 'Nữ', slug: 'women', image: 'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=600&h=800&fit=crop', cols: 'col-span-2 row-span-2' },
-  { label: 'Nam', slug: 'men', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=400&fit=crop', cols: 'col-span-2 row-span-1' },
-  { label: 'Phụ kiện', slug: 'accessories', image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&h=400&fit=crop', cols: 'col-span-1 row-span-1' },
-  { label: 'Giày dép', slug: 'footwear', image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=600&h=400&fit=crop', cols: 'col-span-1 row-span-1' },
+  { label: 'Nam', targetDemographic: 'MALE', image: 'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=600&h=800&fit=crop' },
+  { label: 'Nữ', targetDemographic: 'FEMALE', image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=700&h=900&fit=crop' },
+  { label: 'Unisex', targetDemographic: 'UNISEX', image: 'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?w=700&h=900&fit=crop' },
 ]
 
 export default function HomePage() {
@@ -43,17 +42,17 @@ export default function HomePage() {
           <div>
             <div className="flex items-center gap-2 mb-6">
               <Sparkles size={16} className="text-tertiary" />
-              <span className="font-label-sm uppercase text-on-surface-variant">THỜI TRANG CÁ NHÂN HÓA BỞI AI</span>
+              <span className="font-label-sm uppercase text-on-surface-variant">STYLIST AI CÁ NHÂN</span>
             </div>
             <h1 className="font-headline-lg text-primary leading-tight mb-6">
-              Phong cách riêng,<br />gợi ý riêng cho bạn
+              Mặc đẹp hơn,<br />chọn nhanh hơn.
             </h1>
             <p className="text-on-surface-variant text-lg mb-8 max-w-md leading-relaxed">
-              Khám phá những gợi ý thời trang được cá nhân hóa bởi AI, dựa trên gu thẩm mỹ và phong cách riêng của bạn.
+              StyleMind phân tích phong cách, nhu cầu và ngân sách để đề xuất những trang phục phù hợp riêng với bạn.
             </p>
             <div className="flex gap-4">
               <Link to="/shop" className="group bg-primary text-on-primary px-8 py-3 rounded-lg text-sm font-medium hover:opacity-90 active:scale-95 transition-all inline-flex items-center gap-2 no-underline">
-                Khám phá bộ sưu tập <ArrowRight size={16} className="transform group-hover:translate-x-1 transition-transform duration-300" />
+                Khám phá cửa hàng <ArrowRight size={16} className="transform group-hover:translate-x-1 transition-transform duration-300" />
               </Link>
               <Link to="/ai-stylist" className="group border border-primary text-primary px-8 py-3 rounded-lg text-sm font-medium hover:bg-primary hover:text-on-primary active:scale-95 transition-all inline-flex items-center gap-2 no-underline">
                 <Sparkles size={16} className="transform group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300" /> Thử Stylist AI
@@ -89,19 +88,21 @@ export default function HomePage() {
             Xem tất cả <ArrowRight size={14} />
           </Link>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 h-[500px] md:h-[600px]">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {categories.map((cat) => (
             <Link
-              key={cat.slug}
-              to={`/shop?category=${cat.slug}`}
-              className={`${cat.cols} relative rounded-[24px] overflow-hidden group no-underline`}
+              key={cat.targetDemographic}
+              to={`/shop?targetDemographic=${cat.targetDemographic}`}
+              onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' })}
+              className="group relative aspect-[4/5] overflow-hidden rounded-[24px] no-underline"
             >
               <img
                 src={cat.image}
                 alt={cat.label}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                className="h-full w-full object-cover grayscale-[12%] saturate-[0.86] contrast-[0.96] transition-transform duration-700 group-hover:scale-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-primary/60 to-transparent" />
+              <div className="absolute inset-0 bg-primary/25 transition-colors duration-300 group-hover:bg-primary/35" />
+              <div className="absolute inset-0 bg-gradient-to-t from-primary/70 via-primary/10 to-transparent" />
               <div className="absolute bottom-6 left-6">
                 <h3 className="font-headline-md text-on-primary">{cat.label}</h3>
                 <span className="text-on-primary/70 text-sm flex items-center gap-1 mt-1">
@@ -117,8 +118,7 @@ export default function HomePage() {
       <section className="max-w-[1440px] mx-auto px-6 md:px-16 py-12">
         <div className="flex items-center justify-between mb-8">
           <div>
-          <h2 className="font-headline-md text-primary">Gợi ý dành riêng cho bạn</h2>
-          <p className="text-on-surface-variant mt-1">Những lựa chọn được tinh chỉnh theo phong cách riêng của bạn</p>
+          <h2 className="font-headline-md text-primary">Sản phẩm nổi bật</h2>
         </div>
         <Link to="/shop" className="text-sm text-on-surface-variant hover:text-primary transition-colors no-underline flex items-center gap-1">
           Xem tất cả <ArrowRight size={14} />
@@ -147,26 +147,16 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* Newsletter CTA */}
+      {/* Footer CTA */}
       <section className="bg-primary-container mx-6 md:mx-16 rounded-[24px] my-12">
         <div className="max-w-[1440px] mx-auto px-12 py-16 text-center">
-          <h2 className="font-headline-md text-on-primary-container mb-4">Luôn nhận gợi ý phù hợp</h2>
-          <p className="text-on-primary-container/70 mb-8 max-w-md mx-auto">
-            Nhận gợi ý thời trang cá nhân hóa từ AI ngay trong hộp thư của bạn. Không spam, chỉ có những gợi ý thực sự hữu ích.
+          <h2 className="font-headline-md text-on-primary-container mb-4">Tìm phong cách hợp với bạn</h2>
+          <p className="text-on-primary-container/70 mb-8 max-w-xl mx-auto">
+            Bắt đầu với Stylist AI để chọn outfit theo dáng người, dịp mặc và ngân sách của riêng bạn.
           </p>
-          <div className="flex max-w-md mx-auto">
-            <div className="relative flex-1">
-              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-on-primary-container/50" />
-              <input
-                type="email"
-                placeholder="Nhập email của bạn"
-                className="w-full bg-surface-container-lowest/10 border border-on-primary-container/20 rounded-l-lg pl-10 pr-4 py-3 text-sm text-on-primary-container placeholder:text-on-primary-container/40 focus:outline-none focus:border-tertiary-container"
-              />
-            </div>
-            <button className="bg-tertiary-container text-on-primary px-6 rounded-r-lg text-sm font-medium hover:opacity-90 transition-opacity">
-              Đăng ký
-            </button>
-          </div>
+          <Link to="/ai-stylist" className="inline-flex items-center gap-2 rounded-lg bg-tertiary-container px-6 py-3 text-sm font-medium text-on-primary no-underline transition-opacity hover:opacity-90 active:scale-95">
+            Thử Stylist AI <ArrowRight size={16} />
+          </Link>
         </div>
       </section>
     </div>
