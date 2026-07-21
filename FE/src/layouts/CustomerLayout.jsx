@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
-import { ShoppingBag, User, Menu, X, LogOut, Settings, Bell } from 'lucide-react'
+import { ShoppingBag, User, Menu, X, LogOut, Settings, Bell, MapPin } from 'lucide-react'
 import { useCart } from '../hooks/useCart'
 import { useAuth } from '../hooks/useAuth'
 import { getInitials } from '../features/auth/auth.utils'
@@ -137,7 +137,7 @@ export default function CustomerLayout() {
                       onClick={() => setProfileOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface-variant hover:bg-surface-container-high no-underline transition-colors"
                     >
-                      <User size={14} /> Hồ sơ cá nhân
+                      <MapPin size={14} /> Địa chỉ giao hàng
                     </Link>
                     <Link
                       to="/orders"

@@ -7,8 +7,10 @@ import { useCart } from '../../hooks/useCart'
 import { formatCurrency } from '../../utils/formatCurrency'
 import Modal from '../../components/common/Modal'
 import { cancelOrder } from '../../features/orders/order.api'
-import { getAddresses } from '../../features/profile/profile.api'
-import { formatSavedAddress, isCheckoutEligibleAddress } from '../../features/profile/address.utils'
+import AddressForm, { createEmptyAddressForm } from '../../features/profile/AddressForm'
+import { createAddress, getAddresses, getProvinces, getWards } from '../../features/profile/profile.api'
+import { buildAddressPayload, formatSavedAddress, isCheckoutEligibleAddress } from '../../features/profile/address.utils'
+import { getVietnamesePhoneValidationMessage } from '../../features/profile/phone.utils'
 import { calculateTotal, isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
 
 const paymentMethods = [
@@ -27,6 +29,12 @@ export default function CheckoutPage() {
   const [addressLoading, setAddressLoading] = useState(true)
   const [selectedAddressId, setSelectedAddressId] = useState('')
   const [addressError, setAddressError] = useState('')
+  const [addressFormOpen, setAddressFormOpen] = useState(false)
+  const [addressForm, setAddressForm] = useState(createEmptyAddressForm())
+  const [provinces, setProvinces] = useState([])
+  const [wards, setWards] = useState([])
+  const [addressFormSaving, setAddressFormSaving] = useState(false)
+  const [administrativeLoading, setAdministrativeLoading] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [cancelError, setCancelError] = useState('')
@@ -75,6 +83,28 @@ export default function CheckoutPage() {
     return () => { active = false }
   }, [])
 
+  useEffect(() => {
+    let active = true
+    getProvinces()
+      .then((list) => { if (active) setProvinces(Array.isArray(list) ? list : []) })
+      .catch(() => { if (active) setAddressError('Không thể tải dữ liệu tỉnh/thành phố.') })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    if (!addressFormOpen || !addressForm.provinceCode) {
+      setWards([])
+      return undefined
+    }
+    setAdministrativeLoading(true)
+    getWards(addressForm.provinceCode)
+      .then((list) => { if (active) setWards(Array.isArray(list) ? list : []) })
+      .catch(() => { if (active) setAddressError('Không thể tải dữ liệu phường/xã.') })
+      .finally(() => { if (active) setAdministrativeLoading(false) })
+    return () => { active = false }
+  }, [addressForm.provinceCode, addressFormOpen])
+
   useLayoutEffect(() => {
     if (location.state?.freshCheckout) {
       reset()
@@ -121,6 +151,33 @@ export default function CheckoutPage() {
       }
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleCreateAddress = async (event) => {
+    event.preventDefault()
+    const phoneError = getVietnamesePhoneValidationMessage(addressForm.phoneNumber)
+    if (phoneError) {
+      setAddressError(phoneError)
+      return
+    }
+    const payload = buildAddressPayload(addressForm)
+    if (!payload.recipientName || !payload.addressLine || !payload.provinceCode || !payload.wardCode) {
+      setAddressError('Vui lòng điền đầy đủ thông tin địa chỉ giao hàng.')
+      return
+    }
+    setAddressFormSaving(true)
+    setAddressError('')
+    try {
+      const savedAddress = await createAddress(payload)
+      setAddresses((previous) => [...previous.filter((address) => address.id !== savedAddress.id), savedAddress])
+      setSelectedAddressId(savedAddress.id)
+      setAddressFormOpen(false)
+      setAddressForm(createEmptyAddressForm())
+    } catch (requestError) {
+      setAddressError(requestError?.message || 'Không thể thêm địa chỉ. Vui lòng thử lại.')
+    } finally {
+      setAddressFormSaving(false)
     }
   }
 
@@ -428,9 +485,7 @@ export default function CheckoutPage() {
               ) : addresses.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-outline-variant/30 bg-surface-container-low px-4 py-5 text-sm text-on-surface-variant">
                   <p>Bạn chưa có địa chỉ giao hàng.</p>
-                  <Link to="/profile" className="mt-2 inline-flex font-medium text-primary underline underline-offset-4">
-                    Thêm địa chỉ giao hàng
-                  </Link>
+                  <button type="button" onClick={() => setAddressFormOpen(true)} className="mt-2 inline-flex font-medium text-primary underline underline-offset-4">Thêm địa chỉ giao hàng</button>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -476,15 +531,17 @@ export default function CheckoutPage() {
                       <Link to="/profile" className="ml-1 font-medium underline underline-offset-4">Cập nhật địa chỉ</Link>
                     </div>
                   )}
-                  <Link to="/profile" className="inline-flex text-sm font-medium text-primary underline underline-offset-4">
-                    Thêm hoặc chỉnh sửa địa chỉ
-                  </Link>
+                  <div className="flex flex-wrap gap-4"><button type="button" onClick={() => setAddressFormOpen(true)} className="inline-flex text-sm font-medium text-primary underline underline-offset-4">Thêm địa chỉ mới</button><Link to="/profile" className="inline-flex text-sm font-medium text-primary underline underline-offset-4">Quản lý địa chỉ</Link></div>
                 </div>
               )}
               {addressError && (
                 <p role="alert" className="text-xs text-error mt-2">{addressError}</p>
               )}
             </div>
+
+            <Modal isOpen={addressFormOpen} onClose={() => { if (!addressFormSaving) setAddressFormOpen(false) }} title="Thêm địa chỉ giao hàng" className="max-w-2xl max-h-[calc(100vh-2rem)] overflow-y-auto">
+              <AddressForm form={addressForm} provinces={provinces} wards={wards} loadingAdministrativeData={administrativeLoading} submitting={addressFormSaving} onChange={setAddressForm} onSubmit={handleCreateAddress} onCancel={() => setAddressFormOpen(false)} />
+            </Modal>
 
             {/* Payment Method */}
             <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow">

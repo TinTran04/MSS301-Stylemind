@@ -2,11 +2,7 @@ import apiClient from '../../services/apiClient'
 import { ENDPOINTS } from '../../services/endpoints'
 
 export async function getProfile() {
-  return apiClient.get(`${ENDPOINTS.USERS}/style-profile`)
-}
-
-export async function updateProfile(data) {
-  return apiClient.put(`${ENDPOINTS.USERS}/style-profile`, data)
+  return apiClient.get(`${ENDPOINTS.USERS}/profile`)
 }
 
 export async function getAddresses() {
@@ -31,4 +27,8 @@ export async function updateAddress(addressId, data) {
 
 export async function deleteAddress(addressId) {
   return apiClient.delete(`${ENDPOINTS.USERS}/addresses/${addressId}`)
+}
+
+export async function setDefaultAddress(addressId) {
+  return apiClient.patch(`${ENDPOINTS.USERS}/addresses/${addressId}/default`)
 }

@@ -13,7 +13,7 @@
 
     <artifactId>user-service</artifactId>
     <name>StyleMind User Service</name>
-    <description>User Profile and Style Profile Service</description>
+    <description>User Profile and Delivery Address Service</description>
 
     <dependencies>
         <dependency>

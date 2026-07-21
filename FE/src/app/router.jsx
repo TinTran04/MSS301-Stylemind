@@ -12,7 +12,7 @@ import CartPage from '../pages/customer/CartPage'
 import CheckoutPage from '../pages/customer/CheckoutPage'
 import OrderTrackingPage from '../pages/customer/OrderTrackingPage'
 import NotificationsPage from '../pages/customer/NotificationsPage'
-import StyleProfilePage from '../pages/auth/StyleProfilePage'
+import ProfilePage from '../pages/customer/ProfilePage'
 import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
 import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage'
@@ -40,10 +40,6 @@ export default function AppRouter() {
         <Route path="/verify-reset-otp" element={<VerifyResetOtpPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/set-password" element={<ResetPasswordPage />} />
-        <Route element={<RequireAuth />}>
-          <Route path="/profile" element={<StyleProfilePage />} />
-          <Route path="/style-profile" element={<StyleProfilePage />} />
-        </Route>
       </Route>
 
       {/* Customer Routes */}
@@ -55,6 +51,7 @@ export default function AppRouter() {
         <Route path="/cart" element={<CartPage />} />
         {/* Checkout & order tracking require a signed-in user */}
         <Route element={<RequireAuth />}>
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/orders" element={<OrderTrackingPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />

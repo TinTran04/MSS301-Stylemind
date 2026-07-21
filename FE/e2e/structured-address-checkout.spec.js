@@ -32,7 +32,8 @@ test.describe('structured Vietnamese address checkout', () => {
     await expect(page).toHaveURL(/\/$/)
 
     await page.goto('/profile')
-    await page.getByRole('button', { name: 'Địa chỉ giao hàng' }).click()
+    await expect(page.getByRole('heading', { name: 'Địa chỉ giao hàng' })).toBeVisible()
+    await expect(page.getByText('Hồ sơ phong cách')).toHaveCount(0)
     await page.getByRole('button', { name: 'Thêm địa chỉ' }).click()
     await page.getByPlaceholder('Ví dụ: Nguyễn Minh Khôi').fill(testRecipientName)
     await page.getByPlaceholder('Ví dụ: 09xxxxxxxx').fill(testPhone)
@@ -51,6 +52,7 @@ test.describe('structured Vietnamese address checkout', () => {
     ))
     await page.getByRole('button', { name: 'Lưu địa chỉ' }).click()
     expect((await createAddressResponse).status()).toBeLessThan(300)
+    await expect(page.getByText(testRecipientName)).toBeVisible()
 
     await page.goto('/shop')
     const firstProduct = page.locator('a[href^="/products/"]').first()

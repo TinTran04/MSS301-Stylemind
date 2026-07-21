@@ -17,10 +17,18 @@ public interface DeliveryAddressRepository extends JpaRepository<DeliveryAddress
     Optional<DeliveryAddress> findByUserIdAndIsDefaultTrue(String userId);
 
     /**
+     * Serializes default-address changes for one user, including the case where
+     * the user has no address row to lock yet. PostgreSQL releases this lock at
+     * the end of the surrounding transaction.
+     */
+    @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(hashtext(:userId))", nativeQuery = true)
+    Integer lockDefaultAddressSlot(@Param("userId") String userId);
+
+    /**
      * Atomically clears the default flag on all addresses for a user.
      * Use before setting a new default to avoid the read-then-write race condition.
      */
-    @Modifying
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE DeliveryAddress a SET a.isDefault = false WHERE a.userId = :userId")
     void clearAllDefaultsByUserId(@Param("userId") String userId);
 }

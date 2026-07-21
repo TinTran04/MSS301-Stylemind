@@ -1,23 +1,18 @@
 package com.stylemind.user.service;
 
 import com.stylemind.common.exception.BusinessException;
-import com.stylemind.common.util.StringUtil;
 import com.stylemind.user.dto.DeliveryAddressRequest;
 import com.stylemind.user.dto.DeliveryAddressResponse;
-import com.stylemind.user.dto.StyleProfileRequest;
-import com.stylemind.user.dto.StyleProfileResponse;
-import com.stylemind.user.entity.CustomerStyleProfile;
 import com.stylemind.user.entity.AddressValidationStatus;
 import com.stylemind.user.entity.DeliveryAddress;
-import com.stylemind.user.repository.CustomerStyleProfileRepository;
 import com.stylemind.user.repository.DeliveryAddressRepository;
+import com.stylemind.user.repository.UserProfileRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -30,7 +25,7 @@ import static org.mockito.Mockito.*;
 class UserProfileServiceTest {
 
     @Mock
-    private CustomerStyleProfileRepository profileRepository;
+    private UserProfileRepository userProfileRepository;
 
     @Mock
     private DeliveryAddressRepository addressRepository;
@@ -52,87 +47,28 @@ class UserProfileServiceTest {
         lenient().when(phoneNumberService.normalize(anyString())).thenReturn("+84901234567");
     }
 
-    // ─── Style Profile ────────────────────────────────────────────────────────
-
-    @Test
-    void getStyleProfile_noProfileExists_persistsAndReturnsShell() {
-        CustomerStyleProfile shell = buildProfile("user-1");
-        when(profileRepository.findById("user-1")).thenReturn(Optional.of(shell));
-
-        StyleProfileResponse result = userProfileService.getStyleProfile("user-1");
-
-        assertThat(result).isNotNull();
-        assertThat(result.getUserId()).isEqualTo("user-1");
-        assertThat(result.getGender()).isNull();
-        verify(profileRepository).insertProfileShell("user-1");
-    }
-
-    @Test
-    void getStyleProfile_profileExists_returnsMappedResponse() {
-        CustomerStyleProfile profile = buildProfile("user-1");
-        profile.setGender("MALE");
-        profile.setAge(25);
-        when(profileRepository.findById("user-1")).thenReturn(Optional.of(profile));
-
-        StyleProfileResponse result = userProfileService.getStyleProfile("user-1");
-
-        assertThat(result.getGender()).isEqualTo("MALE");
-        assertThat(result.getAge()).isEqualTo(25);
-        verify(profileRepository).insertProfileShell("user-1");
-    }
-
-    @Test
-    void updateStyleProfile_newUser_createsAndSavesProfile() {
-        CustomerStyleProfile shell = buildProfile("new-user");
-        when(profileRepository.findById("new-user")).thenReturn(Optional.of(shell));
-        when(profileRepository.save(any())).thenAnswer(inv -> {
-            CustomerStyleProfile p = inv.getArgument(0);
-            p.setCreatedAt(LocalDateTime.now());
-            p.setUpdatedAt(LocalDateTime.now());
-            return p;
-        });
-
-        StyleProfileRequest request = StyleProfileRequest.builder()
-                .gender("FEMALE").age(22)
-                .heightCm(BigDecimal.valueOf(165)).weightKg(BigDecimal.valueOf(55))
-                .build();
-
-        StyleProfileResponse result = userProfileService.updateStyleProfile("new-user", request);
-
-        assertThat(result.getUserId()).isEqualTo("new-user");
-        assertThat(result.getGender()).isEqualTo("FEMALE");
-        verify(profileRepository, times(1)).save(any()); // single save
-    }
-
-    @Test
-    void updateStyleProfile_existingUser_updatesProfile() {
-        CustomerStyleProfile existing = buildProfile("user-1");
-        existing.setGender("MALE");
-        when(profileRepository.findById("user-1")).thenReturn(Optional.of(existing));
-        when(profileRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        StyleProfileRequest request = StyleProfileRequest.builder()
-                .gender("FEMALE").age(30).build();
-
-        StyleProfileResponse result = userProfileService.updateStyleProfile("user-1", request);
-
-        assertThat(result.getGender()).isEqualTo("FEMALE");
-        assertThat(result.getAge()).isEqualTo(30);
-        verify(profileRepository, times(1)).save(any()); // still single save
-    }
-
     // ─── Delivery Addresses ───────────────────────────────────────────────────
 
     @Test
-    void getAddresses_firstAccess_persistsProfileShell() {
-        CustomerStyleProfile shell = buildProfile("user-1");
-        when(profileRepository.findById("user-1")).thenReturn(Optional.of(shell));
+    void getAddresses_returnsOnlyAddressesWithoutCreatingLegacyProfileData() {
         when(addressRepository.findByUserId("user-1")).thenReturn(List.of());
 
         List<DeliveryAddressResponse> result = userProfileService.getAddresses("user-1");
 
         assertThat(result).isEmpty();
-        verify(profileRepository).insertProfileShell("user-1");
+        verifyNoInteractions(userProfileRepository);
+    }
+
+    @Test
+    void getAddresses_toleratesLegacyNullDefaultFlags() {
+        DeliveryAddress legacyAddress = buildAddress("legacy-address", "user-1", false);
+        legacyAddress.setIsDefault(null);
+        when(addressRepository.findByUserId("user-1")).thenReturn(List.of(legacyAddress));
+
+        List<DeliveryAddressResponse> result = userProfileService.getAddresses("user-1");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getIsDefault()).isFalse();
     }
 
     @Test
@@ -154,6 +90,8 @@ class UserProfileServiceTest {
 
     @Test
     void createAddress_withIsDefaultFalse_doesNotClearDefaults() {
+        when(addressRepository.findByUserId("user-1"))
+                .thenReturn(List.of(buildAddress("existing-address", "user-1", true)));
         when(addressRepository.save(any())).thenAnswer(inv -> {
             DeliveryAddress a = inv.getArgument(0);
             a.setCreatedAt(LocalDateTime.now());
@@ -165,6 +103,22 @@ class UserProfileServiceTest {
         userProfileService.createAddress("user-1", request);
 
         verify(addressRepository, never()).clearAllDefaultsByUserId(any());
+    }
+
+    @Test
+    void createAddress_firstAddressBecomesDefaultEvenWhenRequestDoesNotSelectIt() {
+        when(addressRepository.findByUserId("user-1")).thenReturn(List.of());
+        when(addressRepository.save(any())).thenAnswer(inv -> {
+            DeliveryAddress address = inv.getArgument(0);
+            address.setCreatedAt(LocalDateTime.now());
+            address.setUpdatedAt(LocalDateTime.now());
+            return address;
+        });
+
+        userProfileService.createAddress("user-1", buildAddressRequest(false));
+
+        verify(addressRepository).lockDefaultAddressSlot("user-1");
+        verify(addressRepository).save(argThat(DeliveryAddress::getIsDefault));
     }
 
     @Test
@@ -181,6 +135,18 @@ class UserProfileServiceTest {
         userProfileService.updateAddress("user-1", "addr-1", request);
 
         verify(addressRepository, times(1)).clearAllDefaultsByUserId("user-1");
+    }
+
+    @Test
+    void setDefaultAddressClearsPreviousDefaultAndReturnsPersistedAddress() {
+        DeliveryAddress address = buildAddress("addr-1", "user-1", false);
+        when(addressRepository.findById("addr-1")).thenReturn(Optional.of(address));
+        when(addressRepository.save(address)).thenReturn(address);
+
+        DeliveryAddressResponse result = userProfileService.setDefaultAddress("user-1", "addr-1");
+
+        assertThat(result.getIsDefault()).isTrue();
+        verify(addressRepository).clearAllDefaultsByUserId("user-1");
     }
 
     @Test
@@ -214,24 +180,31 @@ class UserProfileServiceTest {
     }
 
     @Test
+    void deleteDefaultAddressPromotesOldestRemainingAddress() {
+        DeliveryAddress defaultAddress = buildAddress("addr-default", "user-1", true);
+        defaultAddress.setCreatedAt(LocalDateTime.of(2026, 7, 1, 10, 0));
+        DeliveryAddress promotedAddress = buildAddress("addr-next", "user-1", false);
+        promotedAddress.setCreatedAt(LocalDateTime.of(2026, 7, 2, 10, 0));
+        when(addressRepository.findById("addr-default")).thenReturn(Optional.of(defaultAddress));
+        when(addressRepository.findByUserId("user-1")).thenReturn(List.of(defaultAddress, promotedAddress));
+
+        userProfileService.deleteAddress("user-1", "addr-default");
+
+        assertThat(promotedAddress.getIsDefault()).isTrue();
+        verify(addressRepository).delete(defaultAddress);
+    }
+
+    @Test
     void getAddressById_wrongUser_throws403() {
         DeliveryAddress addr = buildAddress("addr-1", "other-user", false);
         when(addressRepository.findById("addr-1")).thenReturn(Optional.of(addr));
 
         assertThatThrownBy(() -> userProfileService.getAddressById("user-1", "addr-1"))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("Địa chỉ không thuộc");
+                .hasMessageContaining("Không có quyền");
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
-
-    private CustomerStyleProfile buildProfile(String userId) {
-        CustomerStyleProfile p = new CustomerStyleProfile();
-        p.setUserId(userId);
-        p.setCreatedAt(LocalDateTime.now());
-        p.setUpdatedAt(LocalDateTime.now());
-        return p;
-    }
 
     private DeliveryAddress buildAddress(String id, String userId, boolean isDefault) {
         DeliveryAddress a = new DeliveryAddress();

@@ -140,7 +140,7 @@ MSS301-Stylemind/
 |---|---:|---|---|
 | api-gateway | 3000 | Không có DB nghiệp vụ | Route API, validate JWT, inject `X-User-*`, rate limit, CORS |
 | auth-service | 8081 | auth_db | Identity: email/password, role, account status, register OTP, reset password, admin account |
-| user-service | 8082 | user_db | Profile mua sắm, style profile, địa chỉ giao hàng, dữ liệu tỉnh/phường Việt Nam |
+| user-service | 8082 | user_db | Basic profile, địa chỉ giao hàng, dữ liệu tỉnh/phường Việt Nam |
 | product-service | 8083 | product_db | Category, product, variant/SKU, image, variant snapshot |
 | cart-service | 8086 | cart_db | Giỏ hàng guest/user, add/update/remove/merge/clear |
 | order-service | 8087 | order_db | Tạo đơn, saga checkout, trạng thái đơn hàng, admin order |
@@ -180,7 +180,7 @@ Logic đáng nói:
 
 | Bảng | Ý nghĩa |
 |---|---|
-| `customer_style_profiles` | Hồ sơ phong cách 1:1 theo `user_id` |
+| `user_profiles` | Basic profile 1:1 theo `user_id` (hiện giữ `display_name`) |
 | `delivery_addresses` | Địa chỉ giao hàng của user |
 | `administrative_provinces` | Tỉnh/thành Việt Nam |
 | `administrative_wards` | Phường/xã Việt Nam |
@@ -188,7 +188,7 @@ Logic đáng nói:
 Logic đáng nói:
 
 - `user-service` không giữ password/role/login.
-- Profile được lazy-init: lần đầu user mở profile thì service tạo shell profile nếu chưa có.
+- Đọc danh sách địa chỉ không tạo profile shell; `user_profiles` chỉ giữ basic profile đã được xác nhận.
 - Địa chỉ checkout phải `VALID`.
 - Dữ liệu tỉnh/phường import từ file pinned `vietnam-admin-units-v4.0.0.json`.
 - Số điện thoại được normalize bằng service riêng.
@@ -522,7 +522,7 @@ Frontend Axios interceptor:
 
 Các nhóm route:
 
-- Auth: `/login`, `/register`, `/forgot-password`, `/reset-password`, `/style-profile`.
+- Auth: `/login`, `/register`, `/forgot-password`, `/reset-password`.
 - Customer: `/`, `/shop`, `/products/:id`, `/ai-stylist`, `/cart`, `/checkout`, `/orders`, `/notifications`.
 - Admin: `/admin`, `/admin/products`, `/admin/orders`, `/admin/users`, `/admin/notifications`, ...
 
@@ -716,7 +716,7 @@ Microservices giữ database ownership. Query chéo DB làm phá vỡ boundary. 
 
 ### User nằm ở auth-service hay user-service?
 
-Identity nằm ở auth-service: email, password, role, account status. Profile mua sắm nằm ở user-service: style profile, address. User-service tuyệt đối không giữ password/role/login.
+Identity nằm ở auth-service: email, password, role, account status. Basic profile và delivery address nằm ở user-service. User-service tuyệt đối không giữ password/role/login.
 
 ### Redis dùng làm gì?
 

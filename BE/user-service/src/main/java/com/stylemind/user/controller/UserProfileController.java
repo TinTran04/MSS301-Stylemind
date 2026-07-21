@@ -2,8 +2,7 @@ package com.stylemind.user.controller;
 
 import com.stylemind.user.dto.DeliveryAddressRequest;
 import com.stylemind.user.dto.DeliveryAddressResponse;
-import com.stylemind.user.dto.StyleProfileRequest;
-import com.stylemind.user.dto.StyleProfileResponse;
+import com.stylemind.user.dto.UserProfileResponse;
 import com.stylemind.user.service.UserProfileService;
 import com.stylemind.common.dto.ApiResponse;
 import jakarta.validation.Valid;
@@ -36,18 +35,10 @@ public class UserProfileController {
                 administrativeDataService.getWards(provinceCode)));
     }
 
-    @GetMapping("/style-profile")
-    public ResponseEntity<ApiResponse<StyleProfileResponse>> getProfile(@AuthenticationPrincipal UserPrincipal principal) {
-        StyleProfileResponse profile = userProfileService.getStyleProfile(principal.getUserId());
-        return ResponseEntity.ok(ApiResponse.success("Lấy hồ sơ phong cách thành công", profile));
-    }
-
-    @PutMapping("/style-profile")
-    public ResponseEntity<ApiResponse<StyleProfileResponse>> updateProfile(
-            @AuthenticationPrincipal UserPrincipal principal,
-            @Valid @RequestBody StyleProfileRequest request) {
-        StyleProfileResponse profile = userProfileService.updateStyleProfile(principal.getUserId(), request);
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật hồ sơ phong cách thành công", profile));
+    @GetMapping("/profile")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> getProfile(@AuthenticationPrincipal UserPrincipal principal) {
+        UserProfileResponse profile = userProfileService.getProfile(principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.success("Lấy hồ sơ thành công", profile));
     }
 
     @GetMapping("/addresses")
@@ -71,6 +62,14 @@ public class UserProfileController {
             @Valid @RequestBody DeliveryAddressRequest request) {
         DeliveryAddressResponse address = userProfileService.updateAddress(principal.getUserId(), addressId, request);
         return ResponseEntity.ok(ApiResponse.success("Cập nhật địa chỉ thành công", address));
+    }
+
+    @PatchMapping("/addresses/{addressId}/default")
+    public ResponseEntity<ApiResponse<DeliveryAddressResponse>> setDefaultAddress(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String addressId) {
+        DeliveryAddressResponse address = userProfileService.setDefaultAddress(principal.getUserId(), addressId);
+        return ResponseEntity.ok(ApiResponse.success("Đã cập nhật địa chỉ mặc định", address));
     }
 
     @DeleteMapping("/addresses/{addressId}")

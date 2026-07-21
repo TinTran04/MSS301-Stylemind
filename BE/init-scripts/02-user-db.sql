@@ -1,17 +1,9 @@
 -- Init script for user_db
--- Customer Style Profiles and Delivery Addresses
+-- Basic customer profiles and delivery addresses
 
--- Customer Style Profiles (1:1 with users)
-CREATE TABLE IF NOT EXISTS customer_style_profiles (
+CREATE TABLE IF NOT EXISTS user_profiles (
     user_id VARCHAR(50) PRIMARY KEY,
     display_name VARCHAR(150),
-    gender VARCHAR(20),
-    age INT,
-    height_cm DECIMAL(5, 2),
-    weight_kg DECIMAL(5, 2),
-    body_morphology VARCHAR(50),
-    preferred_fit VARCHAR(30),
-    style_personas JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -70,21 +62,20 @@ END $$;
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_delivery_addresses_user_id ON delivery_addresses(user_id);
 CREATE INDEX IF NOT EXISTS idx_delivery_addresses_default ON delivery_addresses(user_id, is_default) WHERE is_default = true;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_delivery_addresses_one_default_per_user ON delivery_addresses(user_id) WHERE is_default = true;
 CREATE INDEX IF NOT EXISTS idx_admin_provinces_active_name ON administrative_provinces(active, name);
 CREATE INDEX IF NOT EXISTS idx_admin_wards_province_active_name ON administrative_wards(province_code, active, name);
 CREATE INDEX IF NOT EXISTS idx_delivery_addresses_validation_status ON delivery_addresses(user_id, validation_status);
 
--- Seed Data for Customer Style Profiles
-INSERT INTO customer_style_profiles (
-    user_id, display_name, gender, age, height_cm, weight_kg, body_morphology, preferred_fit, style_personas, created_at, updated_at
-) VALUES 
-('usr_admin', 'System Admin', 'MALE', 30, 175.0, 70.0, 'Mesomorph', 'REGULAR', '{"minimalist": 0.8, "casual": 0.2}', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days'),
-('usr_customer', 'Khách Hàng Thử Nghiệm', 'MALE', 25, 172.5, 65.0, 'Ectomorph', 'REGULAR', '{"casual": 0.7, "minimalist": 0.3}', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
-('usr_001', 'Nguyễn Văn An', 'MALE', 28, 175.0, 70.0, 'Mesomorph', 'LOOSE', '{"streetwear": 0.8, "sporty": 0.2}', NOW() - INTERVAL '25 days', NOW() - INTERVAL '25 days'),
-('usr_002', 'Trần Thị Bình', 'FEMALE', 23, 158.0, 48.0, 'Hourglass', 'SLIM', '{"vintage": 0.5, "elegant": 0.5}', NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
-('usr_003', 'Lê Khánh Chi', 'FEMALE', 30, 162.0, 52.0, 'Pear', 'REGULAR', '{"office": 0.8, "minimalist": 0.2}', NOW() - INTERVAL '15 days', NOW() - INTERVAL '15 days'),
-('usr_004', 'Phạm Tiến Dũng', 'MALE', 35, 180.0, 85.0, 'Endomorph', 'OVERSIZED', '{"streetwear": 0.5, "casual": 0.5}', NOW() - INTERVAL '10 days', NOW() - INTERVAL '10 days'),
-('usr_005', 'Hoàng Mỹ Em', 'FEMALE', 19, 155.0, 45.0, 'Rectangle', 'LOOSE', '{"korean_chic": 0.9, "indie": 0.1}', NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days')
+-- Seed data retains basic display names only; deprecated style preferences are not seeded.
+INSERT INTO user_profiles (user_id, display_name, created_at, updated_at) VALUES
+('usr_admin', 'System Admin', NOW() - INTERVAL '60 days', NOW() - INTERVAL '60 days'),
+('usr_customer', 'Khách Hàng Thử Nghiệm', NOW() - INTERVAL '30 days', NOW() - INTERVAL '30 days'),
+('usr_001', 'Nguyễn Văn An', NOW() - INTERVAL '25 days', NOW() - INTERVAL '25 days'),
+('usr_002', 'Trần Thị Bình', NOW() - INTERVAL '20 days', NOW() - INTERVAL '20 days'),
+('usr_003', 'Lê Khánh Chi', NOW() - INTERVAL '15 days', NOW() - INTERVAL '15 days'),
+('usr_004', 'Phạm Tiến Dũng', NOW() - INTERVAL '10 days', NOW() - INTERVAL '10 days'),
+('usr_005', 'Hoàng Mỹ Em', NOW() - INTERVAL '5 days', NOW() - INTERVAL '5 days')
 ON CONFLICT (user_id) DO NOTHING;
 
 -- Seed Data for Delivery Addresses
