@@ -55,7 +55,7 @@ export default function LoginPage() {
       {/* Left: Editorial Image */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img
-          src="https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=1200&h=1600&fit=crop"
+          src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=1200&h=1600&fit=crop"
           alt="Ảnh biên tập thời trang"
           className="w-full h-full object-cover"
         />
@@ -155,7 +155,8 @@ export default function LoginPage() {
 
             <button
               type="button"
-              className="w-full border border-outline-variant rounded-lg py-3 text-sm font-medium hover:bg-surface-container-high transition-colors flex items-center justify-center gap-3"
+              onClick={() => setError('Tính năng Đăng nhập bằng Google hiện chưa hỗ trợ. Vui lòng sử dụng Email và Mật khẩu.')}
+              className="w-full border border-outline-variant rounded-lg py-3 text-sm font-medium hover:bg-surface-container-high transition-colors flex items-center justify-center gap-3 cursor-pointer"
             >
               <svg width="18" height="18" viewBox="0 0 24 24">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>

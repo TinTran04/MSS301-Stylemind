@@ -98,6 +98,9 @@ public class NotificationService {
     @Transactional(readOnly = true)
     public AdminNotificationSummaryResponse getAdminSummary() {
         return AdminNotificationSummaryResponse.builder()
+                .totalNotifications(notificationLogRepository.count())
+                .sentNotifications(notificationLogRepository.countByStatus("SENT"))
+                .pendingNotifications(notificationLogRepository.countByStatus("PENDING"))
                 .failedNotifications(notificationLogRepository.countByStatus("FAILED"))
                 .build();
     }

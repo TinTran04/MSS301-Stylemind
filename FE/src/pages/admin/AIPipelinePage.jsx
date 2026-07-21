@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { Brain, RefreshCw, AlertTriangle, CheckCircle, Clock, Activity, Plus, Database } from 'lucide-react'
 import StatusBadge from '../../components/admin/StatusBadge'
 import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
-import { getAIPipelineEvents } from '../../features/analytics/analytics.api'
 import { getIndexJobs, createIndexJob } from '../../features/ai-stylist/adminAiIndexJobs.api'
 import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatRelativeTime, formatDateTime } from '../../utils/formatDate'
@@ -204,159 +203,34 @@ function IndexJobsPanel() {
 }
 
 export default function AIPipelinePage() {
-  const [events, setEvents] = useState([])
-  const [selectedEvent, setSelectedEvent] = useState(null)
-  const [retryingId, setRetryingId] = useState(null)
-
-  useEffect(() => {
-    getAIPipelineEvents().then(setEvents)
-  }, [])
-
-  const retryEvent = (eventId) => {
-    setRetryingId(eventId)
-    setEvents(prev => prev.map(e => e.id === eventId ? { ...e, status: 'processing' } : e))
-    setSelectedEvent(prev => prev && prev.id === eventId ? { ...prev, status: 'processing' } : prev)
-    setTimeout(() => {
-      setEvents(prev => prev.map(e => e.id === eventId ? { ...e, status: 'synced' } : e))
-      setSelectedEvent(prev => prev && prev.id === eventId ? { ...prev, status: 'synced' } : prev)
-      setRetryingId(null)
-    }, 2000)
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-headline-md text-primary">Quy trình AI</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Theo dõi tình trạng dịch vụ AI và luồng sự kiện</p>
-        </div>
-        <button className="bg-surface-container text-on-surface px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-surface-container-high">
-          <RefreshCw size={14} /> Làm mới
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-surface-container-lowest rounded-xl p-5 ambient-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2"><Activity size={16} className="text-primary" /><span className="text-sm font-medium text-primary">Chỉ mục vector</span></div>
-            <StatusBadge status="synced" />
-          </div>
-          <p className="text-2xl font-semibold text-primary">99.98%</p>
-          <p className="text-xs text-on-surface-variant mt-1">Điểm sức khỏe</p>
-        </div>
-        <div className="bg-surface-container-lowest rounded-xl p-5 ambient-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2"><Brain size={16} className="text-primary" /><span className="text-sm font-medium text-primary">Đồ thị tri thức</span></div>
-            <StatusBadge status="synced" />
-          </div>
-          <p className="text-2xl font-semibold text-primary">100%</p>
-          <p className="text-xs text-on-surface-variant mt-1">Điểm toàn vẹn</p>
-        </div>
-        <div className="bg-surface-container-lowest rounded-xl p-5 ambient-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2"><Clock size={16} className="text-primary" /><span className="text-sm font-medium text-primary">Độ trễ quy trình</span></div>
-            <StatusBadge status="failed" />
-          </div>
-          <p className="text-2xl font-semibold text-error">420ms</p>
-          <p className="text-xs text-error mt-1">Vượt ngưỡng (200ms)</p>
+          <p className="text-sm text-on-surface-variant mt-1">
+            Quản lý các công việc chỉ mục (Index Jobs) và đồng bộ Vector DB cho AI Stylist
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8 bg-surface-container-lowest rounded-xl ambient-shadow overflow-hidden">
-          <div className="p-4 border-b border-outline-variant/20">
-            <h2 className="font-title-lg text-primary">Nhật ký sự kiện</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-surface-container-low/50">
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Thời gian</th>
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Sự kiện</th>
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Dịch vụ</th>
-                  <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-3">Trạng thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-outline-variant/5">
-                {events.map((event) => (
-                  <tr key={event.id} className={`hover:bg-surface-container-high/30 cursor-pointer transition-colors ${selectedEvent?.id === event.id ? 'bg-surface-container-low' : ''}`} onClick={() => setSelectedEvent(event)}>
-                    <td className="px-4 py-3 text-xs text-on-surface-variant">{formatRelativeTime(event.timestamp)}</td>
-                    <td className="px-4 py-3 text-sm font-medium text-primary">{event.name}</td>
-                    <td className="px-4 py-3 text-sm text-on-surface-variant">{event.service}</td>
-                    <td className="px-4 py-3"><StatusBadge status={event.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="lg:col-span-4">
-          <div className="bg-surface-container-lowest rounded-xl p-5 ambient-shadow sticky top-24">
-            {selectedEvent ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  {selectedEvent.status === 'failed' ? <AlertTriangle size={18} className="text-error" /> : <CheckCircle size={18} className="text-green-status" />}
-                  <h3 className="font-title-lg text-primary">{selectedEvent.name}</h3>
-                </div>
-                <StatusBadge status={selectedEvent.status} />
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-on-surface-variant">Dịch vụ</span><span className="text-primary">{selectedEvent.service}</span></div>
-                  <div className="flex justify-between"><span className="text-on-surface-variant">Thời gian</span><span className="text-primary">{formatDateTime(selectedEvent.timestamp)}</span></div>
-                </div>
-                {selectedEvent.status === 'failed' && (
-                  <div className="bg-error-container/50 rounded-lg p-4">
-                    <h4 className="text-xs font-medium text-error mb-2">Chi tiết lỗi</h4>
-                    <p className="text-xs text-on-surface-variant">Hết thời gian kết nối: dịch vụ không khả dụng. Sẽ thử lại sau 30 giây.</p>
-                  </div>
-                )}
-                {selectedEvent.status === 'processing' && (
-                  <div className="bg-primary/10 rounded-lg p-4">
-                    <h4 className="text-xs font-medium text-primary mb-2">Đang thử lại</h4>
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      <p className="text-xs text-on-surface-variant">Đang đồng bộ lại sự kiện...</p>
-                    </div>
-                  </div>
-                )}
-                <div className="bg-surface-container-low rounded-lg p-4">
-                  <h4 className="text-xs font-medium text-on-surface-variant mb-2">Xem trước payload</h4>
-                  <pre className="text-[10px] text-on-surface-variant overflow-x-auto">{'{' + `\n  "event": "${selectedEvent.name}",\n  "service": "${selectedEvent.service}",\n  "status": "${selectedEvent.status}"` + '\n}'}</pre>
-                </div>
-                <div className="flex gap-2">
-                  {selectedEvent.status === 'failed' && (
-                    <button onClick={() => retryEvent(selectedEvent.id)} disabled={retryingId === selectedEvent.id} className="flex-1 bg-primary text-on-primary rounded-lg py-2 text-xs font-medium hover:opacity-90 disabled:opacity-50">
-                      {retryingId === selectedEvent.id ? 'Đang thử lại...' : 'Thử lại'}
-                    </button>
-                  )}
-                  <button className="flex-1 bg-surface-container text-on-surface rounded-lg py-2 text-xs font-medium hover:bg-surface-container-high">Xem nhật ký</button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-on-surface-variant text-sm">Chọn một sự kiện để xem chi tiết</div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-surface-container-lowest rounded-xl p-6 ambient-shadow">
-        <h2 className="font-title-lg text-primary mb-4">Tình trạng quy trình</h2>
-        <div className="flex items-center justify-between">
-          {['Tiếp nhận', 'Phân tích', 'Chỉ mục', 'Nhúng', 'Lưu trữ'].map((step, idx) => (
-            <div key={step} className="flex items-center">
-              <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold ${
-                  idx < 4 ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant'
-                }`}>{idx + 1}</div>
-                <span className="text-xs text-on-surface-variant mt-2">{step}</span>
-              </div>
-              {idx < 4 && <div className={`w-16 h-0.5 mx-2 ${idx < 3 ? 'bg-primary' : 'bg-outline-variant'}`} />}
-            </div>
-          ))}
-        </div>
-      </div>
-
+      {/* Primary Real API Feature: Index Jobs Management */}
       <IndexJobsPanel />
+
+      {/* Placeholder section for detailed event telemetry */}
+      <div className="bg-surface-container-lowest rounded-2xl p-8 border border-outline-variant/30 text-center space-y-4 ambient-shadow">
+        <div className="w-14 h-14 rounded-2xl bg-surface-container-high flex items-center justify-center mx-auto text-primary">
+          <Activity size={28} />
+        </div>
+        <div className="max-w-md mx-auto space-y-2">
+          <h2 className="font-title-lg text-primary font-semibold">
+            Tính năng này sẽ được hoàn thiện trong tương lai
+          </h2>
+          <p className="text-sm text-on-surface-variant leading-relaxed">
+            Nhật ký sự kiện thời gian thực (Real-time Event Telemetry &amp; Vector Index Latency Metrics) sẽ được kết nối khi dịch vụ AI Event Streaming hoàn tất tích hợp.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
