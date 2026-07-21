@@ -9,7 +9,7 @@ import Modal from '../../components/common/Modal'
 import { cancelOrder } from '../../features/orders/order.api'
 import { getAddresses } from '../../features/profile/profile.api'
 import { formatSavedAddress, isCheckoutEligibleAddress } from '../../features/profile/address.utils'
-import { TAX_LABEL, TAX_RATE } from '../../features/cart/cart.utils'
+import { calculateTotal, isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
 
 const paymentMethods = [
   { id: 'cod', label: 'Thanh toán khi nhận hàng', icon: Banknote, description: 'Thanh toán khi đơn hàng được giao đến bạn' },
@@ -17,7 +17,7 @@ const paymentMethods = [
 ]
 
 export default function CheckoutPage() {
-  const { items, subtotal, clearCart, loadCart } = useCart()
+  const { items, clearCart, loadCart } = useCart()
   const { status, steps, error, method, setMethod, processPayment, stopPolling, reset, lastOrder } = usePaymentStore()
   const location = useLocation()
   const navigate = useNavigate()
@@ -32,10 +32,13 @@ export default function CheckoutPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const displayItems = items
-  const displaySubtotal = subtotal
-  const shipping = displaySubtotal > 200 ? 0 : 15
-  const tax = Math.round(displaySubtotal * TAX_RATE * 100) / 100
-  const total = displaySubtotal + shipping + tax
+  const {
+    subtotal: displaySubtotal,
+    shipping,
+    tax,
+    total,
+  } = calculateTotal(displayItems, method)
+  const isCod = isCodPaymentMethod(method)
 
   useEffect(() => {
     loadCart()
@@ -540,7 +543,7 @@ export default function CheckoutPage() {
                 <div className="flex justify-between"><span className="text-on-surface-variant">Phí vận chuyển</span><span className={shipping === 0 ? 'text-green-status' : ''}>{shipping === 0 ? 'Miễn phí' : formatCurrency(shipping)}</span></div>
                 <div className="flex justify-between"><span className="text-on-surface-variant">{TAX_LABEL}</span><span>{formatCurrency(tax)}</span></div>
                 <div className="border-t border-outline-variant/20 pt-2 flex justify-between font-semibold text-primary text-lg">
-                  <span>Tổng cộng</span><span>{formatCurrency(total)}</span>
+                  <span>{isCod ? 'Số tiền thu hộ COD' : 'Tổng cộng'}</span><span>{formatCurrency(total)}</span>
                 </div>
               </div>
               <button

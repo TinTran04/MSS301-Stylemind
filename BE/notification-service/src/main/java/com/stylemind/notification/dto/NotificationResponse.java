@@ -2,7 +2,7 @@ package com.stylemind.notification.dto;
 
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @NoArgsConstructor
@@ -18,8 +18,8 @@ public class NotificationResponse {
     private String content;
     private String status;
     private String errorMessage;
-    private LocalDateTime sentAt;
-    private LocalDateTime createdAt;
+    private Instant sentAt;
+    private Instant createdAt;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -39,8 +39,8 @@ public class NotificationResponse {
     public void setStatus(String status) { this.status = status; }
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
-    public LocalDateTime getSentAt() { return sentAt; }
-    public void setSentAt(LocalDateTime sentAt) { this.sentAt = sentAt; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public Instant getSentAt() { return sentAt; }
+    public void setSentAt(Instant sentAt) { this.sentAt = sentAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

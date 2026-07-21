@@ -18,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import jakarta.mail.internet.MimeMessage;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -56,7 +58,7 @@ public class NotificationService {
         NotificationLog entry = NotificationLog.builder()
                 .userId(request.getUserId())
                 .recipientEmail(request.getRecipientEmail())
-                .type(request.getType())
+                .type(normalizeType(request.getType()))
                 .channel(normalizeChannel(request.getChannel()))
                 .title(request.getTitle())
                 .content(request.getContent())
@@ -72,7 +74,7 @@ public class NotificationService {
     }
 
     public List<NotificationResponse> getNotifications(String userId) {
-        return notificationLogRepository.findByUserId(userId).stream()
+        return notificationLogRepository.findByUserIdNewestFirst(userId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -84,7 +86,12 @@ public class NotificationService {
     }
 
     public Page<NotificationResponse> getNotifications(String userId, String status, String type, Pageable pageable) {
-        return notificationLogRepository.search(userId, status, type, pageable).map(this::mapToResponse);
+        return notificationLogRepository.search(
+                normalizeNullable(userId),
+                normalizeStatusFilter(status),
+                normalizeTypeFilter(type),
+                pageable
+        ).map(this::mapToResponse);
     }
 
     /** Real notification-health counts for the admin dashboard. */
@@ -112,7 +119,7 @@ public class NotificationService {
         NotificationLog entry = NotificationLog.builder()
                 .userId(request.getUserId())
                 .recipientEmail(request.getRecipientEmail())
-                .type(request.getType())
+                .type(normalizeType(request.getType()))
                 .channel("EMAIL")
                 .title(request.getTitle())
                 .content(request.getContent())
@@ -130,13 +137,67 @@ public class NotificationService {
                 .recipientEmail(entry.getRecipientEmail())
                 .type(entry.getType())
                 .channel(entry.getChannel())
-                .title(entry.getTitle())
-                .content(entry.getContent())
+                .title(resolveDisplayTitle(entry))
+                .content(resolveDisplayContent(entry))
                 .status(entry.getStatus())
                 .errorMessage(entry.getErrorMessage())
-                .sentAt(entry.getSentAt())
-                .createdAt(entry.getCreatedAt())
+                .sentAt(toUtcInstant(entry.getSentAt()))
+                .createdAt(toUtcInstant(entry.getCreatedAt()))
                 .build();
+    }
+
+    private Instant toUtcInstant(LocalDateTime value) {
+        return value == null ? null : value.toInstant(ZoneOffset.UTC);
+    }
+
+    private String resolveDisplayTitle(NotificationLog entry) {
+        String title = entry.getTitle();
+        if ("Order confirmed".equals(title)) {
+            return "Đơn hàng đã được xác nhận";
+        }
+        if ("Payment received".equals(title)) {
+            return "Thanh toán thành công";
+        }
+        return title;
+    }
+
+    private String resolveDisplayContent(NotificationLog entry) {
+        String content = entry.getContent();
+        if (!StringUtils.hasText(content)) {
+            return content;
+        }
+
+        String confirmedOrderId = extractBetween(content, "Your order ", " has been confirmed");
+        if (confirmedOrderId != null && ("ORDER_CONFIRMED".equals(entry.getType()) || "Order confirmed".equals(entry.getTitle()))) {
+            return "Đơn hàng " + formatOrderReference(confirmedOrderId)
+                    + " của bạn đã được xác nhận. Bạn sẽ thanh toán khi nhận hàng.";
+        }
+
+        String paidOrderId = extractBetween(content, "Payment for your order ", " has been received");
+        if (paidOrderId != null && ("ORDER_PAID".equals(entry.getType()) || "Payment received".equals(entry.getTitle()))) {
+            return "Thanh toán cho đơn hàng " + formatOrderReference(paidOrderId)
+                    + " đã được ghi nhận thành công.";
+        }
+
+        return content;
+    }
+
+    private String extractBetween(String value, String prefix, String suffix) {
+        int start = value.indexOf(prefix);
+        if (start < 0) {
+            return null;
+        }
+        start += prefix.length();
+        int end = value.indexOf(suffix, start);
+        if (end < 0 || end <= start) {
+            return null;
+        }
+        String extracted = value.substring(start, end).trim();
+        return StringUtils.hasText(extracted) ? extracted : null;
+    }
+
+    private String formatOrderReference(String orderId) {
+        return orderId.startsWith("#") ? orderId : "#" + orderId;
     }
 
     private NotificationLog sendEmail(NotificationLog entry, String htmlContent) {
@@ -175,10 +236,26 @@ public class NotificationService {
     }
 
     private String defaultStatus(String status) {
-        return StringUtils.hasText(status) ? status : "PENDING";
+        return StringUtils.hasText(status) ? status.trim().toUpperCase() : "PENDING";
     }
 
     private String normalizeChannel(String channel) {
-        return StringUtils.hasText(channel) ? channel.toUpperCase() : "EMAIL";
+        return StringUtils.hasText(channel) ? channel.trim().toUpperCase() : "EMAIL";
+    }
+
+    private String normalizeType(String type) {
+        return StringUtils.hasText(type) ? type.trim().toUpperCase() : type;
+    }
+
+    private String normalizeNullable(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String normalizeStatusFilter(String status) {
+        return StringUtils.hasText(status) ? status.trim().toUpperCase() : null;
+    }
+
+    private String normalizeTypeFilter(String type) {
+        return StringUtils.hasText(type) ? type.trim().toUpperCase() : null;
     }
 }

@@ -1,3 +1,5 @@
+import { calculateTotal } from '../../features/cart/cart.utils.js'
+
 export function buildAdminOrderDetailPath(orderId, listSearch = '') {
   const params = new URLSearchParams()
   const returnPath = `/admin/orders${listSearch || ''}`
@@ -22,6 +24,41 @@ export function getOrderItemLineTotal(item) {
 
 export function getOrderSubtotal(items = []) {
   return items.reduce((sum, item) => sum + getOrderItemLineTotal(item), 0)
+}
+
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === '') return null
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : null
+}
+
+export function getOrderPricingSummary(order = {}, items = order?.items || []) {
+  const itemSubtotal = getOrderSubtotal(items)
+  const subtotal = numberOrNull(order.subtotalAmount)
+  const shippingFee = numberOrNull(order.shippingFee)
+  const taxAmount = numberOrNull(order.taxAmount)
+  const hasBreakdown = subtotal !== null || shippingFee !== null || taxAmount !== null
+  const fallbackPricing = calculateTotal(
+    items.map((item) => ({
+      price: Number(item?.priceAtPurchase ?? 0),
+      quantity: Number(item?.quantity ?? 0),
+    })),
+    order.paymentMethod,
+  )
+  const exactTotal = hasBreakdown
+    ? (subtotal ?? itemSubtotal) + (shippingFee ?? 0) + (taxAmount ?? 0)
+    : fallbackPricing.exactTotal
+
+  return {
+    subtotal: hasBreakdown ? (subtotal ?? itemSubtotal) : fallbackPricing.subtotal,
+    shippingFee: hasBreakdown ? (shippingFee ?? 0) : fallbackPricing.shipping,
+    taxAmount: hasBreakdown ? (taxAmount ?? 0) : fallbackPricing.tax,
+    roundingAdjustment: 0,
+    exactTotal,
+    totalAmount: exactTotal,
+    hasBreakdown: true,
+    source: hasBreakdown ? 'backend' : 'fallback',
+  }
 }
 
 export function getOrderItemDisplay(item = {}) {

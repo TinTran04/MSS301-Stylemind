@@ -7,7 +7,6 @@ import com.stylemind.common.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -25,7 +24,7 @@ public class AdminNotificationController {
             @RequestParam(required = false) String userId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String type,
-            @PageableDefault(size = 20) Pageable pageable) {
+            Pageable pageable) {
         Page<NotificationResponse> notifications = notificationService.getNotifications(userId, status, type, pageable);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách thông báo thành công", notifications));
     }

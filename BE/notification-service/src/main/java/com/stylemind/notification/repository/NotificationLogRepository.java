@@ -14,17 +14,32 @@ import java.util.Optional;
 @Repository
 public interface NotificationLogRepository extends JpaRepository<NotificationLog, Long> {
     List<NotificationLog> findByUserId(String userId);
+    @Query("""
+            SELECT n FROM NotificationLog n
+            WHERE n.userId = :userId
+            ORDER BY COALESCE(n.sentAt, n.createdAt) DESC, n.id DESC
+            """)
+    List<NotificationLog> findByUserIdNewestFirst(@Param("userId") String userId);
     Page<NotificationLog> findByUserId(String userId, Pageable pageable);
     List<NotificationLog> findByStatus(String status);
     long countByStatus(String status);
     Optional<NotificationLog> findByIdAndUserId(Long id, String userId);
 
-    @Query("""
+    @Query(
+            value = """
             SELECT n FROM NotificationLog n
             WHERE (:userId IS NULL OR n.userId = :userId)
               AND (:status IS NULL OR n.status = :status)
               AND (:type IS NULL OR n.type = :type)
-            """)
+            ORDER BY COALESCE(n.sentAt, n.createdAt) DESC, n.id DESC
+            """,
+            countQuery = """
+            SELECT COUNT(n) FROM NotificationLog n
+            WHERE (:userId IS NULL OR n.userId = :userId)
+              AND (:status IS NULL OR n.status = :status)
+              AND (:type IS NULL OR n.type = :type)
+            """
+    )
     Page<NotificationLog> search(
             @Param("userId") String userId,
             @Param("status") String status,

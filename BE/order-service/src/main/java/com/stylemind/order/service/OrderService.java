@@ -15,9 +15,13 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,13 +38,18 @@ public class OrderService {
     private final ProductClient productClient;
     private final UserClient userClient;
     private final com.stylemind.order.feign.UserAddressClient userAddressClient;
-    private final NotificationClient notificationClient;
     private final OrderStatusAuditLogRepository auditLogRepository;
     private final OrderStatusService orderStatusService;
+    private final OrderDeliveryImageRepository deliveryImageRepository;
 
     private static final String CHECKOUT_STATUS_PROCESSING = "PROCESSING";
     private static final String CHECKOUT_STATUS_SUCCEEDED = "SUCCEEDED";
     private static final String CHECKOUT_STATUS_FAILED = "FAILED";
+    private static final BigDecimal VAT_RATE = new BigDecimal("0.10");
+    private static final BigDecimal FREE_SHIPPING_THRESHOLD = new BigDecimal("200000");
+    private static final BigDecimal STANDARD_SHIPPING_FEE = new BigDecimal("15000");
+    private static final long MAX_DELIVERY_IMAGE_BYTES = 3L * 1024 * 1024;
+    private static final int MAX_DELIVERY_IMAGES_PER_ORDER = 5;
 
     public OrderResponse createOrder(String userId, String authHeader, String idempotencyKey, CreateOrderRequest request) {
         CheckoutIdempotency checkoutIdempotency = acquireCheckoutIdempotency(userId, idempotencyKey);
@@ -59,18 +68,19 @@ public class OrderService {
                     .map(this::buildOrderItemDraft)
                     .collect(Collectors.toList());
 
-            BigDecimal totalAmount = itemDrafts.stream()
-                    .map(OrderItemDraft::lineTotal)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-
             String paymentMethod = request.getPaymentMethod();
+            OrderPricing pricing = calculateOrderPricing(itemDrafts);
             OrderStatus initialStatus = "sepay".equals(paymentMethod) ? OrderStatus.PAYMENT_PENDING : OrderStatus.PENDING;
             String orderId = StringUtil.generateUniqueId();
 
             Order order = Order.builder()
                     .id(orderId)
                     .userId(userId)
-                    .totalAmount(totalAmount)
+                    .subtotalAmount(pricing.subtotalAmount())
+                    .shippingFee(pricing.shippingFee())
+                    .taxAmount(pricing.taxAmount())
+                    .roundingAdjustment(pricing.roundingAdjustment())
+                    .totalAmount(pricing.totalAmount())
                     .orderStatus(initialStatus)
                     .shippingAddress(formatShippingAddress(address))
                     .sourceAddressId(address.getId())
@@ -116,8 +126,6 @@ public class OrderService {
                 // amount; its own status stays PENDING until the courier collects it.
                 order = orderStatusService.changeStatus(order, OrderStatus.CONFIRMED, userId);
                 clearCartBestEffort(authHeader, orderId);
-                notifyOrderBestEffort(order, "ORDER_CONFIRMED", "Order confirmed",
-                        "Your order " + orderId + " has been confirmed and will be paid on delivery.");
             }
             // sepay: order stays PAYMENT_PENDING. There is no customer confirmation step -
             // payment-service's SePay webhook reconciles the bank transfer and calls back
@@ -149,6 +157,20 @@ public class OrderService {
                 .amount(amount)
                 .build();
         return unwrapPaymentResponse(paymentClient.createSepayPayment(paymentRequest));
+    }
+
+    private OrderPricing calculateOrderPricing(List<OrderItemDraft> itemDrafts) {
+        BigDecimal subtotal = itemDrafts.stream()
+                .map(OrderItemDraft::lineTotal)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal shippingFee = subtotal.compareTo(FREE_SHIPPING_THRESHOLD) >= 0
+                ? BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+                : STANDARD_SHIPPING_FEE.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal taxAmount = subtotal.multiply(VAT_RATE).setScale(0, RoundingMode.HALF_UP)
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalAmount = subtotal.add(shippingFee).add(taxAmount).setScale(2, RoundingMode.HALF_UP);
+        return new OrderPricing(subtotal, shippingFee, taxAmount, BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP), totalAmount);
     }
 
     private UserAddressClient.DeliveryAddressSnapshot getCheckoutAddress(String userId, String addressId) {
@@ -267,6 +289,8 @@ public class OrderService {
         OrderResponse response = buildOrderResponse(order, items);
         applyPaymentStatusIfAvailable(orderId, response);
         enrichOrderItems(response);
+        enrichStatusHistory(orderId, response);
+        enrichDeliveryImages(orderId, response);
         return response;
     }
 
@@ -320,11 +344,14 @@ public class OrderService {
     }
 
     public List<OrderResponse> getOrders(String userId) {
-        List<Order> orders = orderRepository.findByUserId(userId);
+        List<Order> orders = orderRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId);
         return orders.stream()
                 .map(order -> {
                     OrderResponse response = buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId()));
+                    applyPaymentStatusIfAvailable(order.getId(), response);
                     enrichOrderItems(response);
+                    enrichStatusHistory(order.getId(), response);
+                    enrichDeliveryImages(order.getId(), response);
                     return response;
                 })
                 .collect(Collectors.toList());
@@ -366,8 +393,84 @@ public class OrderService {
         OrderResponse response = buildOrderResponse(order, items);
         applyPaymentStatusIfAvailable(orderId, response);
         enrichAdminOrderDetails(response);
-        enrichAdminStatusHistory(orderId, response);
+        enrichStatusHistory(orderId, response);
+        enrichDeliveryImages(orderId, response);
         return response;
+    }
+
+    public OrderResponse uploadDeliveryImage(String userId, String orderId, MultipartFile file) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "Order not found", 404));
+        validateDeliveryImageUpload(order, file);
+
+        try {
+            OrderDeliveryImage image = OrderDeliveryImage.builder()
+                    .id(StringUtil.generateUniqueId())
+                    .orderId(orderId)
+                    .userId(userId)
+                    .fileName(safeFileName(file.getOriginalFilename()))
+                    .contentType(normalizeImageContentType(file.getContentType()))
+                    .sizeBytes(file.getSize())
+                    .imageData(file.getBytes())
+                    .build();
+            deliveryImageRepository.save(image);
+        } catch (java.io.IOException ex) {
+            throw new BusinessException("ORDER_DELIVERY_IMAGE_READ_FAILED", "Không thể đọc tệp ảnh nhận hàng.", 400);
+        }
+
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+        OrderResponse response = buildOrderResponse(order, items);
+        applyPaymentStatusIfAvailable(orderId, response);
+        enrichOrderItems(response);
+        enrichStatusHistory(orderId, response);
+        enrichDeliveryImages(orderId, response);
+        return response;
+    }
+
+    private void validateDeliveryImageUpload(Order order, MultipartFile file) {
+        if (order.getOrderStatus() != OrderStatus.COMPLETED) {
+            throw new BusinessException(
+                    "ORDER_NOT_DELIVERED",
+                    "Chỉ có thể tải ảnh nhận hàng sau khi đơn đã giao thành công.",
+                    409
+            );
+        }
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("ORDER_DELIVERY_IMAGE_EMPTY", "Vui lòng chọn ảnh nhận hàng.", 400);
+        }
+        if (file.getSize() > MAX_DELIVERY_IMAGE_BYTES) {
+            throw new BusinessException(
+                    "ORDER_DELIVERY_IMAGE_TOO_LARGE",
+                    "Ảnh nhận hàng không được vượt quá 3MB.",
+                    400
+            );
+        }
+        String contentType = normalizeImageContentType(file.getContentType());
+        if (!List.of("image/jpeg", "image/png", "image/webp").contains(contentType)) {
+            throw new BusinessException(
+                    "ORDER_DELIVERY_IMAGE_INVALID_TYPE",
+                    "Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP.",
+                    400
+            );
+        }
+        if (deliveryImageRepository.countByOrderId(order.getId()) >= MAX_DELIVERY_IMAGES_PER_ORDER) {
+            throw new BusinessException(
+                    "ORDER_DELIVERY_IMAGE_LIMIT_REACHED",
+                    "Mỗi đơn hàng chỉ được tải tối đa 5 ảnh nhận hàng.",
+                    409
+            );
+        }
+    }
+
+    private String normalizeImageContentType(String contentType) {
+        String value = StringUtils.hasText(contentType) ? contentType.trim().toLowerCase(Locale.ROOT) : "";
+        if ("image/jpg".equals(value)) return "image/jpeg";
+        return value;
+    }
+
+    private String safeFileName(String fileName) {
+        String value = StringUtils.hasText(fileName) ? fileName.trim() : "delivery-image";
+        return value.replaceAll("[\\\\/\\r\\n\\t]+", "_");
     }
 
     /**
@@ -403,7 +506,7 @@ public class OrderService {
 
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
         OrderResponse response = buildOrderResponse(order, items);
-        enrichAdminStatusHistory(orderId, response);
+        enrichStatusHistory(orderId, response);
         return response;
     }
 
@@ -425,8 +528,6 @@ public class OrderService {
         if ("PAID".equalsIgnoreCase(paymentStatus)) {
             order = orderStatusService.changeStatus(order, OrderStatus.PAID, "PAYMENT_WEBHOOK");
             clearCartByUserIdBestEffort(order.getUserId(), orderId);
-            notifyOrderBestEffort(order, "ORDER_PAID", "Payment received",
-                    "Payment for your order " + orderId + " has been received.");
         } else if ("FAILED".equalsIgnoreCase(paymentStatus)) {
             orderStatusService.changeStatus(order, OrderStatus.FAILED, "PAYMENT_WEBHOOK");
         }
@@ -527,6 +628,10 @@ public class OrderService {
                 .id(order.getId())
                 .userId(order.getUserId())
                 .totalAmount(order.getTotalAmount())
+                .subtotalAmount(order.getSubtotalAmount())
+                .shippingFee(order.getShippingFee())
+                .taxAmount(order.getTaxAmount())
+                .roundingAdjustment(order.getRoundingAdjustment())
                 .orderStatus(order.getOrderStatus().name())
                 .availableTransitions(order.getOrderStatus().allowedTransitions().stream().map(Enum::name).collect(Collectors.toList()))
                 .shippingAddress(order.getShippingAddress())
@@ -597,7 +702,7 @@ public class OrderService {
         enrichOrderItems(response);
     }
 
-    private void enrichAdminStatusHistory(String orderId, OrderResponse response) {
+    private void enrichStatusHistory(String orderId, OrderResponse response) {
         response.setStatusHistory(auditLogRepository.findByOrderIdOrderByCreatedAtAsc(orderId).stream()
                 .map(audit -> OrderStatusHistoryResponse.builder()
                         .id(audit.getId())
@@ -609,6 +714,29 @@ public class OrderService {
                                 : null)
                         .build())
                 .collect(Collectors.toList()));
+    }
+
+    private void enrichDeliveryImages(String orderId, OrderResponse response) {
+        response.setDeliveryImages(deliveryImageRepository.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                .map(this::mapToDeliveryImageResponse)
+                .collect(Collectors.toList()));
+    }
+
+    private OrderDeliveryImageResponse mapToDeliveryImageResponse(OrderDeliveryImage image) {
+        String contentType = normalizeImageContentType(image.getContentType());
+        String imageDataUrl = "data:" + contentType + ";base64,"
+                + Base64.getEncoder().encodeToString(image.getImageData());
+        return OrderDeliveryImageResponse.builder()
+                .id(image.getId())
+                .orderId(image.getOrderId())
+                .fileName(image.getFileName())
+                .contentType(contentType)
+                .sizeBytes(image.getSizeBytes())
+                .imageDataUrl(imageDataUrl)
+                .uploadedAt(image.getCreatedAt() != null
+                        ? image.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant()
+                        : null)
+                .build();
     }
 
     private void clearCartBestEffort(String authHeader, String orderId) {
@@ -630,43 +758,6 @@ public class OrderService {
         }
     }
 
-    // Compensation guardrail: a notification failure must never roll back an
-    // already-confirmed/paid order. Swallows all exceptions after a few quick
-    // retries and only logs - the caller's transaction (and returned response)
-    // proceeds regardless of whether this succeeds.
-    private static final int NOTIFY_MAX_ATTEMPTS = 3;
-
-    private void notifyOrderBestEffort(Order order, String type, String title, String content) {
-        for (int attempt = 1; attempt <= NOTIFY_MAX_ATTEMPTS; attempt++) {
-            try {
-                var userResponse = userClient.getUserEmail(order.getUserId());
-                String email = userResponse != null && userResponse.getData() != null
-                        ? userResponse.getData().getEmail() : null;
-                if (email == null || email.isBlank()) {
-                    log.warn("No email on file for user {} - skipping {} notification for order {}",
-                            order.getUserId(), type, order.getId());
-                    return;
-                }
-
-                notificationClient.sendEmail(NotificationClient.EmailRequest.builder()
-                        .userId(order.getUserId())
-                        .recipientEmail(email)
-                        .type(type)
-                        .title(title)
-                        .content(content)
-                        .build());
-                return;
-            } catch (Exception ex) {
-                if (attempt == NOTIFY_MAX_ATTEMPTS) {
-                    log.warn("Failed to send {} notification for order {} after {} attempts - order is not affected: {}",
-                            type, order.getId(), attempt, ex.getMessage());
-                } else {
-                    log.debug("Notification attempt {} failed for order {}, retrying: {}", attempt, order.getId(), ex.getMessage());
-                }
-            }
-        }
-    }
-
     private com.stylemind.common.dto.ApiResponse<CartResponse> getCart(String authHeader) {
         return cartClient.getCart(authHeader, null);
     }
@@ -682,4 +773,12 @@ public class OrderService {
             return unitPrice.multiply(BigDecimal.valueOf(quantity));
         }
     }
+
+    private record OrderPricing(
+            BigDecimal subtotalAmount,
+            BigDecimal shippingFee,
+            BigDecimal taxAmount,
+            BigDecimal roundingAdjustment,
+            BigDecimal totalAmount
+    ) {}
 }

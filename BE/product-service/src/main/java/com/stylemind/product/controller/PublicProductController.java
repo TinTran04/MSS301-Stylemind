@@ -29,6 +29,7 @@ public class PublicProductController {
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ProductResponse>>> getProducts(
             @RequestParam(required = false) Long category,
+            @RequestParam(required = false) String categorySlug,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String targetDemographic,
             @RequestParam(required = false) BigDecimal minPrice,
@@ -45,6 +46,7 @@ public class PublicProductController {
         
         PageResponse<ProductResponse> response = productService.getProducts(
                 category,
+                categorySlug,
                 search,
                 targetDemographic,
                 minPrice,

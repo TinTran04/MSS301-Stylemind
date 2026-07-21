@@ -6,6 +6,7 @@ import {
   displayValue,
   getOrderItemDisplay,
   getOrderItemLineTotal,
+  getOrderPricingSummary,
   getOrderSubtotal,
   resolveAdminOrderBackUrl,
 } from './adminOrderDetail.utils.js'
@@ -29,6 +30,49 @@ test('order item totals use the purchased snapshot price', () => {
   ]
   assert.equal(getOrderItemLineTotal(items[0]), 598000)
   assert.equal(getOrderSubtotal(items), 748000)
+})
+
+test('getOrderPricingSummary uses backend subtotal tax and shipping without COD rounding', () => {
+  const summary = getOrderPricingSummary({
+    totalAmount: 1224300,
+    subtotalAmount: 1113000,
+    shippingFee: 0,
+    taxAmount: 111300,
+    roundingAdjustment: 0,
+  }, [
+    { quantity: 1, priceAtPurchase: 1113000 },
+  ])
+
+  assert.deepEqual(summary, {
+    subtotal: 1113000,
+    shippingFee: 0,
+    taxAmount: 111300,
+    roundingAdjustment: 0,
+    exactTotal: 1224300,
+    totalAmount: 1224300,
+    hasBreakdown: true,
+    source: 'backend',
+  })
+})
+
+test('getOrderPricingSummary falls back to checkout pricing for legacy orders', () => {
+  const summary = getOrderPricingSummary({
+    paymentMethod: 'cod',
+    totalAmount: 379000,
+  }, [
+    { quantity: 1, priceAtPurchase: 379000 },
+  ])
+
+  assert.deepEqual(summary, {
+    subtotal: 379000,
+    shippingFee: 0,
+    taxAmount: 37900,
+    roundingAdjustment: 0,
+    exactTotal: 416900,
+    totalAmount: 416900,
+    hasBreakdown: true,
+    source: 'fallback',
+  })
 })
 
 test('displayValue never exposes null-like UI values', () => {

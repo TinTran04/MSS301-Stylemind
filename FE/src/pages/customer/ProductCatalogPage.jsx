@@ -7,9 +7,73 @@ import { getCategories, getProductPage } from '../../features/products/product.a
 import { getTargetDemographicOptions, normalizeTargetDemographic } from '../../features/products/product.demographic'
 
 const PAGE_SIZE = 12
+const FILTER_QUERY_KEYS = ['category', 'categorySlug', 'targetDemographic', 'search', 'minPrice', 'maxPrice', 'sort', 'collection']
+
+function numericParam(value) {
+  if (!value) return null
+  const number = Number(value)
+  return Number.isNaN(number) ? null : number
+}
+
+function normalizeSlug(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function categoryValueFromQuery(searchParams, categories) {
+  const category = searchParams.get('category')
+  if (category && !Number.isNaN(Number(category))) {
+    return {
+      category: String(Number(category)),
+      categorySlug: '',
+    }
+  }
+
+  const slug = normalizeSlug(searchParams.get('categorySlug') || category)
+  if (!slug) {
+    return {
+      category: null,
+      categorySlug: '',
+    }
+  }
+
+  const matchedCategory = categories.find((item) => normalizeSlug(item.slug) === slug)
+  return {
+    category: matchedCategory ? String(matchedCategory.id) : null,
+    categorySlug: matchedCategory ? '' : slug,
+  }
+}
+
+function filtersFromSearchParams(searchParams, categories = []) {
+  const rawCategory = searchParams.get('category')
+  const demographicFromCategoryAlias = rawCategory && Number.isNaN(Number(rawCategory))
+    ? normalizeTargetDemographic(rawCategory)
+    : ''
+  const category = demographicFromCategoryAlias
+    ? { category: null, categorySlug: '' }
+    : categoryValueFromQuery(searchParams, categories)
+
+  return {
+    ...category,
+    search: searchParams.get('search') || '',
+    minPrice: numericParam(searchParams.get('minPrice')),
+    maxPrice: numericParam(searchParams.get('maxPrice')),
+    sort: searchParams.get('sort') || 'newest',
+    targetDemographic: normalizeTargetDemographic(searchParams.get('targetDemographic') || demographicFromCategoryAlias),
+    page: 0,
+  }
+}
+
+function hasFilterQuery(searchParams) {
+  return FILTER_QUERY_KEYS.some((key) => searchParams.has(key))
+}
+
+function sameFilters(left, right) {
+  return FILTER_QUERY_KEYS.every((key) => (left[key] || '') === (right[key] || '')) && left.page === right.page
+}
 
 export default function ProductCatalogPage() {
   const [searchParams] = useSearchParams()
+  const queryString = searchParams.toString()
   const [productPage, setProductPage] = useState({
     content: [],
     page: 0,
@@ -21,15 +85,7 @@ export default function ProductCatalogPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [filters, setFilters] = useState({
-    category: searchParams.get('category') || null,
-    search: '',
-    minPrice: null,
-    maxPrice: null,
-    sort: 'newest',
-    targetDemographic: normalizeTargetDemographic(searchParams.get('targetDemographic')),
-    page: 0,
-  })
+  const [filters, setFilters] = useState(() => filtersFromSearchParams(searchParams))
 
   useEffect(() => {
     let cancelled = false
@@ -65,6 +121,13 @@ export default function ProductCatalogPage() {
       })
   }, [])
 
+  useEffect(() => {
+    if (!hasFilterQuery(searchParams)) return
+
+    const nextFilters = filtersFromSearchParams(searchParams, categories)
+    setFilters((current) => (sameFilters(current, nextFilters) ? current : nextFilters))
+  }, [queryString, categories]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const updateFilters = (nextFilters) => {
     setFilters({ ...nextFilters, page: 0 })
   }
@@ -73,6 +136,7 @@ export default function ProductCatalogPage() {
     setFilters((current) => ({
       ...current,
       category: category ? String(category.id) : null,
+      categorySlug: '',
       page: 0,
     }))
   }
@@ -86,7 +150,8 @@ export default function ProductCatalogPage() {
   }
 
   const activeCategory = categories.find(
-    (category) => String(category.id) === String(filters.category),
+    (category) => String(category.id) === String(filters.category)
+      || (filters.categorySlug && normalizeSlug(category.slug) === normalizeSlug(filters.categorySlug)),
   )
 
   return (
