@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { DollarSign, ShoppingCart, Package, Users, Bell, RefreshCw } from 'lucide-react'
+import { DollarSign, ShoppingCart, Package, Users, Bell, RefreshCw, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
 import MetricCard from '../../components/admin/MetricCard'
 import ChartCard from '../../components/admin/ChartCard'
 import {
@@ -17,7 +17,8 @@ const INITIAL = { loading: true, error: null, data: null }
 function statValue(slice, pick, format = formatNumber) {
   if (slice.loading) return '…'
   if (slice.error || !slice.data) return '—'
-  return format(pick(slice.data))
+  const val = pick(slice.data)
+  return format(val !== undefined && val !== null ? val : 0)
 }
 
 function ErrorBanner({ message }) {
@@ -139,11 +140,26 @@ export default function AdminDashboardPage() {
       <section className="space-y-4">
         <h2 className="font-title-lg text-primary">Thông báo</h2>
         {notifications.error && <ErrorBanner message={`Không thể tải chỉ số thông báo: ${notifications.error}`} />}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            title="Tổng thông báo"
+            value={statValue(notifications, (d) => d.totalNotifications)}
+            icon={Bell}
+          />
+          <MetricCard
+            title="Email đã gửi"
+            value={statValue(notifications, (d) => d.sentNotifications)}
+            icon={CheckCircle2}
+          />
+          <MetricCard
+            title="Chờ gửi email"
+            value={statValue(notifications, (d) => d.pendingNotifications)}
+            icon={Clock}
+          />
           <MetricCard
             title="Thông báo thất bại"
             value={statValue(notifications, (d) => d.failedNotifications)}
-            icon={Bell}
+            icon={AlertTriangle}
             status={!notifications.loading && !notifications.error && notifications.data?.failedNotifications > 0 ? 'warning' : undefined}
           />
         </div>
