@@ -28,6 +28,10 @@ spring:
   sql:
     init:
       mode: never
+  servlet:
+    multipart:
+      max-file-size: 3MB
+      max-request-size: 4MB
 
 internal:
   token: ${INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}

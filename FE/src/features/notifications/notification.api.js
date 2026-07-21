@@ -1,9 +1,10 @@
 import apiClient from '../../services/apiClient'
 import { ENDPOINTS } from '../../services/endpoints'
+import { sortNotificationsNewestFirst } from './notification.display'
 
 export async function getMyNotifications() {
   const response = await apiClient.get(ENDPOINTS.NOTIFICATIONS)
-  return Array.isArray(response) ? response : []
+  return Array.isArray(response) ? sortNotificationsNewestFirst(response) : []
 }
 
 export async function getMyNotification(id) {
@@ -12,13 +13,23 @@ export async function getMyNotification(id) {
 
 export async function getAdminNotifications(filters = {}) {
   const params = new URLSearchParams()
-  Object.keys(filters).forEach((key) => {
-    if (filters[key] !== undefined && filters[key] !== null && filters[key] !== '') {
-      params.append(key, filters[key])
+  const effectiveFilters = {
+    page: 0,
+    size: 100,
+    ...filters,
+  }
+  Object.keys(effectiveFilters).forEach((key) => {
+    if (effectiveFilters[key] !== undefined && effectiveFilters[key] !== null && effectiveFilters[key] !== '') {
+      params.append(key, effectiveFilters[key])
     }
   })
   const qs = params.toString()
-  return apiClient.get(`${ENDPOINTS.ADMIN_NOTIFICATIONS}${qs ? `?${qs}` : ''}`)
+  const response = await apiClient.get(`${ENDPOINTS.ADMIN_NOTIFICATIONS}${qs ? `?${qs}` : ''}`)
+  if (Array.isArray(response)) return sortNotificationsNewestFirst(response)
+  return {
+    ...response,
+    content: sortNotificationsNewestFirst(response?.content || []),
+  }
 }
 
 export async function retryAdminNotification(id) {

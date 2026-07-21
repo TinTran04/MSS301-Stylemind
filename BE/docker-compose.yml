@@ -285,7 +285,7 @@ services:
       USER_SERVICE_URL: ${USER_SERVICE_URL}
       CART_SERVICE_URL: ${CART_SERVICE_URL}
       ORDER_SERVICE_URL: ${ORDER_SERVICE_URL}
-      AI_SERVICE_URL: ${AI_SERVICE_URL}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai-stylist-service:8000}
       PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL}
       NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL}
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
@@ -571,7 +571,7 @@ services:
   # ----------------------------------------------------
   # AI Stylist — PostgreSQL (sessions & messages DB)
   # Profile: infra (owned infra) + all
-  # Port 5433 on host to avoid colliding with shared postgres on 5432
+  # Port 5441 on host to avoid colliding with shared postgres on 5432
   # ----------------------------------------------------
   postgres-ai-stylist:
     image: postgres:16-alpine
@@ -602,8 +602,10 @@ services:
   # To rebuild: see FULL_GUIDE_START.md → "Manual Build & Push"
   # ----------------------------------------------------
   ai-stylist-service:
-    image: ${AI_STYLIST_IMAGE:-stylemind/ai-stylist-service:latest}
+    image: ${AI_STYLIST_IMAGE:-khai2707/ai-stylist-service:latest}
     container_name: ai-stylist-service
+    ports:
+      - "${AI_STYLIST_PORT:-8000}:8000"
     environment:
       # PostgreSQL — own sessions DB (within stylemind-network)
       POSTGRES_HOST: postgres-ai-stylist
@@ -621,6 +623,7 @@ services:
       QDRANT_PRODUCT_COLLECTION: ${QDRANT_PRODUCT_COLLECTION:-ai_stylist_products}
       # Product Service — internal network
       PRODUCT_SERVICE_BASE_URL: http://product-service:8083
+      PRODUCT_SERVICE_TIMEOUT: ${PRODUCT_SERVICE_TIMEOUT:-10}
       # Gemini API Key
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
@@ -628,10 +631,13 @@ services:
       # Firecrawl (optional — blog ingestion only)
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
       FIRECRAWL_BASE_URL: https://api.firecrawl.dev/v2
+      FIRECRAWL_TIMEOUT: ${FIRECRAWL_TIMEOUT:-120}
       # App
       APP_ENV: production
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       CONCEPT_SIMILARITY_THRESHOLD: ${CONCEPT_SIMILARITY_THRESHOLD:-0.65}
+      AI_STYLIST_AUTO_SEED: ${AI_STYLIST_AUTO_SEED:-true}
+      AI_STYLIST_WAIT_TIMEOUT: ${AI_STYLIST_WAIT_TIMEOUT:-120}
     volumes:
       # Zero-Trust JWT public key — mounted read-only at runtime
       - ./.docker/certs:/app/certs:ro
@@ -641,6 +647,8 @@ services:
       neo4j:
         condition: service_healthy
       qdrant:
+        condition: service_started
+      product-service:
         condition: service_started
     networks:
       - stylemind-network

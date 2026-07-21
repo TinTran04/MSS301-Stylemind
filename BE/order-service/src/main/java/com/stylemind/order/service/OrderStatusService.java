@@ -5,11 +5,13 @@ import com.stylemind.common.util.StringUtil;
 import com.stylemind.order.entity.Order;
 import com.stylemind.order.entity.OrderStatus;
 import com.stylemind.order.entity.OrderStatusAuditLog;
+import com.stylemind.order.event.OrderStatusChangedEvent;
 import com.stylemind.order.exception.InvalidOrderStatusTransitionException;
 import com.stylemind.order.repository.OrderRepository;
 import com.stylemind.order.repository.OrderStatusAuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,7 @@ public class OrderStatusService {
 
     private final OrderRepository orderRepository;
     private final OrderStatusAuditLogRepository auditLogRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public Order changeStatus(String orderId, OrderStatus target, String actorId) {
         Order order = orderRepository.findById(orderId)
@@ -40,6 +43,7 @@ public class OrderStatusService {
         order.setOrderStatus(target);
         Order saved = orderRepository.save(order);
         recordAudit(actorId, order.getId(), current, target);
+        eventPublisher.publishEvent(new OrderStatusChangedEvent(saved.getId(), saved.getUserId(), current, target));
         return saved;
     }
 

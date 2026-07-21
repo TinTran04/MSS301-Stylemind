@@ -3,6 +3,13 @@ import { Bell, Filter, Search, ShoppingCart, RefreshCw, RotateCcw, AlertTriangle
 import Badge from '../../components/common/Badge'
 import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
 import { getAdminNotifications, retryAdminNotification } from '../../features/notifications/notification.api'
+import {
+  formatNotificationContent,
+  formatNotificationStatus,
+  formatNotificationTitle,
+  isOrderNotification,
+  sortNotificationsNewestFirst,
+} from '../../features/notifications/notification.display'
 import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatDateTime } from '../../utils/formatDate'
 
@@ -15,28 +22,14 @@ const STATUS_VARIANT = {
 
 const STATUS_FILTERS = [
   { value: 'All', label: 'Tất cả' },
-  { value: 'PENDING', label: 'Đang chờ' },
-  { value: 'SENT', label: 'Đã gửi' },
-  { value: 'FAILED', label: 'Thất bại' },
-  { value: 'SKIPPED', label: 'Đã bỏ qua' },
+  { value: 'PENDING', label: 'Chờ gửi email' },
+  { value: 'SENT', label: 'Email đã gửi' },
+  { value: 'FAILED', label: 'Gửi email lỗi' },
+  { value: 'SKIPPED', label: 'Không gửi email' },
 ]
 
-const STATUS_LABELS = {
-  PENDING: 'Đang chờ',
-  SENT: 'Đã gửi',
-  FAILED: 'Thất bại',
-  SKIPPED: 'Đã bỏ qua',
-}
-
-const NOTIFICATION_TITLE_LABELS = {
-  'Order confirmed': 'Đơn hàng đã xác nhận',
-  SYSTEM: 'Hệ thống',
-  'Authentication failed': 'Xác thực thất bại',
-  'Set password StyleMind': 'Thiết lập mật khẩu StyleMind',
-}
-
 function typeIcon(type) {
-  return String(type || '').toUpperCase().startsWith('ORDER') ? ShoppingCart : AlertTriangle
+  return isOrderNotification(type) ? ShoppingCart : AlertTriangle
 }
 
 export default function NotificationManagementPage() {
@@ -103,18 +96,11 @@ export default function NotificationManagementPage() {
     }
   }
 
-  const filtered = notifications.filter((n) => {
+  const filtered = sortNotificationsNewestFirst(notifications.filter((n) => {
     if (!search) return true
-    const haystack = `${n.title || ''} ${n.content || ''} ${n.recipientEmail || ''}`.toLowerCase()
+    const haystack = `${formatNotificationTitle(n)} ${n.title || ''} ${n.type || ''} ${formatNotificationContent(n)} ${n.content || ''} ${n.recipientEmail || ''} ${n.userId || ''}`.toLowerCase()
     return haystack.includes(search.toLowerCase())
-  })
-
-  const formatNotificationTitle = (notification) => {
-    const raw = notification?.title || notification?.type || ''
-    return NOTIFICATION_TITLE_LABELS[raw] || raw
-  }
-
-  const formatNotificationStatus = (status) => STATUS_LABELS[String(status || '').toUpperCase()] || status
+  }))
 
   return (
     <div className="space-y-6">
@@ -183,6 +169,7 @@ export default function NotificationManagementPage() {
         ) : (
           filtered.map((n) => {
             const Icon = typeIcon(n.type)
+            const displayContent = formatNotificationContent(n)
             return (
               <div key={n.id} className="flex items-start gap-4 px-5 py-4 hover:bg-surface-container-low transition-colors">
                 <div className="mt-0.5 w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-blue-500/10">
@@ -191,10 +178,10 @@ export default function NotificationManagementPage() {
                 <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-on-surface">{formatNotificationTitle(n)}</p>
-                    <Badge variant={STATUS_VARIANT[n.status] || 'default'}>{formatNotificationStatus(n.status)}</Badge>
+                    <Badge variant={STATUS_VARIANT[String(n.status || '').toUpperCase()] || 'default'}>{formatNotificationStatus(n.status)}</Badge>
                   </div>
                   <p className="text-xs text-on-surface-variant mt-0.5 line-clamp-1">
-                    {n.recipientEmail} — {n.content}
+                    {n.recipientEmail} — {displayContent}
                   </p>
                   {n.errorMessage && (
                     <p className="text-xs text-error mt-1">{n.errorMessage}</p>
@@ -205,7 +192,7 @@ export default function NotificationManagementPage() {
                       <p className="mt-0.5">{rowErrors[n.id].message}</p>
                     </div>
                   )}
-                  <p className="text-xs text-on-surface-variant/60 mt-1">{formatDateTime(n.createdAt)}</p>
+                  <p className="text-xs text-on-surface-variant/60 mt-1">{formatDateTime(n.sentAt || n.createdAt)}</p>
                 </div>
                 {n.status === 'FAILED' && (
                   <button

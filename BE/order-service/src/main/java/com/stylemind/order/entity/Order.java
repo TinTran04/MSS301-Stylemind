@@ -23,6 +23,18 @@ public class Order extends BaseEntity {
     @Column(name = "total_amount", precision = 12, scale = 2, nullable = false)
     private java.math.BigDecimal totalAmount;
 
+    @Column(name = "subtotal_amount", precision = 12, scale = 2)
+    private java.math.BigDecimal subtotalAmount;
+
+    @Column(name = "shipping_fee", precision = 12, scale = 2)
+    private java.math.BigDecimal shippingFee;
+
+    @Column(name = "tax_amount", precision = 12, scale = 2)
+    private java.math.BigDecimal taxAmount;
+
+    @Column(name = "rounding_adjustment", precision = 12, scale = 2)
+    private java.math.BigDecimal roundingAdjustment;
+
     @Column(name = "order_status", length = 30, nullable = false)
     @Enumerated(EnumType.STRING)
     @Builder.Default
@@ -65,6 +77,14 @@ public class Order extends BaseEntity {
     public void setUserId(String userId) { this.userId = userId; }
     public java.math.BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(java.math.BigDecimal totalAmount) { this.totalAmount = totalAmount; }
+    public java.math.BigDecimal getSubtotalAmount() { return subtotalAmount; }
+    public void setSubtotalAmount(java.math.BigDecimal subtotalAmount) { this.subtotalAmount = subtotalAmount; }
+    public java.math.BigDecimal getShippingFee() { return shippingFee; }
+    public void setShippingFee(java.math.BigDecimal shippingFee) { this.shippingFee = shippingFee; }
+    public java.math.BigDecimal getTaxAmount() { return taxAmount; }
+    public void setTaxAmount(java.math.BigDecimal taxAmount) { this.taxAmount = taxAmount; }
+    public java.math.BigDecimal getRoundingAdjustment() { return roundingAdjustment; }
+    public void setRoundingAdjustment(java.math.BigDecimal roundingAdjustment) { this.roundingAdjustment = roundingAdjustment; }
     // Mutating this directly bypasses OrderStatusService.changeStatus() and its
     // transition validation/audit trail. Only OrderStatusService should call this.
     public OrderStatus getOrderStatus() { return orderStatus; }

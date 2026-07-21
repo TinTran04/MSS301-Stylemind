@@ -3,15 +3,13 @@ import { ShoppingBag, ArrowRight, Sparkles } from 'lucide-react'
 import CartItem from '../../components/customer/CartItem'
 import { useCart } from '../../hooks/useCart'
 import { formatCurrency } from '../../utils/formatCurrency'
-import { TAX_LABEL, TAX_RATE } from '../../features/cart/cart.utils'
+import { calculateTotal, FREE_SHIPPING_THRESHOLD, TAX_LABEL } from '../../features/cart/cart.utils'
 
 export default function CartPage() {
   const { items, subtotal, loading, error } = useCart()
   const navigate = useNavigate()
 
-  const shipping = subtotal > 200 ? 0 : 15
-  const tax = Math.round(subtotal * TAX_RATE * 100) / 100
-  const total = subtotal + shipping + tax
+  const { shipping, tax, total } = calculateTotal(items)
 
   const handleCheckout = () => {
     navigate('/checkout', { state: { freshCheckout: true } })
@@ -71,9 +69,9 @@ export default function CartPage() {
                 </div>
               </div>
 
-              {subtotal > 0 && subtotal < 200 && (
+              {subtotal > 0 && subtotal < FREE_SHIPPING_THRESHOLD && (
                 <div className="bg-tertiary-fixed/20 text-tertiary text-xs rounded-lg p-3 text-center">
-                  Thêm {formatCurrency(200 - subtotal)} nữa để được miễn phí vận chuyển
+                  Thêm {formatCurrency(FREE_SHIPPING_THRESHOLD - subtotal)} nữa để được miễn phí vận chuyển
                 </div>
               )}
 

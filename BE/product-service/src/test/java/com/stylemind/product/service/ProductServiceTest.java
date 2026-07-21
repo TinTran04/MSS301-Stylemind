@@ -297,7 +297,7 @@ class ProductServiceTest {
         when(variantRepository.findByProductIdIn(List.of("p1"))).thenReturn(List.of(variant));
 
         PageResponse<ProductResponse> response = productService.getProducts(
-                null, null, null, null, null, "createdAt,desc", pageable);
+                null, null, null, null, null, null, "createdAt,desc", pageable);
 
         assertEquals(1, response.getContent().size());
         assertEquals("Áo sơ mi", response.getContent().get(0).getCategories().get(0).getName());
@@ -312,7 +312,7 @@ class ProductServiceTest {
         when(productRepository.searchAndFilter(isNull(), isNull(), eq(TargetDemographic.FEMALE), isNull(), isNull(), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-        productService.getProducts(null, null, "FEMALE", null, null, "createdAt,desc", pageable);
+        productService.getProducts(null, null, null, "FEMALE", null, null, "createdAt,desc", pageable);
 
         verify(productRepository).searchAndFilter(isNull(), isNull(), eq(TargetDemographic.FEMALE), isNull(), isNull(), eq(pageable));
     }
@@ -323,7 +323,7 @@ class ProductServiceTest {
         when(productRepository.searchAndFilter(isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable)))
                 .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-        productService.getProducts(null, null, "Nam", null, null, "createdAt,desc", pageable);
+        productService.getProducts(null, null, null, "Nam", null, null, "createdAt,desc", pageable);
 
         verify(productRepository).searchAndFilter(isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable));
     }

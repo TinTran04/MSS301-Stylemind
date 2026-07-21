@@ -147,17 +147,30 @@ public class ProductService {
         return mapToResponse(product);
     }
 
-    public PageResponse<ProductResponse> getProducts(Long categoryId, String search, String targetDemographic,
+    public PageResponse<ProductResponse> getProducts(Long categoryId, String categorySlug, String search, String targetDemographic,
                                              BigDecimal minPrice, BigDecimal maxPrice, String sort, Pageable pageable) {
         String keyword = (search != null && !search.isBlank()) ? search : null;
+        Long resolvedCategoryId = resolveCategoryId(categoryId, categorySlug);
         Page<Product> page = productRepository.searchAndFilter(
                 keyword,
-                categoryId,
+                resolvedCategoryId,
                 parseDemographicFilter(targetDemographic),
                 minPrice,
                 maxPrice,
                 pageable);
         return mapPage(page);
+    }
+
+    private Long resolveCategoryId(Long categoryId, String categorySlug) {
+        if (categoryId != null) {
+            return categoryId;
+        }
+        if (categorySlug == null || categorySlug.isBlank()) {
+            return null;
+        }
+        return categoryRepository.findBySlug(categorySlug.trim().toLowerCase())
+                .map(Category::getId)
+                .orElse(null);
     }
 
     // A GET filter param, unlike a create/update payload: an unrecognized value

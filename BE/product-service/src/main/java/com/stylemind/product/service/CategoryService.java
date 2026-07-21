@@ -31,10 +31,15 @@ public class CategoryService {
         // Without one (the customer Shop filter), return the full flat list so every
         // usable category is selectable — not just top-level roots. Products are tagged
         // with leaf/child categories, so a roots-only list hid most of the catalogue.
+        List<Category> categories;
         if (parentId != null) {
-            return categoryRepository.findByParentId(parentId);
+            categories = categoryRepository.findByParentId(parentId);
+        } else {
+            categories = categoryRepository.findAll();
         }
-        return categoryRepository.findAll();
+        return categories.stream()
+                .filter(category -> productCategoryRepository.existsByCategoryId(category.getId()))
+                .toList();
     }
 
     @Transactional

@@ -22,6 +22,20 @@ test('terminal orders have no status options', () => {
   assert.deepEqual(getAdminOrderStatusOptions({ orderStatus: 'COMPLETED' }), [])
 })
 
+test('COD status options skip payment milestones', () => {
+  assert.deepEqual(
+    getAdminOrderStatusOptions({
+      orderStatus: 'PENDING',
+      paymentMethod: 'cod',
+      availableTransitions: ['PAYMENT_PENDING', 'CONFIRMED', 'CANCELLED'],
+    }),
+    [
+      { value: 'CONFIRMED', label: 'Đã xác nhận' },
+      { value: 'CANCELLED', label: 'Đã hủy' },
+    ],
+  )
+})
+
 test('conflict errors request a refetch and preserve a Vietnamese message', () => {
   assert.deepEqual(
     getStatusUpdateErrorMessage({ status: 409, errorCode: 'INVALID_ORDER_STATUS_TRANSITION' }),

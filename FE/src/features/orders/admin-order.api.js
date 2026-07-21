@@ -3,9 +3,13 @@ import { ENDPOINTS } from '../../services/endpoints'
 
 export async function getAdminOrders(filters = {}) {
   const params = new URLSearchParams()
-  Object.keys(filters).forEach(key => {
-    if (filters[key] !== undefined && filters[key] !== null && filters[key] !== '') {
-      params.append(key, filters[key])
+  const effectiveFilters = {
+    ...filters,
+    sort: filters.sort || 'createdAt,desc',
+  }
+  Object.keys(effectiveFilters).forEach(key => {
+    if (effectiveFilters[key] !== undefined && effectiveFilters[key] !== null && effectiveFilters[key] !== '') {
+      params.append(key, effectiveFilters[key])
     }
   })
   const qs = params.toString()

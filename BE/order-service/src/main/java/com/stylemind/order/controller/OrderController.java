@@ -7,9 +7,11 @@ import com.stylemind.order.service.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -51,6 +53,15 @@ public class OrderController {
             @PathVariable String orderId) {
         OrderResponse order = orderService.cancelOrder(principal.getUserId(), orderId);
         return ResponseEntity.ok(ApiResponse.success("Order cancelled successfully", order));
+    }
+
+    @PostMapping(value = "/{orderId}/delivery-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<OrderResponse>> uploadDeliveryImage(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String orderId,
+            @RequestPart("file") MultipartFile file) {
+        OrderResponse order = orderService.uploadDeliveryImage(principal.getUserId(), orderId, file);
+        return ResponseEntity.ok(ApiResponse.success("Delivery image uploaded successfully", order));
     }
 
 }

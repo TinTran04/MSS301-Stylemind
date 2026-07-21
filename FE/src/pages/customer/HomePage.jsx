@@ -5,10 +5,10 @@ import ProductCard from '../../components/customer/ProductCard'
 import { getProducts } from '../../features/products/product.api'
 
 const categories = [
-  { label: 'Nữ', slug: 'women', image: 'https://images.unsplash.com/photo-1487222477894-8943e31ef7b2?w=600&h=800&fit=crop', cols: 'col-span-2 row-span-2' },
-  { label: 'Nam', slug: 'men', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=400&fit=crop', cols: 'col-span-2 row-span-1' },
-  { label: 'Phụ kiện', slug: 'accessories', image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=600&h=400&fit=crop', cols: 'col-span-1 row-span-1' },
-  { label: 'Giày dép', slug: 'footwear', image: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=600&h=400&fit=crop', cols: 'col-span-1 row-span-1' },
+  { label: 'Nữ', to: '/shop?targetDemographic=FEMALE', image: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8ZmVtYWxlJTIwbW9kZWxzfGVufDB8fDB8fHww', cols: 'col-span-2 row-span-2' },
+  { label: 'Nam', to: '/shop?targetDemographic=MALE', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=400&fit=crop', cols: 'col-span-2 row-span-1' },
+  { label: 'Áo', to: '/shop?categorySlug=ao', image: 'https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600&h=400&fit=crop', cols: 'col-span-1 row-span-1' },
+  { label: 'Quần', to: '/shop?categorySlug=quan', image: 'https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=600&h=400&fit=crop', cols: 'col-span-1 row-span-1' },
 ]
 
 export default function HomePage() {
@@ -92,8 +92,8 @@ export default function HomePage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 h-[500px] md:h-[600px]">
           {categories.map((cat) => (
             <Link
-              key={cat.slug}
-              to={`/shop?category=${cat.slug}`}
+              key={cat.to}
+              to={cat.to}
               className={`${cat.cols} relative rounded-[24px] overflow-hidden group no-underline`}
             >
               <img
