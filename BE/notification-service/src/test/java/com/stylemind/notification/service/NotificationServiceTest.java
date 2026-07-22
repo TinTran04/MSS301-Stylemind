@@ -5,6 +5,7 @@ import com.stylemind.notification.dto.InternalEmailRequest;
 import com.stylemind.notification.dto.NotificationRequest;
 import com.stylemind.notification.entity.NotificationLog;
 import com.stylemind.notification.repository.NotificationLogRepository;
+import com.stylemind.notification.service.impl.NotificationServiceImpl;
 import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ class NotificationServiceTest {
     @Mock JavaMailSender mailSender;
     @Mock MimeMessage mimeMessage;
 
-    @InjectMocks NotificationService notificationService;
+    @InjectMocks NotificationServiceImpl notificationService;
 
     @BeforeEach
     void setUp() {

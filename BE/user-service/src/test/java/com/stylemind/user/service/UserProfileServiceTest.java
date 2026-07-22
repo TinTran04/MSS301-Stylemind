@@ -7,6 +7,7 @@ import com.stylemind.user.entity.AddressValidationStatus;
 import com.stylemind.user.entity.DeliveryAddress;
 import com.stylemind.user.repository.DeliveryAddressRepository;
 import com.stylemind.user.repository.UserProfileRepository;
+import com.stylemind.user.service.impl.UserProfileServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -37,7 +38,7 @@ class UserProfileServiceTest {
     private VietnamesePhoneNumberService phoneNumberService;
 
     @InjectMocks
-    private UserProfileService userProfileService;
+    private UserProfileServiceImpl userProfileService;
 
     @org.junit.jupiter.api.BeforeEach
     void stubAddressValidation() {

@@ -1,7 +1,9 @@
-package com.stylemind.product.service.image;
+package com.stylemind.product.service.image.impl;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
+import com.stylemind.product.service.image.ProductImageStorage;
+import com.stylemind.product.service.image.StoredProductImage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;

@@ -5,6 +5,7 @@ import com.stylemind.order.entity.OrderStatus;
 import com.stylemind.order.event.OrderStatusChangedEvent;
 import com.stylemind.order.feign.NotificationClient;
 import com.stylemind.order.feign.UserClient;
+import com.stylemind.order.service.impl.OrderStatusNotificationListener;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;

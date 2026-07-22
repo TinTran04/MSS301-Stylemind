@@ -41,7 +41,7 @@ const ORDER_COD_TIMELINE_LABELS = {
 
 const COD_HIDDEN_PAYMENT_STATUSES = new Set(['PAYMENT_PENDING', 'PAID'])
 
-export const ORDER_REVENUE_STATUSES = new Set(['PAID', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'COMPLETED'])
+export const ORDER_REVENUE_STATUSES = new Set(['COMPLETED'])
 
 export function normalizeOrderStatus(status) {
   const normalized = String(status || '').trim().toUpperCase()

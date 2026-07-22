@@ -18,6 +18,7 @@ import com.stylemind.auth.mapper.AuthMapper;
 import com.stylemind.auth.repository.AuditLogRepository;
 import com.stylemind.auth.repository.PendingRegistrationRepository;
 import com.stylemind.auth.repository.UserRepository;
+import com.stylemind.auth.service.impl.AuthServiceImpl;
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.security.JwtUtil;
@@ -67,7 +68,7 @@ class AuthServiceTest {
     @Mock PendingRegistrationRepository pendingRegistrationRepository;
     @Spy AuthMapper authMapper = new AuthMapper();
 
-    @InjectMocks AuthService authService;
+    @InjectMocks AuthServiceImpl authService;
 
     @BeforeEach
     void setUp() {
@@ -508,7 +509,7 @@ class AuthServiceTest {
         });
         when(flowJwtUtil.generateAccessToken(any(), any(), any())).thenReturn("new-password-jwt");
 
-        AuthService flowService = new AuthService(
+        AuthServiceImpl flowService = new AuthServiceImpl(
                 flowRepository,
                 flowEncoder,
                 flowJwtUtil,

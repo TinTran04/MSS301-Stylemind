@@ -1,4 +1,4 @@
-package com.stylemind.order.service;
+package com.stylemind.order.service.impl;
 
 import com.stylemind.order.entity.OrderStatus;
 import com.stylemind.order.event.OrderStatusChangedEvent;

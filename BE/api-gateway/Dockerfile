@@ -15,12 +15,18 @@ RUN mvn dependency:go-offline -B
 COPY common-lib/src common-lib/src
 COPY api-gateway/src api-gateway/src
 RUN mvn clean install -pl common-lib -am -DskipTests -Dspring-boot.repackage.skip=true && mvn clean package spring-boot:repackage -pl api-gateway -am -DskipTests
+RUN set -e; \
+    JAR_FILE="$(find api-gateway/target -maxdepth 1 -name 'api-gateway-*.jar' ! -name '*.original' -print -quit)"; \
+    test -n "$JAR_FILE"; \
+    test -s "$JAR_FILE"; \
+    jar tf "$JAR_FILE" >/dev/null; \
+    cp "$JAR_FILE" /tmp/app.jar
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-COPY --from=builder /app/api-gateway/target/api-gateway-*.jar app.jar
-RUN chown appuser:appgroup app.jar
+COPY --from=builder /tmp/app.jar app.jar
+RUN test -s app.jar && chown appuser:appgroup app.jar
 USER appuser
 EXPOSE 3000
 ENTRYPOINT ["java", "-jar", "app.jar"]
