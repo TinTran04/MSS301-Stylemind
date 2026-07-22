@@ -6,7 +6,6 @@ import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.order.dto.AdminOrderSummaryResponse;
-import com.stylemind.order.dto.AdminOrdersResponse;
 import com.stylemind.order.dto.CreateOrderRequest;
 import com.stylemind.order.dto.OrderItemCountResponse;
 import com.stylemind.order.dto.OrderSummaryResponse;
@@ -28,6 +27,7 @@ import com.stylemind.order.repository.OrderDeliveryImageRepository;
 import com.stylemind.order.repository.OrderStatusAuditLogRepository;
 import com.stylemind.order.service.impl.OrderServiceImpl;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,7 +41,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -72,11 +71,14 @@ class OrderServiceTest {
     @Mock OrderStatusAuditLogRepository auditLogRepository;
     @Mock OrderStatusService orderStatusService;
     @Mock OrderDeliveryImageRepository deliveryImageRepository;
+    @Mock AdminRevenueService adminRevenueService;
 
     @InjectMocks OrderServiceImpl orderService;
 
     @BeforeEach
     void stubCheckoutAddress() {
+        ReflectionTestUtils.setField(orderService, "reportingTimezone", "Asia/Ho_Chi_Minh");
+        ReflectionTestUtils.setField(orderService, "reportingDatabaseTimezone", "UTC");
         UserAddressClient.DeliveryAddressSnapshot address = new UserAddressClient.DeliveryAddressSnapshot();
         address.setId("address-1");
         address.setUserId("user-1");
@@ -549,21 +551,25 @@ class OrderServiceTest {
 
     @Test
     void getAdminSummary_countsRevenueOnlyForCompletedOrders() {
-        when(orderRepository.sumRevenueByStatuses(argThat(this::containsOnlyCompletedStatus)))
-                .thenReturn(new BigDecimal("250000"));
-        when(orderRepository.sumRevenueByStatusesSince(
-                argThat(this::containsOnlyCompletedStatus),
-                any(LocalDateTime.class)))
-                .thenReturn(new BigDecimal("125000"));
+        when(adminRevenueService.calculate(isNull(), isNull(), isNull(), isNull()))
+                .thenReturn(revenueSummary("250000"));
+        when(adminRevenueService.calculate(
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                isNull(),
+                isNull()))
+                .thenReturn(revenueSummary("125000"));
 
         AdminOrderSummaryResponse response = orderService.getAdminSummary();
 
         assertThat(response.getTotalRevenue()).isEqualByComparingTo("250000");
         assertThat(response.getTodayRevenue()).isEqualByComparingTo("125000");
-        verify(orderRepository).sumRevenueByStatuses(argThat(this::containsOnlyCompletedStatus));
-        verify(orderRepository).sumRevenueByStatusesSince(
-                argThat(this::containsOnlyCompletedStatus),
-                any(LocalDateTime.class));
+        verify(adminRevenueService).calculate(isNull(), isNull(), isNull(), isNull());
+        verify(adminRevenueService).calculate(
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                isNull(),
+                isNull());
     }
 
     @Test
@@ -571,23 +577,13 @@ class OrderServiceTest {
         var pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
         when(orderRepository.search(isNull(), isNull(), isNull(), isNull(), eq(pageable)))
                 .thenReturn(new PageImpl<Order>(List.of(), pageable, 0));
-        when(orderRepository.sumRevenueForSearch(
-                isNull(),
-                isNull(),
-                isNull(),
-                isNull(),
-                argThat(this::containsOnlyCompletedStatus)))
-                .thenReturn(new BigDecimal("300000"));
+        when(adminRevenueService.calculate(isNull(), isNull(), isNull(), isNull()))
+                .thenReturn(revenueSummary("300000"));
 
-        AdminOrdersResponse response = orderService.getAllOrdersForAdmin(null, null, null, null, pageable);
+        var response = orderService.getAllOrdersForAdmin(null, null, null, null, pageable);
 
         assertThat(response.getTotalRevenue()).isEqualByComparingTo("300000");
-        verify(orderRepository).sumRevenueForSearch(
-                isNull(),
-                isNull(),
-                isNull(),
-                isNull(),
-                argThat(this::containsOnlyCompletedStatus));
+        verify(adminRevenueService).calculate(isNull(), isNull(), isNull(), isNull());
     }
 
     @Test
@@ -658,10 +654,14 @@ class OrderServiceTest {
         verify(deliveryImageRepository).save(any());
     }
 
-    private boolean containsOnlyCompletedStatus(Collection<OrderStatus> statuses) {
-        return statuses != null
-                && statuses.size() == 1
-                && statuses.contains(OrderStatus.COMPLETED);
+    private AdminRevenueService.RevenueSummary revenueSummary(String netRevenue) {
+        return AdminRevenueService.RevenueSummary.builder()
+                .netRevenue(new BigDecimal(netRevenue))
+                .vatCollected(BigDecimal.ZERO)
+                .shippingFeesCollected(BigDecimal.ZERO)
+                .grossCustomerPayments(new BigDecimal(netRevenue))
+                .refundAmount(BigDecimal.ZERO)
+                .build();
     }
 
     private Order withStatus(Order order, OrderStatus status) {

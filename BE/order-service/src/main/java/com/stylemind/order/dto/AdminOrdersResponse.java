@@ -14,5 +14,15 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 public class AdminOrdersResponse {
     private Page<OrderResponse> page;
+    /** @deprecated Use netRevenue. Kept for existing admin clients. */
     private BigDecimal totalRevenue;
+    private BigDecimal netRevenue;
+    private BigDecimal vatCollected;
+    private BigDecimal shippingFeesCollected;
+    private BigDecimal grossCustomerPayments;
+    private BigDecimal refundAmount;
+    private long recognizedOrderCount;
+    private BigDecimal sepayRecognizedRevenue;
+    private BigDecimal codRecognizedRevenue;
+    private String currency;
 }

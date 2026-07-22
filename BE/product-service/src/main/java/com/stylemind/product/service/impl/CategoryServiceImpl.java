@@ -90,7 +90,7 @@ public class CategoryServiceImpl implements CategoryService {
     public void deleteCategory(Long id) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("CATEGORY_NOT_FOUND", "Không tìm thấy danh mục", 404));
-        
+
         List<Category> children = categoryRepository.findByParentId(id);
         if (!children.isEmpty()) {
             throw new BusinessException("CATEGORY_HAS_CHILDREN", "Không thể xóa danh mục đang có danh mục con", 409);

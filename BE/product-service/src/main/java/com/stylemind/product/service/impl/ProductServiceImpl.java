@@ -332,7 +332,7 @@ public class ProductServiceImpl implements ProductService {
     public ProductVariantResponse updateVariant(String productId, String variantId, ProductVariantRequest request) {
         ProductVariant variant = variantRepository.findById(variantId)
                 .orElseThrow(() -> new BusinessException("VARIANT_NOT_FOUND", "Không tìm thấy biến thể", 404));
-        
+
         if (!variant.getProductId().equals(productId)) {
             throw new BusinessException("VARIANT_MISMATCH", "Biến thể không thuộc sản phẩm này", 400);
         }
