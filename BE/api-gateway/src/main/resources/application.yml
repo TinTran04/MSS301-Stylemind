@@ -109,12 +109,81 @@ spring:
           uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
           predicates:
             - Path=/api/v1/admin/categories/**
+        - id: auth-service-v3-docs
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/v3/api-docs/auth-service
+          filters:
+            - RewritePath=/v3/api-docs/auth-service, /v3/api-docs
+        - id: user-service-v3-docs
+          uri: ${USER_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/v3/api-docs/user-service
+          filters:
+            - RewritePath=/v3/api-docs/user-service, /v3/api-docs
+        - id: product-service-v3-docs
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/v3/api-docs/product-service
+          filters:
+            - RewritePath=/v3/api-docs/product-service, /v3/api-docs
+        - id: cart-service-v3-docs
+          uri: ${CART_SERVICE_URL:http://localhost:8086}
+          predicates:
+            - Path=/v3/api-docs/cart-service
+          filters:
+            - RewritePath=/v3/api-docs/cart-service, /v3/api-docs
+        - id: order-service-v3-docs
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
+          predicates:
+            - Path=/v3/api-docs/order-service
+          filters:
+            - RewritePath=/v3/api-docs/order-service, /v3/api-docs
+        - id: payment-service-v3-docs
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8088}
+          predicates:
+            - Path=/v3/api-docs/payment-service
+          filters:
+            - RewritePath=/v3/api-docs/payment-service, /v3/api-docs
+        - id: notification-service-v3-docs
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
+          predicates:
+            - Path=/v3/api-docs/notification-service
+          filters:
+            - RewritePath=/v3/api-docs/notification-service, /v3/api-docs
+        - id: ai-stylist-service-v3-docs
+          uri: ${AI_SERVICE_URL:http://host.docker.internal:8000}
+          predicates:
+            - Path=/v3/api-docs/ai-stylist-service
+          filters:
+            - RewritePath=/v3/api-docs/ai-stylist-service, /openapi.json
         - id: internal-block
           uri: no://op
           predicates:
             - Path=/internal/v1/**
           filters:
             - SetStatus=401
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: 1. Auth Service
+        url: /v3/api-docs/auth-service
+      - name: 2. User Service
+        url: /v3/api-docs/user-service
+      - name: 3. Product Service
+        url: /v3/api-docs/product-service
+      - name: 4. Cart Service
+        url: /v3/api-docs/cart-service
+      - name: 5. Order Service
+        url: /v3/api-docs/order-service
+      - name: 6. Payment Service
+        url: /v3/api-docs/payment-service
+      - name: 7. Notification Service
+        url: /v3/api-docs/notification-service
+      - name: 8. AI Stylist Service
+        url: /v3/api-docs/ai-stylist-service
 
 # JWT Asymmetric Key Configuration (Consumer)
 jwt:
