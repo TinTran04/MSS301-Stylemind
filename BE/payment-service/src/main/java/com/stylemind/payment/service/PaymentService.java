@@ -4,6 +4,7 @@ import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.util.StringUtil;
 import com.stylemind.payment.dto.CodCheckoutRequest;
 import com.stylemind.payment.dto.PaymentResponse;
+import com.stylemind.payment.dto.PaymentRevenueCandidate;
 import com.stylemind.payment.dto.SepayCheckoutRequest;
 import com.stylemind.payment.dto.SepayWebhookPayload;
 import com.stylemind.payment.entity.PaymentWebhookEvent;
@@ -226,6 +227,34 @@ public class PaymentService {
 
         transaction.setStatus("REFUNDED");
         transactionRepository.save(transaction);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentRevenueCandidate> findSepayRevenueCandidates(LocalDateTime from, LocalDateTime to) {
+        return transactionRepository.findSepayRevenueCandidates(from, to).stream()
+                .map(this::toRevenueCandidate)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentRevenueCandidate> findRevenueCandidatesByOrderIds(List<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return List.of();
+        }
+        return transactionRepository.findByOrderIdIn(orderIds).stream()
+                .filter(transaction -> METHOD_COD.equalsIgnoreCase(transaction.getMethod()))
+                .map(this::toRevenueCandidate)
+                .toList();
+    }
+
+    private PaymentRevenueCandidate toRevenueCandidate(Transaction transaction) {
+        return PaymentRevenueCandidate.builder()
+                .orderId(transaction.getOrderId())
+                .method(transaction.getMethod())
+                .status(transaction.getStatus())
+                .amount(transaction.getAmount())
+                .paidAt(transaction.getPaidAt())
+                .build();
     }
 
     private String buildPaymentToken(String transactionId) {

@@ -1,13 +1,16 @@
 package com.stylemind.order.feign;
 
 import com.stylemind.common.dto.ApiResponse;
+import com.stylemind.common.feign.FeignClientConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.List;
 
-@FeignClient(name = "payment-service", url = "${PAYMENT_SERVICE_URL}")
+@FeignClient(name = "payment-service", url = "${PAYMENT_SERVICE_URL}", configuration = FeignClientConfig.class)
 public interface PaymentClient {
 
     @PostMapping("/internal/v1/payments/cod")
@@ -21,6 +24,15 @@ public interface PaymentClient {
 
     @PostMapping("/internal/v1/payments/orders/{orderId}/expire")
     ApiResponse<Void> expirePaymentByOrderId(@PathVariable("orderId") String orderId);
+
+    @GetMapping("/internal/v1/payments/admin/revenue/sepay")
+    ApiResponse<List<PaymentRevenueCandidate>> findSepayRevenueCandidates(
+            @RequestParam(value = "from", required = false) LocalDateTime from,
+            @RequestParam(value = "to", required = false) LocalDateTime to);
+
+    @PostMapping("/internal/v1/payments/admin/revenue/by-order-ids")
+    ApiResponse<List<PaymentRevenueCandidate>> findRevenueCandidatesByOrderIds(
+            @RequestBody RevenueOrderIdsRequest request);
 
     @lombok.Data
     @lombok.NoArgsConstructor
@@ -58,5 +70,24 @@ public interface PaymentClient {
         private String qrImageUrl;
         private String transferContent;
         private Instant expiresAt;
+    }
+
+    @lombok.Data
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    @lombok.Builder
+    class PaymentRevenueCandidate {
+        private String orderId;
+        private String method;
+        private String status;
+        private BigDecimal amount;
+        private LocalDateTime paidAt;
+    }
+
+    @lombok.Data
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    class RevenueOrderIdsRequest {
+        private List<String> orderIds;
     }
 }

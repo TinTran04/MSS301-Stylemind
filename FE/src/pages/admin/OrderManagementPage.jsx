@@ -16,6 +16,7 @@ import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatDateTime } from '../../utils/formatDate'
 import { buildAdminOrderDetailPath } from './adminOrderDetail.utils'
+import { getAdminNetRevenue } from './adminRevenue.utils'
 
 const STATUS_OPTIONS = ['All', ...Object.keys(ORDER_STATUS_TRANSITIONS)]
 const STATUS_FILTER_LABELS = {
@@ -42,7 +43,7 @@ export default function OrderManagementPage() {
   const [currentPage, setCurrentPage] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [totalElements, setTotalElements] = useState(0)
-  const [totalRevenue, setTotalRevenue] = useState(0)
+  const [netRevenue, setNetRevenue] = useState(0)
 
   const fetchOrders = useCallback(async (page = 0) => {
     setLoading(true)
@@ -57,7 +58,7 @@ export default function OrderManagementPage() {
         toDate: toDate || undefined,
         userId: customerFilter || undefined,
       }
-      // API now returns { page: { content, totalElements, totalPages, ... }, totalRevenue }
+      // API returns the page plus recognition-aware revenue metrics.
       const data = await getAdminOrders(params)
 
       const pageData = data?.page ?? data
@@ -65,8 +66,8 @@ export default function OrderManagementPage() {
       setTotalElements(pageData?.totalElements ?? 0)
       setTotalPages(pageData?.totalPages ?? 1)
       setCurrentPage(pageData?.number ?? 0)
-      // totalRevenue comes from the backend — covers ALL matching orders, not just this page
-      setTotalRevenue(data?.totalRevenue ?? 0)
+      // netRevenue covers all matching orders, not only the current page.
+      setNetRevenue(getAdminNetRevenue(data))
     } catch (err) {
       const friendly = getAdminErrorMessage(err, {
         fallbackTitle: 'Không thể tải danh sách đơn hàng',
@@ -174,8 +175,8 @@ export default function OrderManagementPage() {
         <MetricCard title="Tỷ lệ thất bại" value="0%" change={0} icon={TrendingDown} status="good" />
         <MetricCard title="Thời gian xử lý TB" value="-" change={0} icon={Clock} status="good" />
         <MetricCard
-          title="Doanh thu"
-          value={formatCurrency(totalRevenue)}
+          title="Doanh thu thuần"
+          value={formatCurrency(netRevenue)}
           change={0}
           icon={DollarSign}
         />

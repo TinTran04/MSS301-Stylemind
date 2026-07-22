@@ -9,6 +9,7 @@ import {
   getNotificationSummary,
 } from '../../features/admin/adminDashboard.api'
 import { formatCurrency, formatNumber } from '../../utils/formatCurrency'
+import { getAdminNetRevenue, getAdminRevenueMetrics } from './adminRevenue.utils'
 
 const INITIAL = { loading: true, error: null, data: null }
 
@@ -61,6 +62,7 @@ export default function AdminDashboardPage() {
 
   const anyLoading = orders.loading || products.loading || users.loading || notifications.loading
   const noOrders = !orders.loading && !orders.error && orders.data?.totalOrders === 0
+  const revenueMetrics = getAdminRevenueMetrics(orders.data)
 
   return (
     <div className="space-y-8">
@@ -93,9 +95,16 @@ export default function AdminDashboardPage() {
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard title="Tổng đơn hàng" value={statValue(orders, (d) => d.totalOrders)} icon={ShoppingCart} />
-          <MetricCard title="Tổng doanh thu" value={statValue(orders, (d) => d.totalRevenue, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Doanh thu thuần" value={statValue(orders, getAdminNetRevenue, formatCurrency)} icon={DollarSign} />
           <MetricCard title="Đơn hàng hôm nay" value={statValue(orders, (d) => d.todayOrders)} icon={ShoppingCart} />
-          <MetricCard title="Doanh thu hôm nay" value={statValue(orders, (d) => d.todayRevenue, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Doanh thu thuần hôm nay" value={statValue(orders, (d) => d.todayNetRevenue ?? d.todayRevenue, formatCurrency)} icon={DollarSign} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <MetricCard title="VAT đã thu" value={statValue(orders, (d) => revenueMetrics.vatCollected, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Phí vận chuyển đã thu" value={statValue(orders, (d) => revenueMetrics.shippingFeesCollected, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Tổng tiền khách thanh toán" value={statValue(orders, (d) => revenueMetrics.grossCustomerPayments, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Hoàn tiền" value={statValue(orders, (d) => revenueMetrics.refundAmount, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Đơn được ghi nhận" value={statValue(orders, (d) => revenueMetrics.recognizedOrderCount)} icon={ShoppingCart} />
         </div>
         <ChartCard title="Phân bổ trạng thái đơn hàng">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

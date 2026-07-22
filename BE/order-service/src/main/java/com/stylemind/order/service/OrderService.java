@@ -17,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,6 +27,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,6 +49,13 @@ public class OrderService {
     private final OrderStatusAuditLogRepository auditLogRepository;
     private final OrderStatusService orderStatusService;
     private final OrderDeliveryImageRepository deliveryImageRepository;
+    private final AdminRevenueService adminRevenueService;
+
+    @Value("${app.reporting.timezone:Asia/Ho_Chi_Minh}")
+    private String reportingTimezone;
+
+    @Value("${app.reporting.database-timezone:UTC}")
+    private String reportingDatabaseTimezone;
 
     private static final String CHECKOUT_STATUS_PROCESSING = "PROCESSING";
     private static final String CHECKOUT_STATUS_SUCCEEDED = "SUCCEEDED";
@@ -401,16 +412,20 @@ public class OrderService {
         var page = orderRepository.search(statusFilter, userIdFilter, fromDate, toDate, pageable)
                 .map(order -> buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId())));
 
-        var revenueStatuses = java.util.EnumSet.of(
-                OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.PROCESSING,
-                OrderStatus.SHIPPED, OrderStatus.COMPLETED);
-
-        var totalRevenue = orderRepository.sumRevenueForSearch(
-                statusFilter, userIdFilter, fromDate, toDate, revenueStatuses);
+        var revenue = adminRevenueService.calculate(fromDate, toDate, statusFilter, userIdFilter);
 
         return com.stylemind.order.dto.AdminOrdersResponse.builder()
                 .page(page)
-                .totalRevenue(totalRevenue)
+                .totalRevenue(revenue.getNetRevenue())
+                .netRevenue(revenue.getNetRevenue())
+                .vatCollected(revenue.getVatCollected())
+                .shippingFeesCollected(revenue.getShippingFeesCollected())
+                .grossCustomerPayments(revenue.getGrossCustomerPayments())
+                .refundAmount(revenue.getRefundAmount())
+                .recognizedOrderCount(revenue.getRecognizedOrderCount())
+                .sepayRecognizedRevenue(revenue.getSepayRecognizedRevenue())
+                .codRecognizedRevenue(revenue.getCodRecognizedRevenue())
+                .currency("VND")
                 .build();
     }
 
@@ -501,18 +516,16 @@ public class OrderService {
         return value.replaceAll("[\\\\/\\r\\n\\t]+", "_");
     }
 
-    /**
-     * Real order/revenue aggregates for the admin dashboard. Revenue counts only
-     * orders whose payment has been received and are progressing or done
-     * (PAID/CONFIRMED/PROCESSING/SHIPPED/COMPLETED) — never PENDING/PAYMENT_PENDING
-     * (unpaid) or CANCELLED/EXPIRED/FAILED.
-     */
     @Transactional(readOnly = true)
     public AdminOrderSummaryResponse getAdminSummary() {
-        var revenueStatuses = java.util.EnumSet.of(
-                OrderStatus.PAID, OrderStatus.CONFIRMED, OrderStatus.PROCESSING,
-                OrderStatus.SHIPPED, OrderStatus.COMPLETED);
-        java.time.LocalDateTime startOfToday = java.time.LocalDate.now().atStartOfDay();
+        ZoneId zone = ZoneId.of(reportingTimezone);
+        ZoneId databaseZone = ZoneId.of(reportingDatabaseTimezone);
+        LocalDate today = LocalDate.now(zone);
+        LocalDateTime startOfToday = reportingBoundary(today, zone, databaseZone);
+        LocalDateTime startOfTomorrow = reportingBoundary(today.plusDays(1), zone, databaseZone);
+        AdminRevenueService.RevenueSummary allTime = adminRevenueService.calculate(null, null, null, null);
+        AdminRevenueService.RevenueSummary todayRevenue = adminRevenueService.calculate(
+                startOfToday, startOfTomorrow, null, null);
 
         return AdminOrderSummaryResponse.builder()
                 .totalOrders(orderRepository.count())
@@ -523,9 +536,30 @@ public class OrderService {
                 .cancelledOrders(orderRepository.countByStatuses(
                         java.util.EnumSet.of(OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.FAILED)))
                 .todayOrders(orderRepository.countCreatedSince(startOfToday))
-                .totalRevenue(orderRepository.sumRevenueByStatuses(revenueStatuses))
-                .todayRevenue(orderRepository.sumRevenueByStatusesSince(revenueStatuses, startOfToday))
+                .totalRevenue(allTime.getNetRevenue())
+                .netRevenue(allTime.getNetRevenue())
+                .vatCollected(allTime.getVatCollected())
+                .shippingFeesCollected(allTime.getShippingFeesCollected())
+                .grossCustomerPayments(allTime.getGrossCustomerPayments())
+                .refundAmount(allTime.getRefundAmount())
+                .recognizedOrderCount(allTime.getRecognizedOrderCount())
+                .sepayRecognizedRevenue(allTime.getSepayRecognizedRevenue())
+                .codRecognizedRevenue(allTime.getCodRecognizedRevenue())
+                .currency("VND")
+                .todayNetRevenue(todayRevenue.getNetRevenue())
+                .todayVatCollected(todayRevenue.getVatCollected())
+                .todayShippingFeesCollected(todayRevenue.getShippingFeesCollected())
+                .todayGrossCustomerPayments(todayRevenue.getGrossCustomerPayments())
+                .todayRefundAmount(todayRevenue.getRefundAmount())
+                .todayRecognizedOrderCount(todayRevenue.getRecognizedOrderCount())
+                .todayRevenue(todayRevenue.getNetRevenue())
                 .build();
+    }
+
+    private LocalDateTime reportingBoundary(LocalDate date, ZoneId reportingZone, ZoneId databaseZone) {
+        return date.atStartOfDay(reportingZone)
+                .withZoneSameInstant(databaseZone)
+                .toLocalDateTime();
     }
 
     public OrderResponse updateOrderStatusForAdmin(String orderId, UpdateOrderStatusRequest request, String adminUserId) {
