@@ -15,11 +15,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,7 +44,9 @@ class AdminRevenueServiceTest {
 
     @Test
     void recognizesPaidSepayAndCompletedCodUsingNetSubtotal() {
-        when(paymentClient.findSepayRevenueCandidates(from, to))
+        when(paymentClient.findSepayRevenueCandidates(
+                from.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                to.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)))
                 .thenReturn(ApiResponse.success(List.of(
                         candidate("sepay-order", "sepay", "PAID", "2026-07-10T10:00:00"),
                         candidate("pending-order", "sepay", "PENDING", null),
@@ -71,7 +77,9 @@ class AdminRevenueServiceTest {
 
     @Test
     void excludesFullyRefundedOrdersAndDoesNotFallbackFromNullSubtotalToTotal() {
-        when(paymentClient.findSepayRevenueCandidates(from, to))
+        when(paymentClient.findSepayRevenueCandidates(
+                from.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                to.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)))
                 .thenReturn(ApiResponse.success(List.of(
                         candidate("refunded-order", "sepay", "REFUNDED", "2026-07-10T10:00:00"),
                         candidate("legacy-order", "SEPAY_QR", "COMPLETED", "2026-07-10T10:00:00"))));
@@ -84,6 +92,23 @@ class AdminRevenueServiceTest {
         assertThat(result.getRecognizedOrderCount()).isZero();
         assertThat(result.getNetRevenue()).isEqualByComparingTo("0.00");
         assertThat(result.getRefundAmount()).isEqualByComparingTo("115.00");
+    }
+
+    @Test
+    void unboundedCalculationUsesExplicitIsoBoundsForInternalRevenueCalls() {
+        when(paymentClient.findSepayRevenueCandidates(anyString(), anyString()))
+                .thenReturn(ApiResponse.success(List.of()));
+        when(auditLogRepository.findCompletedOrderIdsBetween(any(), any())).thenReturn(List.of());
+
+        revenueService.calculate(null, null, null, null);
+
+        verify(paymentClient).findSepayRevenueCandidates(
+                eq("1970-01-01T00:00:00"),
+                argThat(to -> LocalDateTime.parse(to, DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                        .isAfter(LocalDateTime.of(2026, 7, 1, 0, 0))));
+        verify(auditLogRepository).findCompletedOrderIdsBetween(
+                eq(LocalDateTime.of(1970, 1, 1, 0, 0)),
+                argThat(to -> to.isAfter(LocalDateTime.of(2026, 7, 1, 0, 0))));
     }
 
     private PaymentClient.PaymentRevenueCandidate candidate(

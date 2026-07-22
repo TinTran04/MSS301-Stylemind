@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -99,6 +100,21 @@ class PaymentServiceTest {
 
         assertThat(response.getTransferContent()).startsWith("SEVQR STYLEMIND SM");
         assertThat(response.getTransferContent()).doesNotContain("SEVQR SEVQR");
+    }
+
+    @Test
+    void revenueCandidates_rejectNullOrNonIncreasingBoundsBeforeRepositoryAccess() {
+        assertThatThrownBy(() -> paymentService.findSepayRevenueCandidates(null, LocalDateTime.now()))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Khoảng thời gian doanh thu không hợp lệ");
+
+        assertThatThrownBy(() -> paymentService.findSepayRevenueCandidates(
+                LocalDateTime.of(2026, 8, 1, 0, 0),
+                LocalDateTime.of(2026, 7, 1, 0, 0)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Khoảng thời gian doanh thu không hợp lệ");
+
+        verify(transactionRepository, never()).findSepayRevenueCandidates(any(), any());
     }
 
     @Test

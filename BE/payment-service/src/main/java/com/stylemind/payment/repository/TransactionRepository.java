@@ -24,8 +24,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, String
             SELECT t FROM Transaction t
             WHERE UPPER(t.method) IN ('SEPAY', 'SEPAY_QR')
               AND UPPER(t.status) IN ('PAID', 'REFUNDED')
-              AND (:fromTime IS NULL OR t.paidAt >= :fromTime)
-              AND (:toTime IS NULL OR t.paidAt < :toTime)
+              AND t.paidAt >= :fromTime
+              AND t.paidAt < :toTime
             """)
     List<Transaction> findSepayRevenueCandidates(
             @Param("fromTime") LocalDateTime fromTime,

@@ -240,6 +240,10 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(readOnly = true)
     public List<PaymentRevenueCandidate> findSepayRevenueCandidates(LocalDateTime from, LocalDateTime to) {
+        if (from == null || to == null || !from.isBefore(to)) {
+            throw new BusinessException(
+                    "INVALID_REVENUE_RANGE", "Khoảng thời gian doanh thu không hợp lệ", 400);
+        }
         return transactionRepository.findSepayRevenueCandidates(from, to).stream()
                 .map(this::toRevenueCandidate)
                 .toList();

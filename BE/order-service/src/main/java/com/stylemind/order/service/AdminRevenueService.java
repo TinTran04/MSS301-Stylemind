@@ -1,6 +1,7 @@
 package com.stylemind.order.service;
 
 import com.stylemind.common.dto.ApiResponse;
+import com.stylemind.common.exception.BusinessException;
 import com.stylemind.order.dto.OrderRevenueAggregate;
 import com.stylemind.order.entity.Order;
 import com.stylemind.order.entity.OrderStatus;
@@ -12,7 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +27,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AdminRevenueService {
 
+    private static final LocalDateTime ALL_TIME_START = LocalDate.of(1970, 1, 1).atStartOfDay();
+    private static final DateTimeFormatter REVENUE_PARAMETER_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
     private static final String METHOD_SEPAY = "sepay";
     private static final String METHOD_COD = "cod";
     private static final String STATUS_PAID = "paid";
@@ -38,8 +44,17 @@ public class AdminRevenueService {
             LocalDateTime toExclusive,
             OrderStatus statusFilter,
             String userId) {
+        LocalDateTime effectiveFrom = fromInclusive == null ? ALL_TIME_START : fromInclusive;
+        LocalDateTime effectiveTo = toExclusive == null ? LocalDateTime.now(ZoneOffset.UTC) : toExclusive;
+        if (!effectiveFrom.isBefore(effectiveTo)) {
+            throw new BusinessException(
+                    "INVALID_REVENUE_RANGE", "Khoảng thời gian doanh thu không hợp lệ", 400);
+        }
+
         List<PaymentClient.PaymentRevenueCandidate> sepayCandidates = responseData(
-                paymentClient.findSepayRevenueCandidates(fromInclusive, toExclusive));
+                paymentClient.findSepayRevenueCandidates(
+                        REVENUE_PARAMETER_FORMATTER.format(effectiveFrom),
+                        REVENUE_PARAMETER_FORMATTER.format(effectiveTo)));
 
         Set<String> refundedSepayIds = sepayCandidates.stream()
                 .filter(this::isSepay)
@@ -51,13 +66,13 @@ public class AdminRevenueService {
                 .filter(this::isSepay)
                 .filter(candidate -> hasStatus(candidate, STATUS_PAID))
                 .filter(candidate -> candidate.getPaidAt() != null)
-                .filter(candidate -> isWithin(candidate.getPaidAt(), fromInclusive, toExclusive))
+                .filter(candidate -> isWithin(candidate.getPaidAt(), effectiveFrom, effectiveTo))
                 .map(PaymentClient.PaymentRevenueCandidate::getOrderId)
                 .filter(orderId -> !refundedSepayIds.contains(orderId))
                 .collect(Collectors.toCollection(HashSet::new));
 
         List<String> completedCodOrderIds = auditLogRepository.findCompletedOrderIdsBetween(
-                fromInclusive, toExclusive);
+                effectiveFrom, effectiveTo);
         List<PaymentClient.PaymentRevenueCandidate> codCandidates = completedCodOrderIds.isEmpty()
                 ? List.of()
                 : responseData(paymentClient.findRevenueCandidatesByOrderIds(

@@ -14,8 +14,8 @@ public interface OrderStatusAuditLogRepository extends JpaRepository<OrderStatus
     @Query("""
             SELECT DISTINCT a.orderId FROM OrderStatusAuditLog a
             WHERE a.toStatus = com.stylemind.order.entity.OrderStatus.COMPLETED
-              AND (:fromTime IS NULL OR a.createdAt >= :fromTime)
-              AND (:toTime IS NULL OR a.createdAt < :toTime)
+              AND a.createdAt >= :fromTime
+              AND a.createdAt < :toTime
             """)
     List<String> findCompletedOrderIdsBetween(
             @Param("fromTime") LocalDateTime fromTime,

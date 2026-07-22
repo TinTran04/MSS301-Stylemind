@@ -27,8 +27,8 @@ public interface PaymentClient {
 
     @GetMapping("/internal/v1/payments/admin/revenue/sepay")
     ApiResponse<List<PaymentRevenueCandidate>> findSepayRevenueCandidates(
-            @RequestParam(value = "from", required = false) LocalDateTime from,
-            @RequestParam(value = "to", required = false) LocalDateTime to);
+            @RequestParam("from") String from,
+            @RequestParam("to") String to);
 
     @PostMapping("/internal/v1/payments/admin/revenue/by-order-ids")
     ApiResponse<List<PaymentRevenueCandidate>> findRevenueCandidatesByOrderIds(

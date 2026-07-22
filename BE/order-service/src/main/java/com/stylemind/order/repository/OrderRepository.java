@@ -33,7 +33,7 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             FROM Order o
             WHERE o.id IN :orderIds
               AND (CAST(:status AS string) IS NULL OR o.orderStatus = :status)
-              AND (:userId IS NULL OR o.userId = :userId)
+              AND (CAST(:userId AS string) IS NULL OR o.userId = :userId)
             """)
     OrderRevenueAggregate aggregateRevenueForOrderIds(
             @Param("orderIds") Collection<String> orderIds,
