@@ -1,12 +1,13 @@
 package com.stylemind.payment.service;
 
+import com.stylemind.payment.service.impl.PaymentReferenceMatcherImpl;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PaymentReferenceMatcherTest {
 
-    private final PaymentReferenceMatcher matcher = new PaymentReferenceMatcher();
+    private final PaymentReferenceMatcher matcher = new PaymentReferenceMatcherImpl();
 
     @Test
     void matches_exactNormalizedContent() {

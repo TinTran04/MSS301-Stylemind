@@ -1,5 +1,6 @@
 package com.stylemind.user.service;
 
+import com.stylemind.user.service.impl.VietnamesePhoneNumberServiceImpl;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -7,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class VietnamesePhoneNumberServiceTest {
 
-    private final VietnamesePhoneNumberService service = new VietnamesePhoneNumberService();
+    private final VietnamesePhoneNumberService service = new VietnamesePhoneNumberServiceImpl();
 
     @Test
     void acceptsLocalVietnameseNumberAndNormalizesToE164() {

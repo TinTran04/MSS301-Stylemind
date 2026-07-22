@@ -3,6 +3,7 @@ package com.stylemind.product.service;
 import com.stylemind.product.dto.*;
 import com.stylemind.product.entity.*;
 import com.stylemind.product.repository.*;
+import com.stylemind.product.service.impl.ProductServiceImpl;
 import com.stylemind.product.service.image.ProductImageStorage;
 import com.stylemind.product.service.image.StoredProductImage;
 import com.stylemind.common.dto.PageResponse;
@@ -47,7 +48,7 @@ class ProductServiceTest {
     private ProductImageStorage imageStorage;
 
     @InjectMocks
-    private ProductService productService;
+    private ProductServiceImpl productService;
 
     @org.junit.jupiter.api.BeforeEach
     void setDefaultCurrency() {

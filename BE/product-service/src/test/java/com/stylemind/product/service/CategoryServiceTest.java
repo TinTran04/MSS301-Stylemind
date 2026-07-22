@@ -4,6 +4,7 @@ import com.stylemind.common.exception.BusinessException;
 import com.stylemind.product.entity.Category;
 import com.stylemind.product.repository.CategoryRepository;
 import com.stylemind.product.repository.ProductCategoryRepository;
+import com.stylemind.product.service.impl.CategoryServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,6 +16,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -27,7 +29,7 @@ class CategoryServiceTest {
     private ProductCategoryRepository productCategoryRepository;
 
     @InjectMocks
-    private CategoryService categoryService;
+    private CategoryServiceImpl categoryService;
 
     @Test
     void getAllCategories_returnsRootAndChildCategories() {
@@ -50,6 +52,7 @@ class CategoryServiceTest {
                 Category.builder().id(3L).name("Áo sơ mi").slug("ao-so-mi").parentId(1L).build(),
                 Category.builder().id(4L).name("Áo polo").slug("ao-polo").parentId(1L).build());
         when(categoryRepository.findAll()).thenReturn(all);
+        when(productCategoryRepository.existsByCategoryId(anyLong())).thenReturn(true);
 
         List<Category> result = categoryService.getCategories(null);
 
@@ -61,6 +64,7 @@ class CategoryServiceTest {
         List<Category> children = List.of(
                 Category.builder().id(3L).name("Áo sơ mi").slug("ao-so-mi").parentId(1L).build());
         when(categoryRepository.findByParentId(1L)).thenReturn(children);
+        when(productCategoryRepository.existsByCategoryId(anyLong())).thenReturn(true);
 
         List<Category> result = categoryService.getCategories(1L);
 

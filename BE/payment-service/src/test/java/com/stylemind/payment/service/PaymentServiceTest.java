@@ -9,6 +9,8 @@ import com.stylemind.payment.entity.Transaction;
 import com.stylemind.payment.feign.OrderClient;
 import com.stylemind.payment.repository.PaymentWebhookEventRepository;
 import com.stylemind.payment.repository.TransactionRepository;
+import com.stylemind.payment.service.impl.PaymentReferenceMatcherImpl;
+import com.stylemind.payment.service.impl.PaymentServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,10 +40,10 @@ class PaymentServiceTest {
     @Mock TransactionRepository transactionRepository;
     @Mock PaymentWebhookEventRepository webhookEventRepository;
     @Mock OrderClient orderClient;
-    @Spy PaymentReferenceMatcher paymentReferenceMatcher = new PaymentReferenceMatcher();
+    @Spy PaymentReferenceMatcher paymentReferenceMatcher = new PaymentReferenceMatcherImpl();
 
     @InjectMocks
-    PaymentService paymentService;
+    PaymentServiceImpl paymentService;
 
     // @Value fields are never populated without a Spring context in a plain
     // Mockito unit test - set them manually to mirror application.yml defaults.

@@ -16,6 +16,7 @@ import com.stylemind.order.repository.OrderRepository;
 import com.stylemind.order.repository.OrderStatusAuditLogRepository;
 import com.stylemind.order.repository.OrderDeliveryImageRepository;
 import com.stylemind.order.feign.NotificationClient;
+import com.stylemind.order.service.impl.OrderServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,7 +48,7 @@ class OrderAddressCheckoutTest {
     @Mock OrderStatusService orderStatusService;
     @Mock OrderDeliveryImageRepository deliveryImageRepository;
 
-    @InjectMocks OrderService orderService;
+    @InjectMocks OrderServiceImpl orderService;
 
     @BeforeEach
     void setUpIdempotency() {

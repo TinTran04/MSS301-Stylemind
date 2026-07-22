@@ -6,8 +6,8 @@ import java.math.BigDecimal;
 
 /**
  * Real, aggregated order metrics for the admin dashboard. Counts/sums only —
- * no per-order or sensitive data is exposed. Revenue counts only orders whose
- * payment has been received and are progressing/done (see OrderService).
+ * no per-order or sensitive data is exposed. Revenue is recognized only after
+ * the order is completed/delivered.
  */
 @Data
 @NoArgsConstructor
