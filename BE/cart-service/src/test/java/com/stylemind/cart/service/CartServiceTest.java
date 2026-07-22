@@ -9,6 +9,7 @@ import com.stylemind.cart.entity.ShoppingCart;
 import com.stylemind.cart.feign.ProductClient;
 import com.stylemind.cart.repository.CartItemRepository;
 import com.stylemind.cart.repository.ShoppingCartRepository;
+import com.stylemind.cart.service.impl.CartServiceImpl;
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.exception.BusinessException;
 import org.junit.jupiter.api.Test;
@@ -41,7 +42,7 @@ class CartServiceTest {
     @Mock CartItemRepository cartItemRepository;
     @Mock ProductClient productClient;
 
-    @InjectMocks CartService cartService;
+    @InjectMocks CartServiceImpl cartService;
 
     // ─── addItem ─────────────────────────────────────────────────────────────
 

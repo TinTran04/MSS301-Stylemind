@@ -15,8 +15,10 @@ test('formatStatusLabel returns Vietnamese labels and unknown fallback', () => {
   assert.equal(formatStatusLabel('does-not-exist'), 'Không xác định')
 })
 
-test('revenue statuses only include paid business states', () => {
+test('revenue statuses only include completed orders', () => {
   assert.equal(ORDER_REVENUE_STATUSES.has('PAYMENT_PENDING'), false)
-  assert.equal(ORDER_REVENUE_STATUSES.has('PAID'), true)
+  assert.equal(ORDER_REVENUE_STATUSES.has('PAID'), false)
+  assert.equal(ORDER_REVENUE_STATUSES.has('CONFIRMED'), false)
+  assert.equal(ORDER_REVENUE_STATUSES.has('SHIPPED'), false)
   assert.equal(ORDER_REVENUE_STATUSES.has('COMPLETED'), true)
 })

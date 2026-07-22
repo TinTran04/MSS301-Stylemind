@@ -5,6 +5,7 @@ import com.stylemind.cart.dto.CartResponse;
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.exception.BusinessException;
+import com.stylemind.order.dto.AdminOrderSummaryResponse;
 import com.stylemind.order.dto.CreateOrderRequest;
 import com.stylemind.order.dto.OrderItemCountResponse;
 import com.stylemind.order.dto.OrderSummaryResponse;
@@ -24,7 +25,9 @@ import com.stylemind.order.repository.OrderItemRepository;
 import com.stylemind.order.repository.OrderRepository;
 import com.stylemind.order.repository.OrderDeliveryImageRepository;
 import com.stylemind.order.repository.OrderStatusAuditLogRepository;
+import com.stylemind.order.service.impl.OrderServiceImpl;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +49,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
@@ -67,11 +71,14 @@ class OrderServiceTest {
     @Mock OrderStatusAuditLogRepository auditLogRepository;
     @Mock OrderStatusService orderStatusService;
     @Mock OrderDeliveryImageRepository deliveryImageRepository;
+    @Mock AdminRevenueService adminRevenueService;
 
-    @InjectMocks OrderService orderService;
+    @InjectMocks OrderServiceImpl orderService;
 
     @BeforeEach
     void stubCheckoutAddress() {
+        ReflectionTestUtils.setField(orderService, "reportingTimezone", "Asia/Ho_Chi_Minh");
+        ReflectionTestUtils.setField(orderService, "reportingDatabaseTimezone", "UTC");
         UserAddressClient.DeliveryAddressSnapshot address = new UserAddressClient.DeliveryAddressSnapshot();
         address.setId("address-1");
         address.setUserId("user-1");
@@ -543,6 +550,43 @@ class OrderServiceTest {
     }
 
     @Test
+    void getAdminSummary_countsRevenueOnlyForCompletedOrders() {
+        when(adminRevenueService.calculate(isNull(), isNull(), isNull(), isNull()))
+                .thenReturn(revenueSummary("250000"));
+        when(adminRevenueService.calculate(
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                isNull(),
+                isNull()))
+                .thenReturn(revenueSummary("125000"));
+
+        AdminOrderSummaryResponse response = orderService.getAdminSummary();
+
+        assertThat(response.getTotalRevenue()).isEqualByComparingTo("250000");
+        assertThat(response.getTodayRevenue()).isEqualByComparingTo("125000");
+        verify(adminRevenueService).calculate(isNull(), isNull(), isNull(), isNull());
+        verify(adminRevenueService).calculate(
+                any(LocalDateTime.class),
+                any(LocalDateTime.class),
+                isNull(),
+                isNull());
+    }
+
+    @Test
+    void getAllOrdersForAdmin_countsRevenueOnlyForCompletedOrders() {
+        var pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
+        when(orderRepository.search(isNull(), isNull(), isNull(), isNull(), eq(pageable)))
+                .thenReturn(new PageImpl<Order>(List.of(), pageable, 0));
+        when(adminRevenueService.calculate(isNull(), isNull(), isNull(), isNull()))
+                .thenReturn(revenueSummary("300000"));
+
+        var response = orderService.getAllOrdersForAdmin(null, null, null, null, pageable);
+
+        assertThat(response.getTotalRevenue()).isEqualByComparingTo("300000");
+        verify(adminRevenueService).calculate(isNull(), isNull(), isNull(), isNull());
+    }
+
+    @Test
     void uploadDeliveryImage_requiresCompletedOrder() {
         Order order = savedOrder(Order.builder()
                 .id("order-1")
@@ -608,6 +652,16 @@ class OrderServiceTest {
         assertThat(response.getDeliveryImages()).hasSize(1);
         assertThat(response.getDeliveryImages().get(0).getImageDataUrl()).startsWith("data:image/jpeg;base64,");
         verify(deliveryImageRepository).save(any());
+    }
+
+    private AdminRevenueService.RevenueSummary revenueSummary(String netRevenue) {
+        return AdminRevenueService.RevenueSummary.builder()
+                .netRevenue(new BigDecimal(netRevenue))
+                .vatCollected(BigDecimal.ZERO)
+                .shippingFeesCollected(BigDecimal.ZERO)
+                .grossCustomerPayments(new BigDecimal(netRevenue))
+                .refundAmount(BigDecimal.ZERO)
+                .build();
     }
 
     private Order withStatus(Order order, OrderStatus status) {

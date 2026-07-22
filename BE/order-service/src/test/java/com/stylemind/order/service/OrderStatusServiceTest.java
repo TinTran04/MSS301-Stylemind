@@ -7,12 +7,14 @@ import com.stylemind.order.entity.OrderStatusAuditLog;
 import com.stylemind.order.exception.InvalidOrderStatusTransitionException;
 import com.stylemind.order.repository.OrderRepository;
 import com.stylemind.order.repository.OrderStatusAuditLogRepository;
+import com.stylemind.order.service.impl.OrderStatusServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -29,8 +31,9 @@ class OrderStatusServiceTest {
 
     @Mock OrderRepository orderRepository;
     @Mock OrderStatusAuditLogRepository auditLogRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
 
-    @InjectMocks OrderStatusService orderStatusService;
+    @InjectMocks OrderStatusServiceImpl orderStatusService;
 
     @Test
     void changeStatus_validTransition_savesAndReturnsUpdatedOrder() {

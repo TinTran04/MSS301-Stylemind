@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Package, Truck } from 'lucide-react'
+import { ArrowRight, Image as ImageIcon, Loader2, Package, Truck, Upload } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Badge from '../../components/common/Badge'
 import Drawer from '../../components/common/Drawer'
 import Pagination from '../../components/common/Pagination'
-import { getOrderById, getOrders } from '../../features/orders/order.api'
+import { getOrderById, getOrders, uploadDeliveryImage } from '../../features/orders/order.api'
 import { formatDateTime } from '../../utils/formatDate'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/orderStatus'
@@ -31,6 +31,10 @@ const badgeVariants = {
 }
 
 const ORDER_IMAGE_FALLBACK = 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=200&h=260&fit=crop'
+const DELIVERY_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp'
+const DELIVERY_IMAGE_ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const DELIVERY_IMAGE_MAX_BYTES = 3 * 1024 * 1024
+const DELIVERY_IMAGE_LIMIT = 5
 
 function handleImageError(event) {
   if (event.currentTarget.src !== ORDER_IMAGE_FALLBACK) event.currentTarget.src = ORDER_IMAGE_FALLBACK
@@ -111,7 +115,146 @@ function OrderTimeline({ order }) {
   )
 }
 
-function OrderDetailContent({ order, onContinuePayment }) {
+function DeliveryImagesSection({ order, onOrderUpdated }) {
+  const images = order.deliveryImages || []
+  const isCompleted = normalizeOrderStatus(order.orderStatus || order.status) === 'COMPLETED'
+  const canUpload = isCompleted && images.length < DELIVERY_IMAGE_LIMIT
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
+  const [uploadSuccess, setUploadSuccess] = useState('')
+
+  useEffect(() => {
+    setSelectedFile(null)
+    setPreviewUrl('')
+    setUploadError('')
+    setUploadSuccess('')
+  }, [order.id])
+
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+  }, [previewUrl])
+
+  if (!isCompleted && images.length === 0) return null
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    setUploadError('')
+    setUploadSuccess('')
+
+    if (!file) {
+      setSelectedFile(null)
+      setPreviewUrl('')
+      return
+    }
+
+    if (!DELIVERY_IMAGE_ALLOWED_TYPES.has(file.type)) {
+      setSelectedFile(null)
+      setPreviewUrl('')
+      setUploadError('Chỉ hỗ trợ ảnh JPG, PNG hoặc WEBP.')
+      return
+    }
+
+    if (file.size > DELIVERY_IMAGE_MAX_BYTES) {
+      setSelectedFile(null)
+      setPreviewUrl('')
+      setUploadError('Ảnh nhận hàng không được vượt quá 3MB.')
+      return
+    }
+
+    setSelectedFile(file)
+    setPreviewUrl(URL.createObjectURL(file))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    if (!selectedFile || uploading) return
+
+    setUploading(true)
+    setUploadError('')
+    setUploadSuccess('')
+    try {
+      const updatedOrder = await uploadDeliveryImage(order.id, selectedFile)
+      onOrderUpdated?.(updatedOrder)
+      setSelectedFile(null)
+      setPreviewUrl('')
+      setUploadSuccess('Đã tải ảnh nhận hàng.')
+    } catch (err) {
+      setUploadError(err?.message || 'Không thể tải ảnh nhận hàng.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  return (
+    <section aria-labelledby="order-delivery-images-title" className="border-t border-outline-variant/20 pt-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-on-surface-variant">
+          <ImageIcon size={15} aria-hidden="true" />
+          <h3 id="order-delivery-images-title" className="text-[11px] font-medium uppercase tracking-[0.16em]">Ảnh nhận hàng</h3>
+        </div>
+        {images.length > 0 && <span className="text-xs text-on-surface-variant">{images.length}/{DELIVERY_IMAGE_LIMIT}</span>}
+      </div>
+
+      {images.length > 0 ? (
+        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {images.map((image) => (
+            <a
+              key={image.id}
+              href={image.imageDataUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="group block overflow-hidden rounded-xl border border-outline-variant/20 bg-surface-container-low"
+            >
+              <img
+                src={image.imageDataUrl}
+                alt={image.fileName || 'Ảnh nhận hàng'}
+                className="aspect-square w-full object-cover transition-transform group-hover:scale-105"
+              />
+            </a>
+          ))}
+        </div>
+      ) : (
+        <p className="mb-4 text-sm text-on-surface-variant">Chưa có ảnh nhận hàng.</p>
+      )}
+
+      {canUpload && (
+        <form onSubmit={handleSubmit} className="rounded-xl border border-dashed border-outline-variant/40 bg-surface-container-low p-3">
+          {previewUrl && (
+            <img
+              src={previewUrl}
+              alt={selectedFile?.name || 'Ảnh nhận hàng'}
+              className="mb-3 aspect-video w-full rounded-lg object-cover bg-surface-container-high"
+            />
+          )}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-full border border-primary px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-on-primary focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary">
+              <Upload size={15} aria-hidden="true" />
+              Chọn ảnh
+              <input type="file" accept={DELIVERY_IMAGE_ACCEPT} onChange={handleFileChange} className="sr-only" />
+            </label>
+            <button
+              type="submit"
+              disabled={!selectedFile || uploading}
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              {uploading ? <Loader2 size={15} className="animate-spin" aria-hidden="true" /> : <Upload size={15} aria-hidden="true" />}
+              Tải ảnh lên
+            </button>
+          </div>
+          {selectedFile && <p className="mt-2 break-all text-xs text-on-surface-variant">{selectedFile.name}</p>}
+          {uploadError && <p role="alert" className="mt-2 text-sm text-error">{uploadError}</p>}
+          {uploadSuccess && <p role="status" className="mt-2 text-sm text-green-status">{uploadSuccess}</p>}
+        </form>
+      )}
+      {isCompleted && !canUpload && <p className="text-sm text-on-surface-variant">Đã đạt giới hạn 5 ảnh nhận hàng.</p>}
+    </section>
+  )
+}
+
+function OrderDetailContent({ order, onContinuePayment, onOrderUpdated }) {
   const canContinueSepayPayment = normalizeOrderStatus(order.status) === 'PAYMENT_PENDING'
     && String(order.paymentMethod || '').toLowerCase() === 'sepay'
 
@@ -175,6 +318,8 @@ function OrderDetailContent({ order, onContinuePayment }) {
         {order.shippingPhone && <p className="mt-1 text-sm text-on-surface-variant">{order.shippingPhone}</p>}
         <p className="mt-1 text-sm leading-relaxed text-on-surface-variant">{order.shippingAddress || 'Chưa có thông tin'}</p>
       </section>
+
+      <DeliveryImagesSection order={order} onOrderUpdated={onOrderUpdated} />
 
       {canContinueSepayPayment && (
         <section className="border-t border-outline-variant/20 pt-5">
@@ -309,7 +454,7 @@ export default function OrderTrackingPage() {
       <Drawer isOpen={Boolean(selectedOrderId)} onClose={closeOrderDetail} title="Chi tiết đơn hàng" panelClassName="max-w-2xl">
         {detailLoading && <OrderDetailLoading />}
         {!detailLoading && detailError && <div role="alert" className="py-12 text-center"><p className="text-sm text-error">{detailError}</p><button type="button" onClick={retryOrderDetail} className="mt-4 rounded-full border border-primary px-4 py-2 text-sm font-medium text-primary">Thử lại</button></div>}
-        {!detailLoading && !detailError && detailOrder && <OrderDetailContent order={detailOrder} onContinuePayment={handleContinuePayment} />}
+        {!detailLoading && !detailError && detailOrder && <OrderDetailContent order={detailOrder} onContinuePayment={handleContinuePayment} onOrderUpdated={setDetailOrder} />}
       </Drawer>
     </div>
   )

@@ -2,6 +2,7 @@ package com.stylemind.product.service.image;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.Uploader;
+import com.stylemind.product.service.image.impl.CloudinaryProductImageStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
