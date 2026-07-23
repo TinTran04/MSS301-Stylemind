@@ -3,11 +3,13 @@ package com.stylemind.order.service.impl;
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.util.StringUtil;
 import com.stylemind.order.entity.Order;
+import com.stylemind.order.entity.OrderCancellationStatus;
 import com.stylemind.order.entity.OrderStatus;
 import com.stylemind.order.entity.OrderStatusAuditLog;
 import com.stylemind.order.event.OrderStatusChangedEvent;
 import com.stylemind.order.exception.InvalidOrderStatusTransitionException;
 import com.stylemind.order.repository.OrderRepository;
+import com.stylemind.order.repository.OrderCancellationRepository;
 import com.stylemind.order.repository.OrderStatusAuditLogRepository;
 import com.stylemind.order.service.OrderStatusService;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class OrderStatusServiceImpl implements OrderStatusService {
 
     private final OrderRepository orderRepository;
     private final OrderStatusAuditLogRepository auditLogRepository;
+    private final OrderCancellationRepository cancellationRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
@@ -41,6 +44,10 @@ public class OrderStatusServiceImpl implements OrderStatusService {
         OrderStatus current = order.getOrderStatus();
         if (!current.canTransitionTo(target)) {
             throw new InvalidOrderStatusTransitionException(current, target);
+        }
+        if (target != OrderStatus.CANCELLED
+                && cancellationRepository.existsByOrderIdAndStatus(order.getId(), OrderCancellationStatus.REQUESTED)) {
+            throw new BusinessException("ORDER_CANCELLATION_PENDING", "Đơn hàng đang có yêu cầu hủy chờ duyệt.", 409);
         }
 
         order.setOrderStatus(target);

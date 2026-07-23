@@ -5,13 +5,14 @@ import { MapPin, CreditCard, Lock, AlertTriangle, Check, Sparkles, Loader2, Arro
 import usePaymentStore from '../../features/payment/payment.store'
 import { useCart } from '../../hooks/useCart'
 import { formatCurrency } from '../../utils/formatCurrency'
-import Modal from '../../components/common/Modal'
-import { cancelOrder } from '../../features/orders/order.api'
+import OrderCancellationDialog from '../../components/customer/OrderCancellationDialog'
+import { requestOrderCancellation } from '../../features/orders/order.api'
 import AddressForm, { createEmptyAddressForm } from '../../features/profile/AddressForm'
 import { createAddress, getAddresses, getProvinces, getWards } from '../../features/profile/profile.api'
 import { buildAddressPayload, formatSavedAddress, isCheckoutEligibleAddress } from '../../features/profile/address.utils'
 import { getVietnamesePhoneValidationMessage } from '../../features/profile/phone.utils'
 import { calculateTotal, isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
+import Modal from '../../components/common/Modal'
 
 const paymentMethods = [
   { id: 'cod', label: 'Thanh toán khi nhận hàng', icon: Banknote, description: 'Thanh toán khi đơn hàng được giao đến bạn' },
@@ -185,13 +186,13 @@ export default function CheckoutPage() {
     reset()
   }
 
-  const handleCancelPayment = async () => {
+  const handleCancelPayment = async (payload) => {
     const cancelledOrderId = lastOrder?.id
     if (!cancelledOrderId) return
     setCancelLoading(true)
     setCancelError('')
     try {
-      await cancelOrder(cancelledOrderId)
+      await requestOrderCancellation(cancelledOrderId, payload, { idempotencyKey: `checkout-cancel-${cancelledOrderId}` })
       stopPolling()
       reset()
       navigate('/orders', {
@@ -345,40 +346,17 @@ export default function CheckoutPage() {
         </motion.div>
       )}
 
-      <Modal
+      <OrderCancellationDialog
         isOpen={cancelModalOpen}
+        loading={cancelLoading}
+        title="Hủy thanh toán"
+        confirmLabel="Hủy đơn"
+        cancelLabel="Tiếp tục thanh toán"
         onClose={() => {
           if (!cancelLoading) setCancelModalOpen(false)
         }}
-        title="Hủy thanh toán?"
-      >
-        <p className="text-sm text-on-surface-variant">
-          Đơn hàng đang chờ thanh toán sẽ được hủy. Bạn có chắc chắn muốn tiếp tục?
-        </p>
-        {cancelError && (
-          <p role="alert" className="mt-4 rounded-lg border border-error/20 bg-error-container/30 px-4 py-3 text-sm text-error">
-            {cancelError}
-          </p>
-        )}
-        <div className="mt-6 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => setCancelModalOpen(false)}
-            disabled={cancelLoading}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-40"
-          >
-            Tiếp tục thanh toán
-          </button>
-          <button
-            type="button"
-            onClick={handleCancelPayment}
-            disabled={cancelLoading}
-            className="rounded-lg bg-error px-4 py-2 text-sm font-medium text-on-primary hover:opacity-90 transition-opacity disabled:opacity-40"
-          >
-            {cancelLoading ? 'Đang hủy...' : 'Hủy thanh toán'}
-          </button>
-        </div>
-      </Modal>
+        onConfirm={handleCancelPayment}
+      />
 
       {/* Success State */}
       {status === 'success' && (

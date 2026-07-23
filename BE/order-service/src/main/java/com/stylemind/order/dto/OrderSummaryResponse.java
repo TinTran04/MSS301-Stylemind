@@ -18,4 +18,6 @@ public class OrderSummaryResponse {
     private String orderStatus;
     private BigDecimal totalAmount;
     private int itemCount;
+    private OrderCancellationResponse latestCancellation;
+    private Boolean hasPendingCancellation;
 }

@@ -9,6 +9,10 @@ import { formatDateTime } from '../../utils/formatDate'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/orderStatus'
 import { isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
+import OrderCancellationDialog from '../../components/customer/OrderCancellationDialog'
+import OrderCancellationPanel from '../../components/customer/OrderCancellationPanel'
+import { requestOrderCancellation } from '../../features/orders/order.api'
+import { canDirectCancel, canRequestCancellation, isCancellationRequested } from '../../features/orders/order-cancellation.utils'
 
 const statusTabs = [
   { key: 'All', label: 'Tất cả' },
@@ -254,9 +258,10 @@ function DeliveryImagesSection({ order, onOrderUpdated }) {
   )
 }
 
-function OrderDetailContent({ order, onContinuePayment, onOrderUpdated }) {
+function OrderDetailContent({ order, onContinuePayment, onRequestCancellation, onOrderUpdated }) {
   const canContinueSepayPayment = normalizeOrderStatus(order.status) === 'PAYMENT_PENDING'
     && String(order.paymentMethod || '').toLowerCase() === 'sepay'
+  const allowCancellation = !isCancellationRequested(order) && (canDirectCancel(order) || canRequestCancellation(order))
 
   return (
     <div className="space-y-7">
@@ -277,6 +282,9 @@ function OrderDetailContent({ order, onContinuePayment, onOrderUpdated }) {
         <div className="mt-4 flex flex-wrap gap-2">
           <Badge variant={badgeVariants[normalizeOrderStatus(order.status).toLowerCase()] || 'default'}>{formatStatusLabel(order.status)}</Badge>
           {order.paymentMethod && <Badge variant="default">{isCodPaymentMethod(order.paymentMethod) ? 'Thanh toán khi nhận hàng' : 'SePay'}</Badge>}
+        </div>
+        <div className="mt-4">
+          <OrderCancellationPanel cancellation={order.latestCancellation} refund={order.refund} />
         </div>
       </header>
 
@@ -321,6 +329,18 @@ function OrderDetailContent({ order, onContinuePayment, onOrderUpdated }) {
 
       <DeliveryImagesSection order={order} onOrderUpdated={onOrderUpdated} />
 
+      {allowCancellation && (
+        <section className="border-t border-outline-variant/20 pt-5">
+          <button
+            type="button"
+            onClick={onRequestCancellation}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-outline-variant/30 px-5 py-3 text-sm font-medium text-primary transition-colors hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            {canDirectCancel(order) ? 'Hủy đơn' : 'Yêu cầu hủy'}
+          </button>
+        </section>
+      )}
+
       {canContinueSepayPayment && (
         <section className="border-t border-outline-variant/20 pt-5">
           {order.paymentExpiresAt && <p className="mb-3 text-xs leading-relaxed text-on-surface-variant">Phiên thanh toán hết hạn lúc {formatDateTime(order.paymentExpiresAt)}.</p>}
@@ -347,6 +367,8 @@ export default function OrderTrackingPage() {
   const [detailError, setDetailError] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false)
+  const [cancellationSubmitting, setCancellationSubmitting] = useState(false)
   const triggerRefs = useRef(new Map())
   const selectedOrderIdRef = useRef(null)
   const detailRequestIdRef = useRef(0)
@@ -428,6 +450,18 @@ export default function OrderTrackingPage() {
     navigate('/checkout', { state: { resumePaymentOrder: detailOrder } })
   }
 
+  const handleRequestCancellation = async (payload) => {
+    if (!detailOrder || cancellationSubmitting) return
+    setCancellationSubmitting(true)
+    try {
+      await requestOrderCancellation(detailOrder.id, payload, { idempotencyKey: `cancel-${detailOrder.id}` })
+      await openOrderDetail({ id: detailOrder.id })
+      setCancellationDialogOpen(false)
+    } finally {
+      setCancellationSubmitting(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 lg:py-14">
       <h1 className="font-headline-md text-primary">Đơn hàng của tôi</h1>
@@ -454,8 +488,22 @@ export default function OrderTrackingPage() {
       <Drawer isOpen={Boolean(selectedOrderId)} onClose={closeOrderDetail} title="Chi tiết đơn hàng" panelClassName="max-w-2xl">
         {detailLoading && <OrderDetailLoading />}
         {!detailLoading && detailError && <div role="alert" className="py-12 text-center"><p className="text-sm text-error">{detailError}</p><button type="button" onClick={retryOrderDetail} className="mt-4 rounded-full border border-primary px-4 py-2 text-sm font-medium text-primary">Thử lại</button></div>}
-        {!detailLoading && !detailError && detailOrder && <OrderDetailContent order={detailOrder} onContinuePayment={handleContinuePayment} onOrderUpdated={setDetailOrder} />}
+        {!detailLoading && !detailError && detailOrder && (
+          <OrderDetailContent
+            order={detailOrder}
+            onContinuePayment={handleContinuePayment}
+            onRequestCancellation={() => setCancellationDialogOpen(true)}
+            onOrderUpdated={setDetailOrder}
+          />
+        )}
       </Drawer>
+
+      <OrderCancellationDialog
+        isOpen={cancellationDialogOpen}
+        loading={cancellationSubmitting}
+        onClose={() => setCancellationDialogOpen(false)}
+        onConfirm={handleRequestCancellation}
+      />
     </div>
   )
 }

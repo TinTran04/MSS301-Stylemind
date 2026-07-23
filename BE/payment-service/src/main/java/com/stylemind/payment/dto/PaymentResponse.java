@@ -23,6 +23,7 @@ public class PaymentResponse {
     private String qrImageUrl;
     private String transferContent;
     private Instant expiresAt;
+    private RefundResponse refund;
 
     public String getTransactionId() { return transactionId; }
     public void setTransactionId(String transactionId) { this.transactionId = transactionId; }
@@ -46,4 +47,6 @@ public class PaymentResponse {
     public void setTransferContent(String transferContent) { this.transferContent = transferContent; }
     public Instant getExpiresAt() { return expiresAt; }
     public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
+    public RefundResponse getRefund() { return refund; }
+    public void setRefund(RefundResponse refund) { this.refund = refund; }
 }

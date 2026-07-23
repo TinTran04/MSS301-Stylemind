@@ -14,7 +14,7 @@ export function getAdminOrderStatusOptions(order) {
   return getAvailableTransitions(order)
     .map(normalizeOrderStatus)
     .filter((status) => {
-      if (!KNOWN_STATUS_KEYS.has(status) || status === currentStatus || seen.has(status)) return false
+      if (!KNOWN_STATUS_KEYS.has(status) || status === currentStatus || status === 'CANCELLED' || seen.has(status)) return false
       seen.add(status)
       return true
     })

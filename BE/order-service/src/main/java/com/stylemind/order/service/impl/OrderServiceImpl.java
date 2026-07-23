@@ -9,6 +9,7 @@ import com.stylemind.order.dto.*;
 import com.stylemind.order.entity.*;
 import com.stylemind.order.feign.*;
 import com.stylemind.order.repository.*;
+import com.stylemind.order.service.OrderCancellationService;
 import com.stylemind.order.service.OrderService;
 import com.stylemind.order.service.OrderStatusService;
 import feign.FeignException;
@@ -47,6 +48,8 @@ public class OrderServiceImpl implements OrderService {
     private final com.stylemind.order.feign.UserAddressClient userAddressClient;
     private final OrderStatusAuditLogRepository auditLogRepository;
     private final OrderStatusService orderStatusService;
+    private final OrderCancellationService orderCancellationService;
+    private final OrderCancellationRepository cancellationRepository;
     private final OrderDeliveryImageRepository deliveryImageRepository;
 
     private static final String CHECKOUT_STATUS_PROCESSING = "PROCESSING";
@@ -130,10 +133,6 @@ public class OrderServiceImpl implements OrderService {
             }
 
             if ("cod".equals(paymentMethod)) {
-                // COD has no payment gateway step - the order is confirmed immediately.
-                // The transaction row created above just tracks the collect-on-delivery
-                // amount; its own status stays PENDING until the courier collects it.
-                order = orderStatusService.changeStatus(order, OrderStatus.CONFIRMED, userId);
                 clearCartBestEffort(authHeader, orderId);
             }
             // sepay: order stays PAYMENT_PENDING. There is no customer confirmation step -
@@ -301,6 +300,7 @@ public class OrderServiceImpl implements OrderService {
         enrichOrderItems(response);
         enrichStatusHistory(orderId, response);
         enrichDeliveryImages(orderId, response);
+        enrichCancellations(orderId, response);
         return response;
     }
 
@@ -384,6 +384,7 @@ public class OrderServiceImpl implements OrderService {
                         .collect(Collectors.toMap(
                                 OrderItemCountResponse::orderId,
                                 OrderItemCountResponse::itemCount));
+        Map<String, OrderCancellationResponse> latestCancellations = latestCancellationByOrderId(orderIds);
 
         return PageResponse.of(orders.map(order -> OrderSummaryResponse.builder()
                 .id(order.getId())
@@ -391,12 +392,15 @@ public class OrderServiceImpl implements OrderService {
                 .orderStatus(order.getOrderStatus().name())
                 .totalAmount(order.getTotalAmount())
                 .itemCount(itemCounts.getOrDefault(order.getId(), 0L).intValue())
+                .latestCancellation(latestCancellations.get(order.getId()))
+                .hasPendingCancellation(latestCancellations.get(order.getId()) != null
+                        && OrderCancellationStatus.REQUESTED.name().equals(latestCancellations.get(order.getId()).getStatus()))
                 .build()));
     }
 
     @Override
     public com.stylemind.order.dto.AdminOrdersResponse getAllOrdersForAdmin(
-            String status, String userId, java.time.LocalDateTime fromDate, java.time.LocalDateTime toDate,
+            String status, String cancellationStatus, String userId, java.time.LocalDateTime fromDate, java.time.LocalDateTime toDate,
             org.springframework.data.domain.Pageable pageable) {
         OrderStatus statusFilter = null;
         if (org.springframework.util.StringUtils.hasText(status)) {
@@ -407,15 +411,38 @@ public class OrderServiceImpl implements OrderService {
             }
         }
         String userIdFilter = org.springframework.util.StringUtils.hasText(userId) ? userId : null;
-
-        var page = orderRepository.search(statusFilter, userIdFilter, fromDate, toDate, pageable)
-                .map(order -> buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId())));
+        String cancellationStatusFilter = org.springframework.util.StringUtils.hasText(cancellationStatus)
+                ? cancellationStatus.trim().toUpperCase(Locale.ROOT)
+                : null;
+        Page<Order> page;
+        if (OrderCancellationStatus.REQUESTED.name().equals(cancellationStatusFilter)) {
+            List<String> pendingOrderIds = cancellationRepository.findByStatus(OrderCancellationStatus.REQUESTED).stream()
+                    .map(OrderCancellation::getOrderId)
+                    .distinct()
+                    .toList();
+            page = pendingOrderIds.isEmpty()
+                    ? Page.empty(pageable)
+                    : orderRepository.searchByIds(
+                            pendingOrderIds,
+                            statusFilter,
+                            userIdFilter,
+                            fromDate,
+                            toDate,
+                            pageable);
+        } else {
+            page = orderRepository.search(statusFilter, userIdFilter, fromDate, toDate, pageable);
+        }
+        var mappedPage = page.map(order -> {
+            OrderResponse response = buildOrderResponse(order, orderItemRepository.findByOrderId(order.getId()));
+            enrichCancellations(order.getId(), response);
+            return response;
+        });
 
         var totalRevenue = orderRepository.sumRevenueForSearch(
                 statusFilter, userIdFilter, fromDate, toDate, REVENUE_RECOGNIZED_STATUSES);
 
         return com.stylemind.order.dto.AdminOrdersResponse.builder()
-                .page(page)
+                .page(mappedPage)
                 .totalRevenue(totalRevenue)
                 .build();
     }
@@ -430,6 +457,7 @@ public class OrderServiceImpl implements OrderService {
         enrichAdminOrderDetails(response);
         enrichStatusHistory(orderId, response);
         enrichDeliveryImages(orderId, response);
+        enrichCancellations(orderId, response);
         return response;
     }
 
@@ -535,6 +563,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public OrderResponse updateOrderStatusForAdmin(String orderId, UpdateOrderStatusRequest request, String adminUserId) {
         OrderStatus target = OrderStatus.valueOf(request.getOrderStatus());
+        if (target == OrderStatus.CANCELLED) {
+            throw new BusinessException("ORDER_CANCEL_REQUIRES_CANCELLATION_API", "Vui lòng dùng nghiệp vụ hủy đơn để hủy đơn hàng.", 400);
+        }
         Order order = orderStatusService.changeStatus(orderId, target, adminUserId);
 
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
@@ -632,6 +663,7 @@ public class OrderServiceImpl implements OrderService {
         List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
         OrderResponse response = buildOrderResponse(order, items);
         applyPaymentStatusIfAvailable(orderId, response);
+        enrichCancellations(orderId, response);
         return response;
     }
 
@@ -698,6 +730,84 @@ public class OrderServiceImpl implements OrderService {
         orderResponse.setPaymentReference(paymentResponse.getTransactionRef());
         orderResponse.setGatewayTransactionId(paymentResponse.getGatewayTransactionId());
         orderResponse.setPaidAt(paymentResponse.getPaidAt());
+        orderResponse.setRefund(mapRefund(paymentResponse.getRefund()));
+    }
+
+    private void enrichCancellations(String orderId, OrderResponse response) {
+        List<OrderCancellationResponse> cancellations = cancellationRepository.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                .map(this::mapCancellation)
+                .toList();
+        response.setCancellationHistory(cancellations);
+        response.setLatestCancellation(cancellations.isEmpty() ? null : cancellations.get(0));
+        response.setHasPendingCancellation(cancellations.stream()
+                .anyMatch(cancellation -> OrderCancellationStatus.REQUESTED.name().equals(cancellation.getStatus())));
+        if (response.getRefund() == null) {
+            try {
+                var refundResponse = paymentClient.getRefundByOrderId(orderId);
+                if (refundResponse != null && refundResponse.isSuccess() && refundResponse.getData() != null) {
+                    response.setRefund(mapRefund(refundResponse.getData()));
+                }
+            } catch (Exception ex) {
+                log.debug("No refund available for order {}: {}", orderId, ex.getMessage());
+            }
+        }
+    }
+
+    private Map<String, OrderCancellationResponse> latestCancellationByOrderId(List<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Map.of();
+        }
+        return cancellationRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds).stream()
+                .collect(Collectors.toMap(
+                        OrderCancellation::getOrderId,
+                        this::mapCancellation,
+                        (existing, ignored) -> existing));
+    }
+
+    private OrderCancellationResponse mapCancellation(OrderCancellation cancellation) {
+        return OrderCancellationResponse.builder()
+                .id(cancellation.getId())
+                .orderId(cancellation.getOrderId())
+                .userId(cancellation.getUserId())
+                .cancellationType(cancellation.getCancellationType().name())
+                .status(cancellation.getStatus().name())
+                .reasonCode(cancellation.getReasonCode())
+                .customerNote(cancellation.getCustomerNote())
+                .adminNote(cancellation.getAdminNote())
+                .rejectionReason(cancellation.getRejectionReason())
+                .requestedBy(cancellation.getRequestedBy())
+                .reviewedBy(cancellation.getReviewedBy())
+                .requestedAt(toInstant(cancellation.getRequestedAt()))
+                .reviewedAt(toInstant(cancellation.getReviewedAt()))
+                .approvedAt(toInstant(cancellation.getApprovedAt()))
+                .createdAt(toInstant(cancellation.getCreatedAt()))
+                .updatedAt(toInstant(cancellation.getUpdatedAt()))
+                .build();
+    }
+
+    private RefundSummaryResponse mapRefund(PaymentClient.RefundResponse refund) {
+        if (refund == null) return null;
+        return RefundSummaryResponse.builder()
+                .id(refund.getId())
+                .orderId(refund.getOrderId())
+                .paymentTransactionId(refund.getPaymentTransactionId())
+                .orderCancellationId(refund.getOrderCancellationId())
+                .amount(refund.getAmount())
+                .status(refund.getStatus())
+                .method(refund.getMethod())
+                .providerReference(refund.getProviderReference())
+                .proofUrl(refund.getProofUrl())
+                .note(refund.getNote())
+                .processedBy(refund.getProcessedBy())
+                .processedAt(refund.getProcessedAt())
+                .failureReason(refund.getFailureReason())
+                .createdAt(refund.getCreatedAt())
+                .updatedAt(refund.getUpdatedAt())
+                .build();
+    }
+
+    private java.time.Instant toInstant(java.time.LocalDateTime value) {
+        return value == null ? null : value.atZone(java.time.ZoneId.systemDefault()).toInstant();
     }
 
     private void enrichOrderItems(OrderResponse response) {

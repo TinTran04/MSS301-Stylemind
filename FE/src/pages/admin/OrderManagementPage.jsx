@@ -33,6 +33,7 @@ export default function OrderManagementPage() {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('All')
+  const [cancellationFilter, setCancellationFilter] = useState(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [customerInput, setCustomerInput] = useState('')
@@ -53,6 +54,7 @@ export default function OrderManagementPage() {
         page,
         sort: 'createdAt,desc',
         status: statusFilter === 'All' ? undefined : statusFilter,
+        cancellationStatus: cancellationFilter ? 'REQUESTED' : undefined,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
         userId: customerFilter || undefined,
@@ -76,7 +78,7 @@ export default function OrderManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, fromDate, toDate, customerFilter])
+  }, [statusFilter, cancellationFilter, fromDate, toDate, customerFilter])
 
   // Reset to page 0 whenever filters change
   useEffect(() => {
@@ -134,6 +136,13 @@ export default function OrderManagementPage() {
             ))}
           </select>
         </div>
+        <button
+          type="button"
+          onClick={() => setCancellationFilter((current) => !current)}
+          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${cancellationFilter ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high'}`}
+        >
+          Có yêu cầu hủy
+        </button>
         <div className="flex items-center gap-2">
           <input
             type="date"
@@ -210,7 +219,16 @@ export default function OrderManagementPage() {
                   <td className="px-4 py-3 text-sm text-on-surface">{order.customerName || order.userId || 'Khách vãng lai'}</td>
                   <td className="px-4 py-3 text-sm text-on-surface-variant">{formatDateTime(order.createdAt || order.date)}</td>
                   <td className="px-4 py-3 text-sm text-primary font-medium">{formatCurrency(order.totalAmount || order.total || 0)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={getOrderStatus(order).toLowerCase()} /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status={getOrderStatus(order).toLowerCase()} />
+                      {order.hasPendingCancellation && (
+                        <span className="rounded-full bg-error/10 px-2 py-1 text-[11px] font-medium text-error">
+                          Yêu cầu hủy
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3">
                     <button
                       type="button"

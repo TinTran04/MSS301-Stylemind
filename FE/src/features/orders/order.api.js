@@ -38,6 +38,17 @@ export async function cancelOrder(orderId) {
   return mapOrder(response)
 }
 
+export async function requestOrderCancellation(orderId, payload, options = {}) {
+  const response = await apiClient.post(`${ENDPOINTS.ORDERS}/${orderId}/cancellations`, payload, {
+    headers: options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : undefined,
+  })
+  return response
+}
+
+export async function getOrderCancellations(orderId) {
+  return apiClient.get(`${ENDPOINTS.ORDERS}/${orderId}/cancellations`)
+}
+
 export async function uploadDeliveryImage(orderId, file) {
   const formData = new FormData()
   formData.append('file', file)

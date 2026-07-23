@@ -579,7 +579,7 @@ class OrderServiceTest {
                 argThat(this::containsOnlyCompletedStatus)))
                 .thenReturn(new BigDecimal("300000"));
 
-        AdminOrdersResponse response = orderService.getAllOrdersForAdmin(null, null, null, null, pageable);
+        AdminOrdersResponse response = orderService.getAllOrdersForAdmin(null, null, null, null, null, pageable);
 
         assertThat(response.getTotalRevenue()).isEqualByComparingTo("300000");
         verify(orderRepository).sumRevenueForSearch(

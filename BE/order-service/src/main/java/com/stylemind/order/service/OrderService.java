@@ -26,6 +26,7 @@ public interface OrderService {
 
     AdminOrdersResponse getAllOrdersForAdmin(
             String status,
+            String cancellationStatus,
             String userId,
             LocalDateTime fromDate,
             LocalDateTime toDate,

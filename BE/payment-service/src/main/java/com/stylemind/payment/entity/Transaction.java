@@ -17,6 +17,10 @@ public class Transaction extends BaseEntity {
     @Column(name = "id", length = 50)
     private String id;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @Column(name = "order_id", length = 50, nullable = false)
     private String orderId;
 
@@ -52,9 +56,14 @@ public class Transaction extends BaseEntity {
     @Column(name = "paid_at")
     private java.time.LocalDateTime paidAt;
 
+    @Column(name = "order_cancellation_id", length = 50)
+    private String orderCancellationId;
+
     // Explicit getters/setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
     public String getOrderId() { return orderId; }
     public void setOrderId(String orderId) { this.orderId = orderId; }
     public String getUserId() { return userId; }
@@ -75,4 +84,6 @@ public class Transaction extends BaseEntity {
     public void setExpiresAt(java.time.LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
     public java.time.LocalDateTime getPaidAt() { return paidAt; }
     public void setPaidAt(java.time.LocalDateTime paidAt) { this.paidAt = paidAt; }
+    public String getOrderCancellationId() { return orderCancellationId; }
+    public void setOrderCancellationId(String orderCancellationId) { this.orderCancellationId = orderCancellationId; }
 }
