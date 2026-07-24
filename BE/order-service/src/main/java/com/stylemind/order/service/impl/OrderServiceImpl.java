@@ -10,6 +10,7 @@ import com.stylemind.order.entity.*;
 import com.stylemind.order.feign.*;
 import com.stylemind.order.repository.*;
 import com.stylemind.order.service.OrderCancellationService;
+import com.stylemind.order.service.AdminRevenueService;
 import com.stylemind.order.service.OrderService;
 import com.stylemind.order.service.OrderStatusService;
 import feign.FeignException;
@@ -20,6 +21,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -29,7 +31,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.stream.Collectors;
 
 @Service
@@ -51,6 +55,13 @@ public class OrderServiceImpl implements OrderService {
     private final OrderCancellationService orderCancellationService;
     private final OrderCancellationRepository cancellationRepository;
     private final OrderDeliveryImageRepository deliveryImageRepository;
+    private final AdminRevenueService adminRevenueService;
+
+    @Value("${app.reporting.timezone:Asia/Ho_Chi_Minh}")
+    private String reportingTimezone;
+
+    @Value("${app.reporting.database-timezone:UTC}")
+    private String reportingDatabaseTimezone;
 
     private static final String CHECKOUT_STATUS_PROCESSING = "PROCESSING";
     private static final String CHECKOUT_STATUS_SUCCEEDED = "SUCCEEDED";
@@ -60,8 +71,6 @@ public class OrderServiceImpl implements OrderService {
     private static final BigDecimal STANDARD_SHIPPING_FEE = new BigDecimal("15000");
     private static final long MAX_DELIVERY_IMAGE_BYTES = 3L * 1024 * 1024;
     private static final int MAX_DELIVERY_IMAGES_PER_ORDER = 5;
-    private static final Set<OrderStatus> REVENUE_RECOGNIZED_STATUSES = Set.of(OrderStatus.COMPLETED);
-
     @Override
     public OrderResponse createOrder(String userId, String authHeader, String idempotencyKey, CreateOrderRequest request) {
         CheckoutIdempotency checkoutIdempotency = acquireCheckoutIdempotency(userId, idempotencyKey);
@@ -438,12 +447,20 @@ public class OrderServiceImpl implements OrderService {
             return response;
         });
 
-        var totalRevenue = orderRepository.sumRevenueForSearch(
-                statusFilter, userIdFilter, fromDate, toDate, REVENUE_RECOGNIZED_STATUSES);
+        var revenue = adminRevenueService.calculate(fromDate, toDate, statusFilter, userIdFilter);
 
         return com.stylemind.order.dto.AdminOrdersResponse.builder()
                 .page(mappedPage)
-                .totalRevenue(totalRevenue)
+                .totalRevenue(revenue.getNetRevenue())
+                .netRevenue(revenue.getNetRevenue())
+                .vatCollected(revenue.getVatCollected())
+                .shippingFeesCollected(revenue.getShippingFeesCollected())
+                .grossCustomerPayments(revenue.getGrossCustomerPayments())
+                .refundAmount(revenue.getRefundAmount())
+                .recognizedOrderCount(revenue.getRecognizedOrderCount())
+                .sepayRecognizedRevenue(revenue.getSepayRecognizedRevenue())
+                .codRecognizedRevenue(revenue.getCodRecognizedRevenue())
+                .currency("VND")
                 .build();
     }
 
@@ -537,14 +554,17 @@ public class OrderServiceImpl implements OrderService {
         return value.replaceAll("[\\\\/\\r\\n\\t]+", "_");
     }
 
-    /**
-     * Real order/revenue aggregates for the admin dashboard. Revenue is
-     * recognized only after the order is completed/delivered.
-     */
     @Transactional(readOnly = true)
     @Override
     public AdminOrderSummaryResponse getAdminSummary() {
-        java.time.LocalDateTime startOfToday = java.time.LocalDate.now().atStartOfDay();
+        ZoneId zone = ZoneId.of(reportingTimezone);
+        ZoneId databaseZone = ZoneId.of(reportingDatabaseTimezone);
+        LocalDate today = LocalDate.now(zone);
+        LocalDateTime startOfToday = reportingBoundary(today, zone, databaseZone);
+        LocalDateTime startOfTomorrow = reportingBoundary(today.plusDays(1), zone, databaseZone);
+        AdminRevenueService.RevenueSummary allTime = adminRevenueService.calculate(null, null, null, null);
+        AdminRevenueService.RevenueSummary todayRevenue = adminRevenueService.calculate(
+                startOfToday, startOfTomorrow, null, null);
 
         return AdminOrderSummaryResponse.builder()
                 .totalOrders(orderRepository.count())
@@ -555,9 +575,30 @@ public class OrderServiceImpl implements OrderService {
                 .cancelledOrders(orderRepository.countByStatuses(
                         java.util.EnumSet.of(OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.FAILED)))
                 .todayOrders(orderRepository.countCreatedSince(startOfToday))
-                .totalRevenue(orderRepository.sumRevenueByStatuses(REVENUE_RECOGNIZED_STATUSES))
-                .todayRevenue(orderRepository.sumRevenueByStatusesSince(REVENUE_RECOGNIZED_STATUSES, startOfToday))
+                .totalRevenue(allTime.getNetRevenue())
+                .netRevenue(allTime.getNetRevenue())
+                .vatCollected(allTime.getVatCollected())
+                .shippingFeesCollected(allTime.getShippingFeesCollected())
+                .grossCustomerPayments(allTime.getGrossCustomerPayments())
+                .refundAmount(allTime.getRefundAmount())
+                .recognizedOrderCount(allTime.getRecognizedOrderCount())
+                .sepayRecognizedRevenue(allTime.getSepayRecognizedRevenue())
+                .codRecognizedRevenue(allTime.getCodRecognizedRevenue())
+                .currency("VND")
+                .todayNetRevenue(todayRevenue.getNetRevenue())
+                .todayVatCollected(todayRevenue.getVatCollected())
+                .todayShippingFeesCollected(todayRevenue.getShippingFeesCollected())
+                .todayGrossCustomerPayments(todayRevenue.getGrossCustomerPayments())
+                .todayRefundAmount(todayRevenue.getRefundAmount())
+                .todayRecognizedOrderCount(todayRevenue.getRecognizedOrderCount())
+                .todayRevenue(todayRevenue.getNetRevenue())
                 .build();
+    }
+
+    private LocalDateTime reportingBoundary(LocalDate date, ZoneId reportingZone, ZoneId databaseZone) {
+        return date.atStartOfDay(reportingZone)
+                .withZoneSameInstant(databaseZone)
+                .toLocalDateTime();
     }
 
     @Override

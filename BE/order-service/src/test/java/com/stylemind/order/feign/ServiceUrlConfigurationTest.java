@@ -96,6 +96,20 @@ class ServiceUrlConfigurationTest {
                 .contains("X_INTERNAL_TOKEN: ${INTERNAL_TOKEN}");
     }
 
+    @Test
+    void dockerComposeGivesPaymentServiceTheVariableReadByItsInternalAuthFilter() throws IOException {
+        Path composeFile = findRepositoryFile("docker-compose.yml");
+        String compose = Files.readString(composeFile, StandardCharsets.UTF_8);
+
+        String paymentServiceBlock = compose.substring(
+                compose.indexOf("\n  payment-service:"),
+                compose.indexOf("\n  notification-service:"));
+
+        assertThat(paymentServiceBlock)
+                .as("payment-service application.yml reads X_INTERNAL_TOKEN")
+                .contains("X_INTERNAL_TOKEN: ${INTERNAL_TOKEN}");
+    }
+
     // The internal-token RequestInterceptor is registered as a plain @Configuration bean in
     // common-lib and is scanned into every service's main ApplicationContext (see each
     // *Application.java's scanBasePackages), so it applies globally to every Feign client -

@@ -51,7 +51,7 @@ public class AdminOrderController {
                 cancellationStatus,
                 userId,
                 fromDate != null ? fromDate.atStartOfDay() : null,
-                toDate != null ? toDate.atTime(23, 59, 59) : null,
+                toDate != null ? toDate.plusDays(1).atStartOfDay() : null,
                 pageable);
         return ResponseEntity.ok(ApiResponse.success("Admin orders fetched successfully", result));
     }

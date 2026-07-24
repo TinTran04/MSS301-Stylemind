@@ -277,6 +277,40 @@ public class PaymentServiceImpl implements PaymentService {
         transactionRepository.save(transaction);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentRevenueCandidate> findSepayRevenueCandidates(LocalDateTime from, LocalDateTime to) {
+        if (from == null || to == null || !from.isBefore(to)) {
+            throw new BusinessException(
+                    "INVALID_REVENUE_RANGE", "Khoảng thời gian doanh thu không hợp lệ", 400);
+        }
+        return transactionRepository.findSepayRevenueCandidates(from, to).stream()
+                .map(this::toRevenueCandidate)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentRevenueCandidate> findRevenueCandidatesByOrderIds(List<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return List.of();
+        }
+        return transactionRepository.findByOrderIdIn(orderIds).stream()
+                .filter(transaction -> METHOD_COD.equalsIgnoreCase(transaction.getMethod()))
+                .map(this::toRevenueCandidate)
+                .toList();
+    }
+
+    private PaymentRevenueCandidate toRevenueCandidate(Transaction transaction) {
+        return PaymentRevenueCandidate.builder()
+                .orderId(transaction.getOrderId())
+                .method(transaction.getMethod())
+                .status(transaction.getStatus())
+                .amount(transaction.getAmount())
+                .paidAt(transaction.getPaidAt())
+                .build();
+    }
+
     private String buildPaymentToken(String transactionId) {
         String compactId = transactionId == null ? StringUtil.generateShortId() : transactionId;
         return ("SM" + compactId.substring(0, Math.min(compactId.length(), 10))).toUpperCase();
