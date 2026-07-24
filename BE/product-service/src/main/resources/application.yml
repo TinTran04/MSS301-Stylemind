@@ -38,6 +38,13 @@ spring:
     multipart:
       max-file-size: 10MB
       max-request-size: 50MB
+  task:
+    execution:
+      pool:
+        core-size: 2
+        max-size: 5
+        queue-capacity: 100
+      thread-name-prefix: product-async-
 
 # JWT Asymmetric Key Configuration (Consumer)
 jwt:
