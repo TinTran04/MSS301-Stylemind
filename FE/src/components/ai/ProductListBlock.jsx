@@ -45,7 +45,7 @@ export default function ProductListBlock({ products, messageId }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-3 max-w-[560px]">
+    <div className="flex flex-wrap gap-3 max-w-[70%]">
       {products.map((product, idx) => {
         const pid = product.product_id || `p-${idx}`
         const isAdding = addingId === pid
@@ -60,7 +60,7 @@ export default function ProductListBlock({ products, messageId }) {
         return (
           <div
             key={pid}
-            className="glass-panel rounded-2xl overflow-hidden flex flex-col"
+            className="w-[160px] glass-panel rounded-2xl overflow-hidden flex flex-col"
             style={{ minHeight: 200 }}
           >
             {/* Product Image */}

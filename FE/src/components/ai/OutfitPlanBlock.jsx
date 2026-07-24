@@ -36,7 +36,7 @@ export default function OutfitPlanBlock({ plan, messageId }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-w-[70%]">
       {outfits.map((dayPlan) => (
         <div key={dayPlan.day} className="glass-panel rounded-2xl p-4">
           {outfits.length > 1 && (
@@ -50,13 +50,14 @@ export default function OutfitPlanBlock({ plan, messageId }) {
             <p className="text-xs text-on-surface-variant mb-3">{dayPlan.context}</p>
           )}
 
-          <div className="grid grid-cols-2 gap-3 max-w-[500px]">
+          <div className="flex flex-wrap gap-3">
             {dayPlan.items.map((item, idx) => (
-              <ProductBlock
-                key={item.product_id || idx}
-                product={toDisplayProduct(item)}
-                bundleId={`${messageId}-day-${dayPlan.day}`}
-              />
+              <div key={item.product_id || idx} className="w-[160px]">
+                <ProductBlock
+                  product={toDisplayProduct(item)}
+                  bundleId={`${messageId}-day-${dayPlan.day}`}
+                />
+              </div>
             ))}
           </div>
 
