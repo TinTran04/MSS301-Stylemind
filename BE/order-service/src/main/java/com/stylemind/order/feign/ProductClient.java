@@ -2,6 +2,10 @@ package com.stylemind.order.feign;
 
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.order.config.ResilientReadFeignConfig;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,6 +16,21 @@ public interface ProductClient {
 
     @GetMapping("/internal/v1/products/variants/{variantId}")
     ApiResponse<VariantSnapshot> getVariantSnapshot(@PathVariable String variantId);
+
+    @PostMapping("/internal/v1/inventory/return-restocks")
+    ApiResponse<Void> restockInventory(@RequestBody ReturnRestockRequest request);
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    class ReturnRestockRequest {
+        private String operationKey; // return:{returnItemId}:restock
+        private String variantId;
+        private Integer quantity;
+        private String reason;
+        private String referenceId; // returnRequestId
+    }
 
     class VariantSnapshot {
         private String variantId;

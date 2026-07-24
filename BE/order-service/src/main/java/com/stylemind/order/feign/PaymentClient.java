@@ -92,6 +92,11 @@ public interface PaymentClient {
     class CreateRefundRequest {
         private String orderId;
         private String orderCancellationId;
+        private String returnRequestId;
+        private BigDecimal merchandiseAmount;
+        private BigDecimal taxAmount;
+        private BigDecimal shippingAmount;
+        private String reason;
     }
 
     @lombok.Data
