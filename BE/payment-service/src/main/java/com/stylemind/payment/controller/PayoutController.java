@@ -23,4 +23,11 @@ public class PayoutController {
         PayoutDestinationResponse response = refundService.savePayoutDestination(returnRequestId, request);
         return ResponseEntity.ok(ApiResponse.success("STK ngân hàng đã được lưu thành công", response));
     }
+
+    @GetMapping("/{returnRequestId}/payout-destination")
+    public ResponseEntity<ApiResponse<PayoutDestinationResponse>> getPayoutDestination(
+            @PathVariable("returnRequestId") String returnRequestId) {
+        PayoutDestinationResponse response = refundService.getPayoutDestination(returnRequestId);
+        return ResponseEntity.ok(ApiResponse.success("OK", response));
+    }
 }

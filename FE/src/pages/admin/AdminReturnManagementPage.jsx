@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { RotateCcw, CheckCircle2, XCircle, PackageCheck, Eye } from 'lucide-react'
+import { RotateCcw, CheckCircle2, XCircle, CreditCard, Eye, ExternalLink } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
-import { adminGetReturns, adminReviewReturn, adminReceiveAndQc } from '../../features/orders/return.api'
+import { adminGetReturns, adminReviewReturn, adminReceiveAndQc, getPayoutDestination } from '../../features/orders/return.api'
 import { formatDateTime } from '../../utils/formatDate'
 
 const STATUS_OPTIONS = [
@@ -10,7 +10,7 @@ const STATUS_OPTIONS = [
   { key: 'REQUESTED', label: 'Chờ duyệt' },
   { key: 'APPROVED', label: 'Đã chấp nhận' },
   { key: 'RETURN_IN_TRANSIT', label: 'Đang vận chuyển' },
-  { key: 'QC_PASSED', label: 'QC Đạt (Đã hoàn tiền)' },
+  { key: 'QC_PASSED', label: 'QC Đạt (Chờ chuyển tiền)' },
   { key: 'QC_FAILED', label: 'QC Thất bại' },
   { key: 'REJECTED', label: 'Bị từ chối' },
 ]
@@ -22,8 +22,13 @@ export default function AdminReturnManagementPage() {
   const [error, setError] = useState('')
 
   const [selectedReturn, setSelectedReturn] = useState(null)
+  const [payoutInfo, setPayoutInfo] = useState(null)
+  const [payoutLoading, setPayoutLoading] = useState(false)
+
   const [reviewModalOpen, setReviewModalOpen] = useState(false)
   const [qcModalOpen, setQcModalOpen] = useState(false)
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
+
   const [adminNote, setAdminNote] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [isPhysicalReturn, setIsPhysicalReturn] = useState(true)
@@ -46,6 +51,21 @@ export default function AdminReturnManagementPage() {
   useEffect(() => {
     fetchReturns()
   }, [selectedStatus])
+
+  const handleOpenDetail = async (ret) => {
+    setSelectedReturn(ret)
+    setPayoutInfo(null)
+    setPayoutLoading(true)
+    setDetailModalOpen(true)
+    try {
+      const res = await getPayoutDestination(ret.id)
+      setPayoutInfo(res?.data || res)
+    } catch {
+      setPayoutInfo(null)
+    } finally {
+      setPayoutLoading(false)
+    }
+  }
 
   const handleReviewSubmit = async (action) => {
     if (!selectedReturn) return
@@ -90,7 +110,7 @@ export default function AdminReturnManagementPage() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <RotateCcw className="text-emerald-600" /> Quản lý Trả hàng & Hoàn tiền
           </h1>
-          <p className="text-xs text-gray-500 mt-1">Duyệt yêu cầu trả hàng, tiếp nhận bưu gửi và kiểm định QC</p>
+          <p className="text-xs text-gray-500 mt-1">Duyệt yêu cầu trả hàng, tiếp nhận bưu gửi, kiểm định QC & xem STK chuyển tiền</p>
         </div>
 
         <select
@@ -143,7 +163,14 @@ export default function AdminReturnManagementPage() {
                       {ret.status}
                     </Badge>
                   </td>
-                  <td className="p-3 text-right space-x-2">
+                  <td className="p-3 text-right space-x-1.5">
+                    <button
+                      onClick={() => handleOpenDetail(ret)}
+                      className="px-2.5 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded font-medium inline-flex items-center gap-1"
+                    >
+                      <Eye size={12} /> Chi tiết & STK
+                    </button>
+
                     {ret.status === 'REQUESTED' && (
                       <button
                         onClick={() => {
@@ -176,6 +203,58 @@ export default function AdminReturnManagementPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Detail & Payout Info Modal */}
+      {selectedReturn && (
+        <Modal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} title={`Chi Tiết & Thông Tin Chuyển Tiền #${selectedReturn.id}`}>
+          <div className="space-y-4 text-xs">
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 space-y-1">
+              <p><span className="font-semibold">Mã đơn hàng:</span> {selectedReturn.orderId}</p>
+              <p><span className="font-semibold">Khách hàng ID:</span> {selectedReturn.userId}</p>
+              <p><span className="font-semibold">Lý do trả:</span> <span className="text-emerald-700 font-semibold">{selectedReturn.reason}</span></p>
+              <p><span className="font-semibold">Ghi chú từ khách:</span> {selectedReturn.customerNote || 'Không có'}</p>
+              <p><span className="font-semibold">Thời gian gửi:</span> {formatDateTime(selectedReturn.requestedAt)}</p>
+            </div>
+
+            {/* Thông tin tài khoản ngân hàng của khách */}
+            <div className="bg-emerald-50 border border-emerald-200 p-3.5 rounded-lg text-emerald-950 space-y-2">
+              <div className="flex items-center gap-1.5 font-bold text-emerald-900 border-b border-emerald-200 pb-1.5">
+                <CreditCard size={16} /> Thông Tin Ngân Hàng Nhận Tiền Hoàn (Payout Destination)
+              </div>
+              {payoutLoading && <p className="text-gray-500 italic">Đang tải thông tin STK...</p>}
+              {!payoutLoading && payoutInfo?.status === 'PROVIDED' && (
+                <div className="space-y-1 font-medium">
+                  <p><span className="text-gray-600">Ngân hàng:</span> <span className="font-bold text-emerald-900">{payoutInfo.bankCode}</span></p>
+                  <p><span className="text-gray-600">Chủ tài khoản:</span> <span className="font-bold text-emerald-900">{payoutInfo.accountHolder}</span></p>
+                  <p><span className="text-gray-600">Số tài khoản:</span> <span className="font-mono font-bold text-emerald-900">{payoutInfo.maskedAccountNumber}</span></p>
+                </div>
+              )}
+              {!payoutLoading && payoutInfo?.status !== 'PROVIDED' && (
+                <p className="text-gray-500 italic">Khách hàng chưa cập nhật thông tin STK ngân hàng.</p>
+              )}
+            </div>
+
+            {selectedReturn.shipment && (
+              <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-blue-900 space-y-1">
+                <p className="font-semibold">Thông tin bưu gửi của khách:</p>
+                <p>Đơn vị: {selectedReturn.shipment.carrier}</p>
+                <p>Mã vận đơn: <span className="font-mono font-semibold">{selectedReturn.shipment.trackingCode}</span></p>
+              </div>
+            )}
+
+            {selectedReturn.evidences?.length > 0 && (
+              <div>
+                <p className="font-semibold mb-1">Ảnh bằng chứng:</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedReturn.evidences.map((ev) => (
+                    <img key={ev.id} src={ev.secureUrl} alt="evidence" className="w-16 h-16 object-cover rounded border" />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </Modal>
       )}
 
       {/* Review Modal */}

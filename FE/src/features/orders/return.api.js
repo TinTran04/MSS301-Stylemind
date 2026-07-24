@@ -25,6 +25,10 @@ export async function savePayoutDestination(returnId, payload) {
   return apiClient.put(`/api/v1/returns/${returnId}/payout-destination`, payload)
 }
 
+export async function getPayoutDestination(returnId) {
+  return apiClient.get(`/api/v1/returns/${returnId}/payout-destination`)
+}
+
 export async function adminGetReturns(status) {
   const query = status ? `?status=${status}` : ''
   return apiClient.get(`/api/v1/admin/returns${query}`)

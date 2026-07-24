@@ -148,6 +148,31 @@ public class RefundServiceImpl implements RefundService {
                 .build();
     }
 
+    public PayoutDestinationResponse getPayoutDestination(String returnRequestId) {
+        RefundTransaction refund = refundRepository.findAll().stream()
+                .filter(r -> returnRequestId.equals(r.getReturnRequestId()))
+                .findFirst()
+                .orElse(null);
+
+        if (refund == null || refund.getBankCode() == null) {
+            return PayoutDestinationResponse.builder()
+                    .returnRequestId(returnRequestId)
+                    .status("NOT_PROVIDED")
+                    .editable(true)
+                    .build();
+        }
+
+        return PayoutDestinationResponse.builder()
+                .returnRequestId(returnRequestId)
+                .bankCode(refund.getBankCode())
+                .accountHolder(refund.getAccountHolder())
+                .maskedAccountNumber(maskAccountNumber(refund.getAccountNumber()))
+                .status("PROVIDED")
+                .editable(refund.getStatus() == RefundStatus.REFUND_PENDING)
+                .updatedAt(refund.getUpdatedAt())
+                .build();
+    }
+
     private Transaction findPaidTransaction(String orderId) {
         return transactionRepository.findTopByOrderIdOrderByCreatedAtDesc(orderId)
                 .filter(transaction -> STATUS_PAID.equalsIgnoreCase(transaction.getStatus())
