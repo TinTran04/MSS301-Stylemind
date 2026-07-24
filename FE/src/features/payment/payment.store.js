@@ -106,6 +106,7 @@ const usePaymentStore = create((set, get) => ({
         paymentMethod: method,
       }, {
         idempotencyKey,
+        skipAuthRedirect: true,
       })
       if (!isCurrentCheckoutAttempt(get(), attemptId)) {
         return { success: false, stale: true }

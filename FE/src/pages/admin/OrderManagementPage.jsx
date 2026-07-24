@@ -16,6 +16,8 @@ import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatDateTime } from '../../utils/formatDate'
 import { buildAdminOrderDetailPath } from './adminOrderDetail.utils'
+import Badge from '../../components/common/Badge'
+import { getOrderStatusDisplay } from '../../features/orders/order-return.utils'
 
 const STATUS_OPTIONS = ['All', ...Object.keys(ORDER_STATUS_TRANSITIONS)]
 const STATUS_FILTER_LABELS = {
@@ -34,6 +36,7 @@ export default function OrderManagementPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState('All')
   const [cancellationFilter, setCancellationFilter] = useState(false)
+  const [returnFilter, setReturnFilter] = useState(false)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [customerInput, setCustomerInput] = useState('')
@@ -55,6 +58,7 @@ export default function OrderManagementPage() {
         sort: 'createdAt,desc',
         status: statusFilter === 'All' ? undefined : statusFilter,
         cancellationStatus: cancellationFilter ? 'REQUESTED' : undefined,
+        returnStatus: returnFilter ? 'PENDING' : undefined,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
         userId: customerFilter || undefined,
@@ -78,7 +82,7 @@ export default function OrderManagementPage() {
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, cancellationFilter, fromDate, toDate, customerFilter])
+  }, [statusFilter, cancellationFilter, returnFilter, fromDate, toDate, customerFilter])
 
   // Reset to page 0 whenever filters change
   useEffect(() => {
@@ -122,6 +126,13 @@ export default function OrderManagementPage() {
 
       {/* Filters */}
       <div className="flex flex-col lg:flex-row gap-3 lg:items-center">
+        <button
+          type="button"
+          onClick={() => setReturnFilter((current) => !current)}
+          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${returnFilter ? 'bg-primary text-on-primary' : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high'}`}
+        >
+          Có yêu cầu hoàn hàng
+        </button>
         <div className="flex items-center gap-2">
           <Filter size={16} className="text-on-surface-variant shrink-0" />
           <select
@@ -213,7 +224,9 @@ export default function OrderManagementPage() {
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-sm text-on-surface-variant">Không tìm thấy đơn hàng nào.</td>
                 </tr>
-              ) : orders.map((order) => (
+              ) : orders.map((order) => {
+                const statusDisplay = getOrderStatusDisplay(order)
+                return (
                 <tr key={order.id} className="hover:bg-surface-container-high/30">
                   <td className="px-4 py-3 text-sm font-medium text-primary">{order.id}</td>
                   <td className="px-4 py-3 text-sm text-on-surface">{order.customerName || order.userId || 'Khách vãng lai'}</td>
@@ -221,7 +234,11 @@ export default function OrderManagementPage() {
                   <td className="px-4 py-3 text-sm text-primary font-medium">{formatCurrency(order.totalAmount || order.total || 0)}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatusBadge status={getOrderStatus(order).toLowerCase()} />
+                      {statusDisplay.source === 'return' ? (
+                        <Badge variant={statusDisplay.variant}>{statusDisplay.label}</Badge>
+                      ) : (
+                        <StatusBadge status={getOrderStatus(order).toLowerCase()} label={statusDisplay.label} />
+                      )}
                       {order.hasPendingCancellation && (
                         <span className="rounded-full bg-error/10 px-2 py-1 text-[11px] font-medium text-error">
                           Yêu cầu hủy
@@ -240,7 +257,8 @@ export default function OrderManagementPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -14,6 +14,7 @@ import com.stylemind.order.dto.OrderResponse;
 import com.stylemind.order.entity.CheckoutIdempotency;
 import com.stylemind.order.entity.Order;
 import com.stylemind.order.entity.OrderItem;
+import com.stylemind.order.entity.OrderReturnStatus;
 import com.stylemind.order.entity.OrderStatus;
 import com.stylemind.order.entity.OrderStatusAuditLog;
 import com.stylemind.order.feign.CartClient;
@@ -25,6 +26,8 @@ import com.stylemind.order.repository.CheckoutIdempotencyRepository;
 import com.stylemind.order.repository.OrderItemRepository;
 import com.stylemind.order.repository.OrderRepository;
 import com.stylemind.order.repository.OrderDeliveryImageRepository;
+import com.stylemind.order.repository.OrderReturnAttachmentRepository;
+import com.stylemind.order.repository.OrderReturnRequestRepository;
 import com.stylemind.order.repository.OrderStatusAuditLogRepository;
 import com.stylemind.order.service.impl.OrderServiceImpl;
 import org.springframework.mock.web.MockMultipartFile;
@@ -72,6 +75,8 @@ class OrderServiceTest {
     @Mock OrderStatusAuditLogRepository auditLogRepository;
     @Mock OrderStatusService orderStatusService;
     @Mock OrderDeliveryImageRepository deliveryImageRepository;
+    @Mock OrderReturnRequestRepository returnRequestRepository;
+    @Mock OrderReturnAttachmentRepository returnAttachmentRepository;
 
     @InjectMocks OrderServiceImpl orderService;
 
@@ -90,6 +95,8 @@ class OrderServiceTest {
         address.setValidationStatus("VALID");
         lenient().when(userAddressClient.getAddress(anyString(), anyString()))
                 .thenReturn(ApiResponse.success("ok", address));
+        lenient().when(returnRequestRepository.findByOrderIdOrderByCreatedAtDesc(anyString()))
+                .thenReturn(List.of());
     }
 
     @Test
@@ -549,21 +556,27 @@ class OrderServiceTest {
 
     @Test
     void getAdminSummary_countsRevenueOnlyForCompletedOrders() {
-        when(orderRepository.sumRevenueByStatuses(argThat(this::containsOnlyCompletedStatus)))
-                .thenReturn(new BigDecimal("250000"));
-        when(orderRepository.sumRevenueByStatusesSince(
+        when(orderRepository.sumRevenueByStatusesExcludingReturnStatus(
                 argThat(this::containsOnlyCompletedStatus),
-                any(LocalDateTime.class)))
+                eq(OrderReturnStatus.REFUNDED)))
+                .thenReturn(new BigDecimal("250000"));
+        when(orderRepository.sumRevenueByStatusesSinceExcludingReturnStatus(
+                argThat(this::containsOnlyCompletedStatus),
+                any(LocalDateTime.class),
+                eq(OrderReturnStatus.REFUNDED)))
                 .thenReturn(new BigDecimal("125000"));
 
         AdminOrderSummaryResponse response = orderService.getAdminSummary();
 
         assertThat(response.getTotalRevenue()).isEqualByComparingTo("250000");
         assertThat(response.getTodayRevenue()).isEqualByComparingTo("125000");
-        verify(orderRepository).sumRevenueByStatuses(argThat(this::containsOnlyCompletedStatus));
-        verify(orderRepository).sumRevenueByStatusesSince(
+        verify(orderRepository).sumRevenueByStatusesExcludingReturnStatus(
                 argThat(this::containsOnlyCompletedStatus),
-                any(LocalDateTime.class));
+                eq(OrderReturnStatus.REFUNDED));
+        verify(orderRepository).sumRevenueByStatusesSinceExcludingReturnStatus(
+                argThat(this::containsOnlyCompletedStatus),
+                any(LocalDateTime.class),
+                eq(OrderReturnStatus.REFUNDED));
     }
 
     @Test
@@ -576,10 +589,11 @@ class OrderServiceTest {
                 isNull(),
                 isNull(),
                 isNull(),
-                argThat(this::containsOnlyCompletedStatus)))
+                argThat(this::containsOnlyCompletedStatus),
+                eq(OrderReturnStatus.REFUNDED)))
                 .thenReturn(new BigDecimal("300000"));
 
-        AdminOrdersResponse response = orderService.getAllOrdersForAdmin(null, null, null, null, null, pageable);
+        AdminOrdersResponse response = orderService.getAllOrdersForAdmin(null, null, null, null, null, null, pageable);
 
         assertThat(response.getTotalRevenue()).isEqualByComparingTo("300000");
         verify(orderRepository).sumRevenueForSearch(
@@ -587,7 +601,8 @@ class OrderServiceTest {
                 isNull(),
                 isNull(),
                 isNull(),
-                argThat(this::containsOnlyCompletedStatus));
+                argThat(this::containsOnlyCompletedStatus),
+                eq(OrderReturnStatus.REFUNDED));
     }
 
     @Test

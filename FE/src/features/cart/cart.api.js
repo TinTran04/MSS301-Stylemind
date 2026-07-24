@@ -29,7 +29,7 @@ export async function updateCartItem(itemId, quantity) {
 }
 
 export async function removeCartItem(id) {
-  await apiClient.delete(`${ENDPOINTS.CART}/${id}`, { headers: cartHeaders() })
+  await apiClient.delete(`${ENDPOINTS.CART}/${id}`, { headers: cartHeaders(), skipAuthRedirect: true })
   return true
 }
 

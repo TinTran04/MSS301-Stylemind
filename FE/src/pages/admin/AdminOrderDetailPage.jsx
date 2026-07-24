@@ -6,12 +6,17 @@ import Badge from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
 import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
 import AdminRefundPanel from '../../components/admin/AdminRefundPanel'
+import AdminReturnPanel from '../../components/admin/AdminReturnPanel'
 import StatusBadge from '../../components/admin/StatusBadge'
 import {
+  approveOrderReturn,
+  adminCancelOrder,
   approveOrderCancellation,
+  completeOrderReturn,
   completeOrderRefund,
   failOrderRefund,
   getAdminOrder,
+  rejectOrderReturn,
   rejectOrderCancellation,
   updateAdminOrderStatus,
 } from '../../features/orders/admin-order.api'
@@ -29,6 +34,9 @@ import {
 } from './adminOrderDetail.utils'
 import { getAdminOrderStatusOptions, getStatusUpdateErrorMessage } from './adminOrderStatus.utils'
 import OrderCancellationPanel from '../../components/customer/OrderCancellationPanel'
+import OrderCancellationDialog from '../../components/customer/OrderCancellationDialog'
+import { ADMIN_CANCELLATION_REASONS } from '../../features/orders/order-cancellation.constants'
+import { getOrderStatusDisplay } from '../../features/orders/order-return.utils'
 
 function DetailSection({ title, icon: Icon, children, className = '' }) {
   return (
@@ -205,7 +213,9 @@ export default function AdminOrderDetailPage() {
   const [statusError, setStatusError] = useState(null)
   const [statusToast, setStatusToast] = useState('')
   const [cancellationUpdating, setCancellationUpdating] = useState(false)
+  const [adminCancelDialogOpen, setAdminCancelDialogOpen] = useState(false)
   const [refundUpdating, setRefundUpdating] = useState(false)
+  const [returnUpdating, setReturnUpdating] = useState(false)
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
   const [rejectionError, setRejectionError] = useState('')
@@ -259,6 +269,8 @@ export default function AdminOrderDetailPage() {
       ? 'SePay'
       : order.paymentMethod
   const hasPendingCancellation = Boolean(order.hasPendingCancellation || order.latestCancellation?.status === 'REQUESTED')
+  const canAdminDirectCancel = !hasPendingCancellation && ['PENDING', 'PAYMENT_PENDING', 'PAID', 'CONFIRMED', 'PROCESSING'].includes(orderStatus)
+  const statusDisplay = getOrderStatusDisplay(order)
 
   const handleStatusSelection = (event) => {
     const nextStatus = event.target.value
@@ -346,6 +358,26 @@ export default function AdminOrderDetailPage() {
     }
   }
 
+  const handleAdminCancelOrder = async (payload) => {
+    if (cancellationUpdating || !canAdminDirectCancel) return
+    setCancellationUpdating(true)
+    setStatusToast('')
+    setStatusError(null)
+    try {
+      await adminCancelOrder(order.id, payload)
+      await fetchOrder()
+      setAdminCancelDialogOpen(false)
+      setStatusToast('Đã hủy đơn hàng.')
+    } catch (err) {
+      setStatusError(getAdminErrorMessage(err, {
+        fallbackTitle: 'Không thể hủy đơn hàng',
+        fallbackMessage: 'Hệ thống chưa thể hủy đơn hàng. Vui lòng thử lại sau.',
+      }))
+    } finally {
+      setCancellationUpdating(false)
+    }
+  }
+
   const handleCompleteRefund = async (payload) => {
     if (!order.refund?.id || refundUpdating) return
     setRefundUpdating(true)
@@ -368,6 +400,45 @@ export default function AdminOrderDetailPage() {
     }
   }
 
+  const handleApproveReturn = async () => {
+    if (!order.latestReturnRequest?.id || returnUpdating) return
+    setReturnUpdating(true)
+    setStatusToast('')
+    try {
+      await approveOrderReturn(order.latestReturnRequest.id)
+      await fetchOrder()
+      setStatusToast('Đã đồng ý yêu cầu hoàn hàng. Khách hàng cần nhập thông tin ngân hàng.')
+    } finally {
+      setReturnUpdating(false)
+    }
+  }
+
+  const handleRejectReturn = async (payload) => {
+    if (!order.latestReturnRequest?.id || returnUpdating) return
+    setReturnUpdating(true)
+    setStatusToast('')
+    try {
+      await rejectOrderReturn(order.latestReturnRequest.id, payload)
+      await fetchOrder()
+      setStatusToast('Đã từ chối yêu cầu hoàn hàng.')
+    } finally {
+      setReturnUpdating(false)
+    }
+  }
+
+  const handleCompleteReturn = async (payload) => {
+    if (!order.latestReturnRequest?.id || returnUpdating) return
+    setReturnUpdating(true)
+    setStatusToast('')
+    try {
+      await completeOrderReturn(order.id, order.latestReturnRequest.id, payload)
+      await fetchOrder()
+      setStatusToast('Đã cập nhật hoàn tiền thủ công.')
+    } finally {
+      setReturnUpdating(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -377,7 +448,11 @@ export default function AdminOrderDetailPage() {
           </button>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <h1 className="font-headline-md text-primary">Chi tiết đơn hàng</h1>
-            <StatusBadge status={orderStatus.toLowerCase()} label={formatStatusLabel(orderStatus)} />
+            {statusDisplay.source === 'return' ? (
+              <Badge variant={statusDisplay.variant}>{statusDisplay.label}</Badge>
+            ) : (
+              <StatusBadge status={orderStatus.toLowerCase()} label={statusDisplay.label} />
+            )}
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-on-surface-variant">
             <span className="font-mono">#{String(order.id).slice(0, 12)}</span>
@@ -470,6 +545,16 @@ export default function AdminOrderDetailPage() {
               <p className="mb-3 text-sm text-on-surface-variant">Chưa có yêu cầu hủy nào.</p>
             )}
             <OrderCancellationPanel cancellation={order.latestCancellation} refund={order.refund} />
+            {canAdminDirectCancel && (
+              <button
+                type="button"
+                onClick={() => setAdminCancelDialogOpen(true)}
+                disabled={cancellationUpdating}
+                className="mt-4 inline-flex w-full justify-center rounded-lg border border-error/30 px-4 py-2 text-sm font-medium text-error hover:bg-error-container/30 disabled:opacity-50"
+              >
+                Hủy đơn
+              </button>
+            )}
             <div className="mt-4">
               <AdminRefundPanel
                 orderId={order.id}
@@ -499,6 +584,15 @@ export default function AdminOrderDetailPage() {
                 </button>
               </div>
             )}
+          </DetailSection>
+          <DetailSection title="Hoàn hàng COD">
+            <AdminReturnPanel
+              returnRequest={order.latestReturnRequest}
+              loading={returnUpdating}
+              onApprove={handleApproveReturn}
+              onReject={handleRejectReturn}
+              onComplete={handleCompleteReturn}
+            />
           </DetailSection>
         </aside>
       </div>
@@ -557,6 +651,20 @@ export default function AdminOrderDetailPage() {
           </div>
         </div>
       </Modal>
+      <OrderCancellationDialog
+        isOpen={adminCancelDialogOpen}
+        title="Hủy đơn hàng"
+        confirmLabel="Xác nhận hủy"
+        loading={cancellationUpdating}
+        reasonOptions={ADMIN_CANCELLATION_REASONS}
+        noteLabel="Ghi chú admin"
+        noteFieldName="adminNote"
+        notePlaceholder="Nhập ghi chú để lưu vào lịch sử hủy đơn."
+        noteRequired
+        noteRequiredMessage="Vui lòng nhập ghi chú admin trước khi hủy đơn."
+        onClose={() => { if (!cancellationUpdating) setAdminCancelDialogOpen(false) }}
+        onConfirm={handleAdminCancelOrder}
+      />
     </div>
   )
 }

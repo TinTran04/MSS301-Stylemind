@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { mapOrder, mapOrderSummary } from './order.mapper.js'
+import { hydrateOrderSummariesWithDetails, mapOrder, mapOrderSummary, mergeOrderSummaryUpdate } from './order.mapper.js'
 import { ORDER_TIMELINE_STEPS } from './orderStatus.js'
 
 test('mapOrder builds timeline from real status history without marking skipped milestones', () => {
@@ -43,6 +43,88 @@ test('mapOrderSummary keeps list responses bounded to summary fields', () => {
   assert.equal(order.itemCount, 2)
   assert.equal(order.total, 123000)
   assert.deepEqual(order.items, [])
+})
+
+test('mergeOrderSummaryUpdate refreshes list return status from order detail', () => {
+  const currentList = [
+    mapOrderSummary({
+      id: 'order-returning',
+      orderStatus: 'COMPLETED',
+      totalAmount: 350900,
+      itemCount: 1,
+      createdAt: '2026-07-24T12:32:00Z',
+    }),
+  ]
+  const detail = mapOrder({
+    id: 'order-returning',
+    orderStatus: 'COMPLETED',
+    totalAmount: 350900,
+    createdAt: '2026-07-24T12:32:00Z',
+    latestReturnRequest: { id: 'return-1', status: 'BANK_INFO_SUBMITTED' },
+    items: [{ id: 'item-1', productName: 'Áo Polo', priceAtPurchase: 350900, quantity: 1 }],
+  })
+
+  const nextList = mergeOrderSummaryUpdate(currentList, detail)
+
+  assert.equal(nextList[0].latestReturnRequest.status, 'BANK_INFO_SUBMITTED')
+  assert.equal(nextList[0].itemCount, 1)
+  assert.equal(nextList[0].items.length, 0)
+})
+
+test('hydrateOrderSummariesWithDetails refreshes completed cards missing return info', async () => {
+  const summaries = [
+    mapOrderSummary({
+      id: 'order-returning',
+      orderStatus: 'COMPLETED',
+      totalAmount: 350900,
+      itemCount: 1,
+      createdAt: '2026-07-24T12:32:00Z',
+    }),
+    mapOrderSummary({
+      id: 'order-processing',
+      orderStatus: 'PROCESSING',
+      totalAmount: 350900,
+      itemCount: 1,
+      createdAt: '2026-07-24T12:33:00Z',
+    }),
+  ]
+  const fetchedIds = []
+  const hydrated = await hydrateOrderSummariesWithDetails(summaries, async (id) => {
+    fetchedIds.push(id)
+    return mapOrder({
+      id,
+      orderStatus: 'COMPLETED',
+      totalAmount: 350900,
+      createdAt: '2026-07-24T12:32:00Z',
+      latestReturnRequest: { id: 'return-1', status: 'BANK_INFO_SUBMITTED' },
+      items: [],
+    })
+  })
+
+  assert.deepEqual(fetchedIds, ['order-returning'])
+  assert.equal(hydrated[0].latestReturnRequest.status, 'BANK_INFO_SUBMITTED')
+  assert.equal(hydrated[1].latestReturnRequest, null)
+})
+
+test('hydrateOrderSummariesWithDetails skips cards that already include return info', async () => {
+  const summaries = [
+    mapOrderSummary({
+      id: 'order-returning',
+      orderStatus: 'COMPLETED',
+      totalAmount: 350900,
+      itemCount: 1,
+      createdAt: '2026-07-24T12:32:00Z',
+      latestReturnRequest: { id: 'return-1', status: 'REQUESTED' },
+    }),
+  ]
+  let fetchCount = 0
+  const hydrated = await hydrateOrderSummariesWithDetails(summaries, async () => {
+    fetchCount += 1
+    return null
+  })
+
+  assert.equal(fetchCount, 0)
+  assert.equal(hydrated[0].latestReturnRequest.status, 'REQUESTED')
 })
 
 test('mapOrder hides payment milestones for COD orders', () => {

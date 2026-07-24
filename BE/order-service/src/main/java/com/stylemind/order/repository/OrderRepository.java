@@ -1,6 +1,7 @@
 package com.stylemind.order.repository;
 
 import com.stylemind.order.entity.Order;
+import com.stylemind.order.entity.OrderReturnStatus;
 import com.stylemind.order.entity.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +37,34 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     @Query("SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o WHERE o.orderStatus IN :statuses AND o.createdAt >= :from")
     BigDecimal sumRevenueByStatusesSince(@Param("statuses") Collection<OrderStatus> statuses,
                                          @Param("from") LocalDateTime from);
+
+    @Query("""
+            SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o
+            WHERE o.orderStatus IN :statuses
+              AND NOT EXISTS (
+                  SELECT 1 FROM OrderReturnRequest r
+                  WHERE r.orderId = o.id
+                    AND r.status = :excludedReturnStatus
+              )
+            """)
+    BigDecimal sumRevenueByStatusesExcludingReturnStatus(
+            @Param("statuses") Collection<OrderStatus> statuses,
+            @Param("excludedReturnStatus") OrderReturnStatus excludedReturnStatus);
+
+    @Query("""
+            SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o
+            WHERE o.orderStatus IN :statuses
+              AND o.createdAt >= :from
+              AND NOT EXISTS (
+                  SELECT 1 FROM OrderReturnRequest r
+                  WHERE r.orderId = o.id
+                    AND r.status = :excludedReturnStatus
+              )
+            """)
+    BigDecimal sumRevenueByStatusesSinceExcludingReturnStatus(
+            @Param("statuses") Collection<OrderStatus> statuses,
+            @Param("from") LocalDateTime from,
+            @Param("excludedReturnStatus") OrderReturnStatus excludedReturnStatus);
 
     @Query("""
             SELECT o FROM Order o
@@ -76,12 +105,42 @@ public interface OrderRepository extends JpaRepository<Order, String> {
               AND (CAST(:fromDate AS timestamp) IS NULL OR o.createdAt >= :fromDate)
               AND (CAST(:toDate AS timestamp) IS NULL OR o.createdAt <= :toDate)
               AND o.orderStatus IN :revenueStatuses
+              AND NOT EXISTS (
+                  SELECT 1 FROM OrderReturnRequest r
+                  WHERE r.orderId = o.id
+                    AND r.status = :excludedReturnStatus
+              )
             """)
     BigDecimal sumRevenueForSearch(
             @Param("status") OrderStatus status,
             @Param("userId") String userId,
             @Param("fromDate") LocalDateTime fromDate,
             @Param("toDate") LocalDateTime toDate,
-            @Param("revenueStatuses") Collection<OrderStatus> revenueStatuses
+            @Param("revenueStatuses") Collection<OrderStatus> revenueStatuses,
+            @Param("excludedReturnStatus") OrderReturnStatus excludedReturnStatus
+    );
+
+    @Query("""
+            SELECT COALESCE(SUM(o.totalAmount), 0) FROM Order o
+            WHERE o.id IN :orderIds
+              AND (CAST(:status AS string) IS NULL OR o.orderStatus = :status)
+              AND (:userId IS NULL OR o.userId = :userId)
+              AND (CAST(:fromDate AS timestamp) IS NULL OR o.createdAt >= :fromDate)
+              AND (CAST(:toDate AS timestamp) IS NULL OR o.createdAt <= :toDate)
+              AND o.orderStatus IN :revenueStatuses
+              AND NOT EXISTS (
+                  SELECT 1 FROM OrderReturnRequest r
+                  WHERE r.orderId = o.id
+                    AND r.status = :excludedReturnStatus
+              )
+            """)
+    BigDecimal sumRevenueForSearchByIds(
+            @Param("orderIds") Collection<String> orderIds,
+            @Param("status") OrderStatus status,
+            @Param("userId") String userId,
+            @Param("fromDate") LocalDateTime fromDate,
+            @Param("toDate") LocalDateTime toDate,
+            @Param("revenueStatuses") Collection<OrderStatus> revenueStatuses,
+            @Param("excludedReturnStatus") OrderReturnStatus excludedReturnStatus
     );
 }

@@ -20,4 +20,6 @@ public class OrderSummaryResponse {
     private int itemCount;
     private OrderCancellationResponse latestCancellation;
     private Boolean hasPendingCancellation;
+    private OrderReturnRequestResponse latestReturnRequest;
+    private Boolean hasPendingReturnRequest;
 }

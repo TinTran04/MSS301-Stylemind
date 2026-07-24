@@ -51,6 +51,8 @@ public class OrderServiceImpl implements OrderService {
     private final OrderCancellationService orderCancellationService;
     private final OrderCancellationRepository cancellationRepository;
     private final OrderDeliveryImageRepository deliveryImageRepository;
+    private final OrderReturnRequestRepository returnRequestRepository;
+    private final OrderReturnAttachmentRepository returnAttachmentRepository;
 
     private static final String CHECKOUT_STATUS_PROCESSING = "PROCESSING";
     private static final String CHECKOUT_STATUS_SUCCEEDED = "SUCCEEDED";
@@ -385,6 +387,7 @@ public class OrderServiceImpl implements OrderService {
                                 OrderItemCountResponse::orderId,
                                 OrderItemCountResponse::itemCount));
         Map<String, OrderCancellationResponse> latestCancellations = latestCancellationByOrderId(orderIds);
+        Map<String, OrderReturnRequestResponse> latestReturnRequests = latestReturnRequestByOrderId(orderIds);
 
         return PageResponse.of(orders.map(order -> OrderSummaryResponse.builder()
                 .id(order.getId())
@@ -395,12 +398,15 @@ public class OrderServiceImpl implements OrderService {
                 .latestCancellation(latestCancellations.get(order.getId()))
                 .hasPendingCancellation(latestCancellations.get(order.getId()) != null
                         && OrderCancellationStatus.REQUESTED.name().equals(latestCancellations.get(order.getId()).getStatus()))
+                .latestReturnRequest(latestReturnRequests.get(order.getId()))
+                .hasPendingReturnRequest(latestReturnRequests.get(order.getId()) != null
+                        && isPendingReturnRequest(latestReturnRequests.get(order.getId())))
                 .build()));
     }
 
     @Override
     public com.stylemind.order.dto.AdminOrdersResponse getAllOrdersForAdmin(
-            String status, String cancellationStatus, String userId, java.time.LocalDateTime fromDate, java.time.LocalDateTime toDate,
+            String status, String cancellationStatus, String returnStatus, String userId, java.time.LocalDateTime fromDate, java.time.LocalDateTime toDate,
             org.springframework.data.domain.Pageable pageable) {
         OrderStatus statusFilter = null;
         if (org.springframework.util.StringUtils.hasText(status)) {
@@ -414,16 +420,35 @@ public class OrderServiceImpl implements OrderService {
         String cancellationStatusFilter = org.springframework.util.StringUtils.hasText(cancellationStatus)
                 ? cancellationStatus.trim().toUpperCase(Locale.ROOT)
                 : null;
+        Set<OrderReturnStatus> returnStatusFilter = resolveReturnStatusFilter(returnStatus);
         Page<Order> page;
+        List<String> scopedOrderIds = null;
         if (OrderCancellationStatus.REQUESTED.name().equals(cancellationStatusFilter)) {
             List<String> pendingOrderIds = cancellationRepository.findByStatus(OrderCancellationStatus.REQUESTED).stream()
                     .map(OrderCancellation::getOrderId)
                     .distinct()
                     .toList();
-            page = pendingOrderIds.isEmpty()
+            scopedOrderIds = pendingOrderIds;
+        }
+        if (returnStatusFilter != null) {
+            List<String> returnOrderIds = returnRequestRepository.findByStatusIn(returnStatusFilter).stream()
+                    .map(OrderReturnRequest::getOrderId)
+                    .distinct()
+                    .toList();
+            if (scopedOrderIds == null) {
+                scopedOrderIds = returnOrderIds;
+            } else {
+                Set<String> returnOrderIdSet = Set.copyOf(returnOrderIds);
+                scopedOrderIds = scopedOrderIds.stream()
+                        .filter(returnOrderIdSet::contains)
+                        .toList();
+            }
+        }
+        if (scopedOrderIds != null) {
+            page = scopedOrderIds.isEmpty()
                     ? Page.empty(pageable)
                     : orderRepository.searchByIds(
-                            pendingOrderIds,
+                            scopedOrderIds,
                             statusFilter,
                             userIdFilter,
                             fromDate,
@@ -438,8 +463,19 @@ public class OrderServiceImpl implements OrderService {
             return response;
         });
 
-        var totalRevenue = orderRepository.sumRevenueForSearch(
-                statusFilter, userIdFilter, fromDate, toDate, REVENUE_RECOGNIZED_STATUSES);
+        var totalRevenue = scopedOrderIds == null
+                ? orderRepository.sumRevenueForSearch(
+                        statusFilter, userIdFilter, fromDate, toDate, REVENUE_RECOGNIZED_STATUSES, OrderReturnStatus.REFUNDED)
+                : scopedOrderIds.isEmpty()
+                        ? BigDecimal.ZERO
+                        : orderRepository.sumRevenueForSearchByIds(
+                                scopedOrderIds,
+                                statusFilter,
+                                userIdFilter,
+                                fromDate,
+                                toDate,
+                                REVENUE_RECOGNIZED_STATUSES,
+                                OrderReturnStatus.REFUNDED);
 
         return com.stylemind.order.dto.AdminOrdersResponse.builder()
                 .page(mappedPage)
@@ -555,8 +591,8 @@ public class OrderServiceImpl implements OrderService {
                 .cancelledOrders(orderRepository.countByStatuses(
                         java.util.EnumSet.of(OrderStatus.CANCELLED, OrderStatus.EXPIRED, OrderStatus.FAILED)))
                 .todayOrders(orderRepository.countCreatedSince(startOfToday))
-                .totalRevenue(orderRepository.sumRevenueByStatuses(REVENUE_RECOGNIZED_STATUSES))
-                .todayRevenue(orderRepository.sumRevenueByStatusesSince(REVENUE_RECOGNIZED_STATUSES, startOfToday))
+                .totalRevenue(orderRepository.sumRevenueByStatusesExcludingReturnStatus(REVENUE_RECOGNIZED_STATUSES, OrderReturnStatus.REFUNDED))
+                .todayRevenue(orderRepository.sumRevenueByStatusesSinceExcludingReturnStatus(REVENUE_RECOGNIZED_STATUSES, startOfToday, OrderReturnStatus.REFUNDED))
                 .build();
     }
 
@@ -741,6 +777,7 @@ public class OrderServiceImpl implements OrderService {
         response.setLatestCancellation(cancellations.isEmpty() ? null : cancellations.get(0));
         response.setHasPendingCancellation(cancellations.stream()
                 .anyMatch(cancellation -> OrderCancellationStatus.REQUESTED.name().equals(cancellation.getStatus())));
+        enrichReturnRequests(orderId, response);
         if (response.getRefund() == null) {
             try {
                 var refundResponse = paymentClient.getRefundByOrderId(orderId);
@@ -753,6 +790,15 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    private void enrichReturnRequests(String orderId, OrderResponse response) {
+        List<OrderReturnRequestResponse> returnRequests = returnRequestRepository.findByOrderIdOrderByCreatedAtDesc(orderId).stream()
+                .map(this::mapReturnRequest)
+                .toList();
+        response.setReturnHistory(returnRequests);
+        response.setLatestReturnRequest(returnRequests.isEmpty() ? null : returnRequests.get(0));
+        response.setHasPendingReturnRequest(returnRequests.stream().anyMatch(this::isPendingReturnRequest));
+    }
+
     private Map<String, OrderCancellationResponse> latestCancellationByOrderId(List<String> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
             return Map.of();
@@ -762,6 +808,35 @@ public class OrderServiceImpl implements OrderService {
                         OrderCancellation::getOrderId,
                         this::mapCancellation,
                         (existing, ignored) -> existing));
+    }
+
+    private Map<String, OrderReturnRequestResponse> latestReturnRequestByOrderId(List<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Map.of();
+        }
+        return returnRequestRepository.findByOrderIdInOrderByCreatedAtDesc(orderIds).stream()
+                .collect(Collectors.toMap(
+                        OrderReturnRequest::getOrderId,
+                        this::mapReturnRequestSummary,
+                        (existing, ignored) -> existing));
+    }
+
+    private Set<OrderReturnStatus> resolveReturnStatusFilter(String returnStatus) {
+        if (!StringUtils.hasText(returnStatus)) {
+            return null;
+        }
+        String value = returnStatus.trim().toUpperCase(Locale.ROOT);
+        if ("PENDING".equals(value)) {
+            return Set.of(
+                    OrderReturnStatus.REQUESTED,
+                    OrderReturnStatus.AWAITING_BANK_INFO,
+                    OrderReturnStatus.BANK_INFO_SUBMITTED);
+        }
+        try {
+            return Set.of(OrderReturnStatus.valueOf(value));
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException("INVALID_ORDER_RETURN_STATUS_FILTER", "Unknown order return status: " + returnStatus, 400);
+        }
     }
 
     private OrderCancellationResponse mapCancellation(OrderCancellation cancellation) {
@@ -804,6 +879,81 @@ public class OrderServiceImpl implements OrderService {
                 .createdAt(refund.getCreatedAt())
                 .updatedAt(refund.getUpdatedAt())
                 .build();
+    }
+
+    private OrderReturnRequestResponse mapReturnRequest(OrderReturnRequest returnRequest) {
+        return OrderReturnRequestResponse.builder()
+                .id(returnRequest.getId())
+                .orderId(returnRequest.getOrderId())
+                .userId(returnRequest.getUserId())
+                .status(returnRequest.getStatus().name())
+                .reasonCode(returnRequest.getReasonCode())
+                .customerNote(returnRequest.getCustomerNote())
+                .adminNote(returnRequest.getAdminNote())
+                .rejectionReason(returnRequest.getRejectionReason())
+                .bankName(returnRequest.getBankName())
+                .bankAccountNumber(returnRequest.getBankAccountNumber())
+                .bankAccountHolder(returnRequest.getBankAccountHolder())
+                .bankBranch(returnRequest.getBankBranch())
+                .refundReference(returnRequest.getRefundReference())
+                .refundNote(returnRequest.getRefundNote())
+                .requestedBy(returnRequest.getRequestedBy())
+                .reviewedBy(returnRequest.getReviewedBy())
+                .processedBy(returnRequest.getProcessedBy())
+                .requestedAt(toInstant(returnRequest.getRequestedAt()))
+                .reviewedAt(toInstant(returnRequest.getReviewedAt()))
+                .approvedAt(toInstant(returnRequest.getApprovedAt()))
+                .bankInfoSubmittedAt(toInstant(returnRequest.getBankInfoSubmittedAt()))
+                .processedAt(toInstant(returnRequest.getProcessedAt()))
+                .createdAt(toInstant(returnRequest.getCreatedAt()))
+                .updatedAt(toInstant(returnRequest.getUpdatedAt()))
+                .attachments(returnAttachmentRepository.findByReturnRequestIdOrderByCreatedAtAsc(returnRequest.getId()).stream()
+                        .map(this::mapReturnAttachment)
+                        .toList())
+                .build();
+    }
+
+    private OrderReturnRequestResponse mapReturnRequestSummary(OrderReturnRequest returnRequest) {
+        return OrderReturnRequestResponse.builder()
+                .id(returnRequest.getId())
+                .orderId(returnRequest.getOrderId())
+                .userId(returnRequest.getUserId())
+                .status(returnRequest.getStatus().name())
+                .reasonCode(returnRequest.getReasonCode())
+                .customerNote(returnRequest.getCustomerNote())
+                .adminNote(returnRequest.getAdminNote())
+                .rejectionReason(returnRequest.getRejectionReason())
+                .requestedAt(toInstant(returnRequest.getRequestedAt()))
+                .reviewedAt(toInstant(returnRequest.getReviewedAt()))
+                .processedAt(toInstant(returnRequest.getProcessedAt()))
+                .createdAt(toInstant(returnRequest.getCreatedAt()))
+                .updatedAt(toInstant(returnRequest.getUpdatedAt()))
+                .attachments(java.util.List.of())
+                .build();
+    }
+
+    private OrderReturnAttachmentResponse mapReturnAttachment(OrderReturnAttachment attachment) {
+        String contentType = attachment.getContentType();
+        String imageDataUrl = "data:" + contentType + ";base64,"
+                + Base64.getEncoder().encodeToString(attachment.getImageData());
+        return OrderReturnAttachmentResponse.builder()
+                .id(attachment.getId())
+                .returnRequestId(attachment.getReturnRequestId())
+                .orderId(attachment.getOrderId())
+                .owner(attachment.getOwner().name())
+                .kind(attachment.getKind().name())
+                .fileName(attachment.getFileName())
+                .contentType(contentType)
+                .sizeBytes(attachment.getSizeBytes())
+                .imageDataUrl(imageDataUrl)
+                .uploadedAt(toInstant(attachment.getCreatedAt()))
+                .build();
+    }
+
+    private boolean isPendingReturnRequest(OrderReturnRequestResponse returnRequest) {
+        return OrderReturnStatus.REQUESTED.name().equals(returnRequest.getStatus())
+                || OrderReturnStatus.AWAITING_BANK_INFO.name().equals(returnRequest.getStatus())
+                || OrderReturnStatus.BANK_INFO_SUBMITTED.name().equals(returnRequest.getStatus());
     }
 
     private java.time.Instant toInstant(java.time.LocalDateTime value) {

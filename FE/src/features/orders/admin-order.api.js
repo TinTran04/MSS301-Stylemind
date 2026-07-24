@@ -48,6 +48,29 @@ export async function failOrderRefund(orderId, refundId, payload) {
   return apiClient.post(`${ENDPOINTS.ADMIN_ORDERS}/${orderId}/refunds/${refundId}/fail`, payload)
 }
 
+export async function approveOrderReturn(returnRequestId) {
+  return apiClient.patch(`${ENDPOINTS.ADMIN_ORDERS}/return-requests/${returnRequestId}/approve`)
+}
+
+export async function rejectOrderReturn(returnRequestId, payload) {
+  const formData = new FormData()
+  formData.append('rejectionReason', payload.rejectionReason)
+  Array.from(payload.images || []).forEach((file) => formData.append('images', file))
+  return apiClient.patch(`${ENDPOINTS.ADMIN_ORDERS}/return-requests/${returnRequestId}/reject`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
+export async function completeOrderReturn(orderId, returnRequestId, payload) {
+  const formData = new FormData()
+  formData.append('refundReference', payload.refundReference)
+  if (payload.refundNote) formData.append('refundNote', payload.refundNote)
+  Array.from(payload.billImages || []).forEach((file) => formData.append('billImages', file))
+  return apiClient.post(`${ENDPOINTS.ADMIN_ORDERS}/${orderId}/return-requests/${returnRequestId}/complete`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
+
 export async function getAdminOrderAnalytics() {
   // If there's an analytics endpoint for orders
   return apiClient.get(`${ENDPOINTS.ANALYTICS}/orders`)

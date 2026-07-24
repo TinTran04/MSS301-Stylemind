@@ -8,6 +8,7 @@ import com.stylemind.order.dto.*;
 import com.stylemind.order.entity.CustomerCancellationReason;
 import com.stylemind.order.service.OrderService;
 import com.stylemind.order.service.OrderCancellationService;
+import com.stylemind.order.service.OrderReturnService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class OrderController {
 
     private final OrderService orderService;
     private final OrderCancellationService orderCancellationService;
+    private final OrderReturnService orderReturnService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
@@ -89,6 +91,43 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Cancellation history fetched successfully",
                 orderCancellationService.getCustomerCancellations(principal.getUserId(), orderId)));
+    }
+
+    @PostMapping(value = "/{orderId}/return-requests", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<OrderReturnRequestResponse>> createReturnRequest(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String orderId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestParam(required = false) String reasonCode,
+            @RequestParam(required = false) String customerNote,
+            @RequestPart(value = "images", required = false) MultipartFile[] images) {
+        OrderReturnRequestResponse response = orderReturnService.requestCustomerReturn(
+                principal.getUserId(),
+                orderId,
+                idempotencyKey,
+                CreateOrderReturnRequest.builder().reasonCode(reasonCode).customerNote(customerNote).build(),
+                images == null ? java.util.List.of() : java.util.Arrays.asList(images));
+        return ResponseEntity.ok(ApiResponse.success("Return request created successfully", response));
+    }
+
+    @GetMapping("/{orderId}/return-requests")
+    public ResponseEntity<ApiResponse<java.util.List<OrderReturnRequestResponse>>> getReturnRequests(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String orderId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Return requests fetched successfully",
+                orderReturnService.getCustomerReturns(principal.getUserId(), orderId)));
+    }
+
+    @PatchMapping("/{orderId}/return-requests/{returnRequestId}/bank-info")
+    public ResponseEntity<ApiResponse<OrderReturnRequestResponse>> submitReturnBankInfo(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String orderId,
+            @PathVariable String returnRequestId,
+            @Valid @RequestBody SubmitReturnBankInfoRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Bank information submitted successfully",
+                orderReturnService.submitBankInfo(principal.getUserId(), orderId, returnRequestId, request)));
     }
 
     @PostMapping(value = "/{orderId}/delivery-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

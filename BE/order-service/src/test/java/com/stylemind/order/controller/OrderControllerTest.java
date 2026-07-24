@@ -5,6 +5,7 @@ import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.security.UserPrincipal;
 import com.stylemind.order.dto.OrderSummaryResponse;
 import com.stylemind.order.service.OrderCancellationService;
+import com.stylemind.order.service.OrderReturnService;
 import com.stylemind.order.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
@@ -24,7 +25,8 @@ class OrderControllerTest {
 
     private final OrderService orderService = mock(OrderService.class);
     private final OrderCancellationService cancellationService = mock(OrderCancellationService.class);
-    private final OrderController controller = new OrderController(orderService, cancellationService);
+    private final OrderReturnService returnService = mock(OrderReturnService.class);
+    private final OrderController controller = new OrderController(orderService, cancellationService, returnService);
 
     @Test
     void getOrders_usesPrincipalUserAndDefaultPagination() {

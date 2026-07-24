@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { shouldClearAuthForUnauthorized } from './authRedirect'
 
 const AUTH_TOKEN_KEY = 'auth_token'
 const AUTH_USER_KEY = 'auth_user'
@@ -36,7 +37,12 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     const normalizedError = normalizeApiError(error)
-    if (error.response?.status === 401) {
+    if (shouldClearAuthForUnauthorized({
+      status: error.response?.status,
+      errorCode: normalizedError.errorCode,
+      skipAuthRedirect: error.config?.skipAuthRedirect,
+      url: error.config?.url,
+    })) {
       clearAuthSession()
       if (window.location.pathname !== '/login') {
         window.location.href = '/login'

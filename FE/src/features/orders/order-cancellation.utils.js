@@ -63,6 +63,22 @@ export function formatRefundStatus(status) {
   return labels[key] || 'Không xác định'
 }
 
+export function validateCancellationDialogInput({
+  reasonCode,
+  note,
+  noteRequired = false,
+  noteRequiredMessage = 'Vui lòng nhập ghi chú.',
+  otherNoteRequired = true,
+}) {
+  const trimmedNote = String(note || '').trim()
+  if (!reasonCode) return 'Vui lòng chọn lý do hủy đơn.'
+  if (noteRequired && !trimmedNote) return noteRequiredMessage
+  if (otherNoteRequired && reasonCode === 'OTHER' && !trimmedNote) {
+    return 'Vui lòng nhập ghi chú khi chọn lý do khác.'
+  }
+  return ''
+}
+
 export function buildCancellationPayload(reasonCode, note) {
   return {
     reasonCode,

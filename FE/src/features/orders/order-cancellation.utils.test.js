@@ -8,6 +8,7 @@ import {
   formatCancellationType,
   formatRefundStatus,
   isCancellationRequested,
+  validateCancellationDialogInput,
 } from './order-cancellation.utils.js'
 import { CUSTOMER_CANCELLATION_REASONS } from './order-cancellation.constants.js'
 
@@ -39,4 +40,25 @@ test('formatters return Vietnamese labels for cancellation and refund', () => {
   assert.equal(formatCancellationType('ADMIN_DIRECT'), 'Quản trị hủy trực tiếp')
   assert.equal(formatCancellationReason('CHANGE_DELIVERY_ADDRESS'), 'Đổi địa chỉ giao hàng')
   assert.equal(formatRefundStatus('REFUND_PENDING'), 'Chờ hoàn tiền')
+})
+
+test('cancellation dialog can require admin note for direct admin cancellation', () => {
+  assert.equal(
+    validateCancellationDialogInput({
+      reasonCode: 'DELIVERY_NOT_SUPPORTED',
+      note: '',
+      noteRequired: true,
+      noteRequiredMessage: 'Vui lòng nhập ghi chú admin trước khi hủy đơn.',
+    }),
+    'Vui lòng nhập ghi chú admin trước khi hủy đơn.'
+  )
+
+  assert.equal(
+    validateCancellationDialogInput({
+      reasonCode: 'DELIVERY_NOT_SUPPORTED',
+      note: 'Không hỗ trợ giao đến địa chỉ này',
+      noteRequired: true,
+    }),
+    ''
+  )
 })

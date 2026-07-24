@@ -64,6 +64,18 @@ function buildPricingSummary(order, items) {
   }
 }
 
+function mapReturnRequest(returnRequest) {
+  if (!returnRequest) return null
+  return {
+    ...returnRequest,
+    attachments: (returnRequest.attachments || []).map((attachment) => ({
+      ...attachment,
+      fileName: attachment.fileName || 'Ảnh bằng chứng',
+      imageDataUrl: attachment.imageDataUrl || '',
+    })).filter((attachment) => attachment.imageDataUrl),
+  }
+}
+
 export function mapOrder(order) {
   if (!order) return null
   const items = (order.items || []).map((item) => ({
@@ -105,6 +117,9 @@ export function mapOrder(order) {
       imageDataUrl: image.imageDataUrl || '',
       uploadedAt: image.uploadedAt,
     })).filter((image) => image.imageDataUrl),
+    latestReturnRequest: mapReturnRequest(order.latestReturnRequest),
+    returnHistory: (order.returnHistory || []).map(mapReturnRequest).filter(Boolean),
+    hasPendingReturnRequest: Boolean(order.hasPendingReturnRequest),
     timeline: buildTimeline(order),
   }
 }
@@ -120,7 +135,44 @@ export function mapOrderSummary(order) {
     totalAmount: Number(order.totalAmount || 0),
     itemCount: Number(order.itemCount || 0),
     items: [],
+    latestReturnRequest: mapReturnRequest(order.latestReturnRequest),
+    hasPendingReturnRequest: Boolean(order.hasPendingReturnRequest),
   }
+}
+
+export function mergeOrderSummaryUpdate(orders, updatedOrder) {
+  if (!updatedOrder?.id) return orders
+  const summaryUpdate = mapOrderSummary(updatedOrder)
+  if (!summaryUpdate) return orders
+
+  return (orders || []).map((order) => (
+    order.id === updatedOrder.id
+      ? {
+          ...order,
+          ...summaryUpdate,
+          itemCount: order.itemCount || summaryUpdate.itemCount,
+          items: order.items || [],
+        }
+      : order
+  ))
+}
+
+function shouldHydrateOrderSummary(order) {
+  return normalizeOrderStatus(order?.orderStatus || order?.status) === 'COMPLETED'
+    && !order?.latestReturnRequest
+}
+
+export async function hydrateOrderSummariesWithDetails(orders, fetchOrderDetail) {
+  if (!Array.isArray(orders) || typeof fetchOrderDetail !== 'function') return orders
+  const candidates = orders.filter(shouldHydrateOrderSummary)
+  if (candidates.length === 0) return orders
+
+  const results = await Promise.allSettled(candidates.map((order) => fetchOrderDetail(order.id)))
+  return results.reduce((currentOrders, result) => (
+    result.status === 'fulfilled' && result.value
+      ? mergeOrderSummaryUpdate(currentOrders, result.value)
+      : currentOrders
+  ), orders)
 }
 
 export function getOrderTimestamp(order) {

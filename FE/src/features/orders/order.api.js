@@ -1,6 +1,6 @@
 import apiClient from '../../services/apiClient.js'
 import { ENDPOINTS } from '../../services/endpoints.js'
-import { mapOrder, mapOrderSummary } from './order.mapper.js'
+import { hydrateOrderSummariesWithDetails, mapOrder, mapOrderSummary } from './order.mapper.js'
 
 export { mapOrder }
 
@@ -9,6 +9,7 @@ export async function createOrder(payload, options = {}) {
     headers: options.idempotencyKey
       ? { 'Idempotency-Key': options.idempotencyKey }
       : undefined,
+    skipAuthRedirect: options.skipAuthRedirect,
   })
   return mapOrder(response)
 }
@@ -17,9 +18,10 @@ export async function getOrders({ page = 0, size = 10, sort = 'createdAt,desc', 
   const params = new URLSearchParams({ page: String(page), size: String(size), sort })
   if (status) params.set('status', status)
   const response = await apiClient.get(`${ENDPOINTS.ORDERS}?${params.toString()}`)
+  const content = (response?.content || []).map(mapOrderSummary).filter(Boolean)
   return {
     ...response,
-    content: (response?.content || []).map(mapOrderSummary).filter(Boolean),
+    content: await hydrateOrderSummariesWithDetails(content, getOrderById),
   }
 }
 
