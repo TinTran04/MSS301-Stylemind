@@ -14,26 +14,26 @@ export async function getCustomerReturns(orderId) {
 }
 
 export async function cancelReturnRequest(returnId) {
-  return apiClient.post(`/returns/${returnId}/cancel`)
+  return apiClient.post(`/api/v1/returns/${returnId}/cancel`)
 }
 
 export async function submitReturnShipment(returnId, payload) {
-  return apiClient.post(`/returns/${returnId}/shipment`, payload)
+  return apiClient.post(`/api/v1/returns/${returnId}/shipment`, payload)
 }
 
 export async function savePayoutDestination(returnId, payload) {
-  return apiClient.put(`/returns/${returnId}/payout-destination`, payload)
+  return apiClient.put(`/api/v1/returns/${returnId}/payout-destination`, payload)
 }
 
 export async function adminGetReturns(status) {
   const query = status ? `?status=${status}` : ''
-  return apiClient.get(`/admin/returns${query}`)
+  return apiClient.get(`/api/v1/admin/returns${query}`)
 }
 
 export async function adminReviewReturn(returnId, payload) {
-  return apiClient.post(`/admin/returns/${returnId}/review`, payload)
+  return apiClient.post(`/api/v1/admin/returns/${returnId}/review`, payload)
 }
 
 export async function adminReceiveAndQc(returnId, payload) {
-  return apiClient.post(`/admin/returns/${returnId}/receive-qc`, payload)
+  return apiClient.post(`/api/v1/admin/returns/${returnId}/receive-qc`, payload)
 }

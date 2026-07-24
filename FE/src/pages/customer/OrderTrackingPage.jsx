@@ -12,9 +12,10 @@ import { isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
 import OrderCancellationDialog from '../../components/customer/OrderCancellationDialog'
 import OrderCancellationPanel from '../../components/customer/OrderCancellationPanel'
 import ReturnRequestModal from '../../components/customer/ReturnRequestModal'
+import ReturnRequestPanel from '../../components/customer/ReturnRequestPanel'
 import { requestOrderCancellation } from '../../features/orders/order.api'
 import { canDirectCancel, canRequestCancellation, isCancellationRequested } from '../../features/orders/order-cancellation.utils'
-import { evaluateReturnEligibility, createReturnRequest, savePayoutDestination } from '../../features/orders/return.api'
+import { evaluateReturnEligibility, createReturnRequest, savePayoutDestination, getCustomerReturns } from '../../features/orders/return.api'
 
 const statusTabs = [
   { key: 'All', label: 'Tất cả' },
@@ -260,7 +261,7 @@ function DeliveryImagesSection({ order, onOrderUpdated }) {
   )
 }
 
-function OrderDetailContent({ order, onContinuePayment, onRequestCancellation, onRequestReturn, onOrderUpdated }) {
+function OrderDetailContent({ order, activeReturn, onContinuePayment, onRequestCancellation, onRequestReturn, onReturnUpdated, onOrderUpdated }) {
   const canContinueSepayPayment = normalizeOrderStatus(order.status) === 'PAYMENT_PENDING'
     && String(order.paymentMethod || '').toLowerCase() === 'sepay'
   const allowCancellation = !isCancellationRequested(order) && (canDirectCancel(order) || canRequestCancellation(order))
@@ -288,6 +289,11 @@ function OrderDetailContent({ order, onContinuePayment, onRequestCancellation, o
         <div className="mt-4">
           <OrderCancellationPanel cancellation={order.latestCancellation} refund={order.refund} />
         </div>
+        {activeReturn && (
+          <div className="mt-4">
+            <ReturnRequestPanel returnRequest={activeReturn} onUpdate={onReturnUpdated} />
+          </div>
+        )}
       </header>
 
       <OrderTimeline order={order} />
@@ -343,7 +349,7 @@ function OrderDetailContent({ order, onContinuePayment, onRequestCancellation, o
         </section>
       )}
 
-      {normalizeOrderStatus(order.status) === 'COMPLETED' && (
+      {!activeReturn && normalizeOrderStatus(order.status) === 'COMPLETED' && (
         <section className="border-t border-outline-variant/20 pt-5">
           <button
             type="button"
@@ -385,6 +391,7 @@ export default function OrderTrackingPage() {
   const [cancellationSubmitting, setCancellationSubmitting] = useState(false)
   const [returnModalOpen, setReturnModalOpen] = useState(false)
   const [returnEligibilityData, setReturnEligibilityData] = useState(null)
+  const [customerReturn, setCustomerReturn] = useState(null)
   const triggerRefs = useRef(new Map())
   const selectedOrderIdRef = useRef(null)
   const detailRequestIdRef = useRef(0)
@@ -429,11 +436,23 @@ export default function OrderTrackingPage() {
     selectedOrderIdRef.current = order.id
     setSelectedOrderId(order.id)
     setDetailOrder(null)
+    setCustomerReturn(null)
     setDetailError('')
     setDetailLoading(true)
     try {
       const nextOrder = await getOrderById(order.id)
-      if (detailRequestIdRef.current === requestId && selectedOrderIdRef.current === order.id) setDetailOrder(nextOrder)
+      if (detailRequestIdRef.current === requestId && selectedOrderIdRef.current === order.id) {
+        setDetailOrder(nextOrder)
+        try {
+          const retRes = await getCustomerReturns(order.id)
+          const returnsList = retRes?.data || retRes || []
+          if (Array.isArray(returnsList) && returnsList.length > 0) {
+            setCustomerReturn(returnsList[0])
+          }
+        } catch {
+          // Silent fallback if no return exists
+        }
+      }
     } catch {
       if (detailRequestIdRef.current === requestId && selectedOrderIdRef.current === order.id) setDetailError('Không thể tải chi tiết đơn hàng.')
     } finally {
@@ -536,9 +555,11 @@ export default function OrderTrackingPage() {
         {!detailLoading && !detailError && detailOrder && (
           <OrderDetailContent
             order={detailOrder}
+            activeReturn={customerReturn}
             onContinuePayment={handleContinuePayment}
             onRequestCancellation={() => setCancellationDialogOpen(true)}
             onRequestReturn={handleOpenReturnModal}
+            onReturnUpdated={() => openOrderDetail(detailOrder)}
             onOrderUpdated={setDetailOrder}
           />
         )}
