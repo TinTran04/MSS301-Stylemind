@@ -304,7 +304,7 @@ public class ReturnServiceImpl implements ReturnService {
                     .build());
 
             if (paymentResp != null && paymentResp.getData() != null) {
-                returnRequest.setRefundId(paymentResp.getData().getRefundId());
+                returnRequest.setRefundId(paymentResp.getData().getId());
             }
         } catch (Exception e) {
             log.error("Failed to trigger refund creation for returnRequestId: {}", returnRequest.getId(), e);
