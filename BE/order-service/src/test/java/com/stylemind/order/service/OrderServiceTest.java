@@ -580,7 +580,7 @@ class OrderServiceTest {
         when(adminRevenueService.calculate(isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(revenueSummary("300000"));
 
-        AdminOrdersResponse response = orderService.getAllOrdersForAdmin(null, null, null, null, null, pageable);
+        var response = orderService.getAllOrdersForAdmin(null, null, null, null, null, pageable);
 
         assertThat(response.getTotalRevenue()).isEqualByComparingTo("300000");
         verify(adminRevenueService).calculate(isNull(), isNull(), isNull(), isNull());
