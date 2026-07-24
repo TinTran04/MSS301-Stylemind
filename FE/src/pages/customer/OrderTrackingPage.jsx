@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Image as ImageIcon, Loader2, Package, Truck, Upload } from 'lucide-react'
+import { ArrowRight, Image as ImageIcon, Loader2, Package, RotateCcw, Truck, Upload } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Badge from '../../components/common/Badge'
 import Drawer from '../../components/common/Drawer'
@@ -11,8 +11,10 @@ import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/o
 import { isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
 import OrderCancellationDialog from '../../components/customer/OrderCancellationDialog'
 import OrderCancellationPanel from '../../components/customer/OrderCancellationPanel'
+import ReturnRequestModal from '../../components/customer/ReturnRequestModal'
 import { requestOrderCancellation } from '../../features/orders/order.api'
 import { canDirectCancel, canRequestCancellation, isCancellationRequested } from '../../features/orders/order-cancellation.utils'
+import { evaluateReturnEligibility, createReturnRequest, savePayoutDestination } from '../../features/orders/return.api'
 
 const statusTabs = [
   { key: 'All', label: 'Tất cả' },
@@ -258,7 +260,7 @@ function DeliveryImagesSection({ order, onOrderUpdated }) {
   )
 }
 
-function OrderDetailContent({ order, onContinuePayment, onRequestCancellation, onOrderUpdated }) {
+function OrderDetailContent({ order, onContinuePayment, onRequestCancellation, onRequestReturn, onOrderUpdated }) {
   const canContinueSepayPayment = normalizeOrderStatus(order.status) === 'PAYMENT_PENDING'
     && String(order.paymentMethod || '').toLowerCase() === 'sepay'
   const allowCancellation = !isCancellationRequested(order) && (canDirectCancel(order) || canRequestCancellation(order))
@@ -341,6 +343,18 @@ function OrderDetailContent({ order, onContinuePayment, onRequestCancellation, o
         </section>
       )}
 
+      {normalizeOrderStatus(order.status) === 'COMPLETED' && (
+        <section className="border-t border-outline-variant/20 pt-5">
+          <button
+            type="button"
+            onClick={onRequestReturn}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-emerald-600 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+          >
+            <RotateCcw size={16} /> Yêu cầu Trả hàng & Hoàn tiền (30 ngày)
+          </button>
+        </section>
+      )}
+
       {canContinueSepayPayment && (
         <section className="border-t border-outline-variant/20 pt-5">
           {order.paymentExpiresAt && <p className="mb-3 text-xs leading-relaxed text-on-surface-variant">Phiên thanh toán hết hạn lúc {formatDateTime(order.paymentExpiresAt)}.</p>}
@@ -369,6 +383,8 @@ export default function OrderTrackingPage() {
   const [error, setError] = useState('')
   const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false)
   const [cancellationSubmitting, setCancellationSubmitting] = useState(false)
+  const [returnModalOpen, setReturnModalOpen] = useState(false)
+  const [returnEligibilityData, setReturnEligibilityData] = useState(null)
   const triggerRefs = useRef(new Map())
   const selectedOrderIdRef = useRef(null)
   const detailRequestIdRef = useRef(0)
@@ -462,6 +478,35 @@ export default function OrderTrackingPage() {
     }
   }
 
+  const handleOpenReturnModal = async () => {
+    if (!detailOrder) return
+    try {
+      const res = await evaluateReturnEligibility(detailOrder.id)
+      setReturnEligibilityData(res.data)
+      setReturnModalOpen(true)
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Không thể kiểm tra điều kiện trả hàng.')
+    }
+  }
+
+  const handleCreateReturnSubmit = async (payload) => {
+    if (!detailOrder) return
+    const res = await createReturnRequest(detailOrder.id, {
+      reason: payload.reason,
+      customerNote: payload.customerNote,
+      items: payload.items,
+      evidences: payload.evidences,
+    })
+
+    const returnId = res?.data?.id
+    if (returnId && payload.payoutDestination) {
+      await savePayoutDestination(returnId, payload.payoutDestination)
+    }
+
+    await openOrderDetail({ id: detailOrder.id })
+    setReturnModalOpen(false)
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 lg:py-14">
       <h1 className="font-headline-md text-primary">Đơn hàng của tôi</h1>
@@ -493,6 +538,7 @@ export default function OrderTrackingPage() {
             order={detailOrder}
             onContinuePayment={handleContinuePayment}
             onRequestCancellation={() => setCancellationDialogOpen(true)}
+            onRequestReturn={handleOpenReturnModal}
             onOrderUpdated={setDetailOrder}
           />
         )}
@@ -503,6 +549,14 @@ export default function OrderTrackingPage() {
         loading={cancellationSubmitting}
         onClose={() => setCancellationDialogOpen(false)}
         onConfirm={handleRequestCancellation}
+      />
+
+      <ReturnRequestModal
+        isOpen={returnModalOpen}
+        onClose={() => setReturnModalOpen(false)}
+        order={detailOrder}
+        remainingQuantities={returnEligibilityData?.remainingReturnableQuantities || {}}
+        onSubmit={handleCreateReturnSubmit}
       />
     </div>
   )
