@@ -26,8 +26,20 @@ public class RefundTransaction extends BaseEntity {
     @Column(name = "payment_transaction_id", length = 50, nullable = false)
     private String paymentTransactionId;
 
-    @Column(name = "order_cancellation_id", length = 50, nullable = false, unique = true)
+    @Column(name = "order_cancellation_id", length = 50)
     private String orderCancellationId;
+
+    @Column(name = "return_request_id", length = 64)
+    private String returnRequestId;
+
+    @Column(name = "bank_code", length = 32)
+    private String bankCode;
+
+    @Column(name = "account_holder", length = 150)
+    private String accountHolder;
+
+    @Column(name = "account_number", length = 64)
+    private String accountNumber;
 
     @Column(name = "amount", precision = 12, scale = 2, nullable = false)
     private BigDecimal amount;

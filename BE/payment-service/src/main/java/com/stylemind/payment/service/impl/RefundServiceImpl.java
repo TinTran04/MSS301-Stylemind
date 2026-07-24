@@ -2,10 +2,7 @@ package com.stylemind.payment.service.impl;
 
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.util.StringUtil;
-import com.stylemind.payment.dto.CompleteRefundRequest;
-import com.stylemind.payment.dto.CreateRefundRequest;
-import com.stylemind.payment.dto.FailRefundRequest;
-import com.stylemind.payment.dto.RefundResponse;
+import com.stylemind.payment.dto.*;
 import com.stylemind.payment.entity.RefundStatus;
 import com.stylemind.payment.entity.RefundTransaction;
 import com.stylemind.payment.entity.Transaction;
@@ -17,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Service
@@ -33,9 +31,29 @@ public class RefundServiceImpl implements RefundService {
 
     @Override
     public RefundResponse createPendingRefund(CreateRefundRequest request) {
-        return refundRepository.findByOrderCancellationId(request.getOrderCancellationId())
-                .map(this::toResponse)
-                .orElseGet(() -> createPendingRefundForTransaction(findPaidTransaction(request.getOrderId()), request.getOrderCancellationId()));
+        if (StringUtils.hasText(request.getOrderCancellationId())) {
+            return refundRepository.findByOrderCancellationId(request.getOrderCancellationId())
+                    .map(this::toResponse)
+                    .orElseGet(() -> createPendingRefundForTransaction(findPaidTransaction(request.getOrderId()), request.getOrderCancellationId(), null, request.getMerchandiseAmount()));
+        }
+
+        if (StringUtils.hasText(request.getReturnRequestId())) {
+            Transaction transaction = findPaidTransaction(request.getOrderId());
+            BigDecimal refundAmt = request.getMerchandiseAmount() != null ? request.getMerchandiseAmount() : transaction.getAmount();
+            
+            RefundTransaction refund = RefundTransaction.builder()
+                    .id(StringUtil.generateUniqueId())
+                    .orderId(transaction.getOrderId())
+                    .paymentTransactionId(transaction.getId())
+                    .returnRequestId(request.getReturnRequestId())
+                    .amount(refundAmt)
+                    .status(RefundStatus.REFUND_PENDING)
+                    .method(METHOD_MANUAL_BANK_TRANSFER)
+                    .build();
+            return toResponse(refundRepository.save(refund));
+        }
+
+        throw new BusinessException("INVALID_REFUND_REQUEST", "Either orderCancellationId or returnRequestId is required", 400);
     }
 
     @Override
@@ -47,7 +65,7 @@ public class RefundServiceImpl implements RefundService {
         }
         return refundRepository.findByOrderCancellationId(transaction.getOrderCancellationId())
                 .map(this::toResponse)
-                .orElseGet(() -> createPendingRefundForTransaction(transaction, transaction.getOrderCancellationId()));
+                .orElseGet(() -> createPendingRefundForTransaction(transaction, transaction.getOrderCancellationId(), null, transaction.getAmount()));
     }
 
     @Override
@@ -78,6 +96,14 @@ public class RefundServiceImpl implements RefundService {
         refund.setProcessedBy(trim(request.getProcessedBy()));
         refund.setProcessedAt(LocalDateTime.now());
         refund.setFailureReason(null);
+
+        // Update main transaction status if full refund
+        Transaction transaction = transactionRepository.findById(refund.getPaymentTransactionId()).orElse(null);
+        if (transaction != null) {
+            transaction.setStatus("REFUNDED");
+            transactionRepository.save(transaction);
+        }
+
         return toResponse(refundRepository.save(refund));
     }
 
@@ -95,6 +121,33 @@ public class RefundServiceImpl implements RefundService {
         return toResponse(refundRepository.save(refund));
     }
 
+    public PayoutDestinationResponse savePayoutDestination(String returnRequestId, PayoutDestinationRequest request) {
+        RefundTransaction refund = refundRepository.findAll().stream()
+                .filter(r -> returnRequestId.equals(r.getReturnRequestId()))
+                .findFirst()
+                .orElse(null);
+
+        if (refund != null) {
+            if (refund.getStatus() == RefundStatus.REFUNDED) {
+                throw new BusinessException("PAYOUT_DESTINATION_LOCKED", "Không thể sửa STK khi lệnh hoàn tiền đã thành công", 409);
+            }
+            refund.setBankCode(request.getBankCode());
+            refund.setAccountHolder(request.getAccountHolder());
+            refund.setAccountNumber(request.getAccountNumber());
+            refundRepository.save(refund);
+        }
+
+        return PayoutDestinationResponse.builder()
+                .returnRequestId(returnRequestId)
+                .bankCode(request.getBankCode())
+                .accountHolder(request.getAccountHolder())
+                .maskedAccountNumber(maskAccountNumber(request.getAccountNumber()))
+                .status("PROVIDED")
+                .editable(refund == null || refund.getStatus() == RefundStatus.REFUND_PENDING)
+                .updatedAt(LocalDateTime.now())
+                .build();
+    }
+
     private Transaction findPaidTransaction(String orderId) {
         return transactionRepository.findTopByOrderIdOrderByCreatedAtDesc(orderId)
                 .filter(transaction -> STATUS_PAID.equalsIgnoreCase(transaction.getStatus())
@@ -102,17 +155,19 @@ public class RefundServiceImpl implements RefundService {
                 .orElseThrow(() -> new BusinessException("REFUND_NOT_REQUIRED", "Order does not have a paid transaction", 409));
     }
 
-    private RefundResponse createPendingRefundForTransaction(Transaction transaction, String orderCancellationId) {
+    private RefundResponse createPendingRefundForTransaction(Transaction transaction, String orderCancellationId, String returnRequestId, BigDecimal amount) {
         if (!STATUS_PAID.equalsIgnoreCase(transaction.getStatus())
                 && !STATUS_PAID_AFTER_CANCEL.equalsIgnoreCase(transaction.getStatus())) {
             throw new BusinessException("REFUND_NOT_REQUIRED", "Only paid transactions require refund", 409);
         }
+        BigDecimal refundAmount = amount != null ? amount : transaction.getAmount();
         RefundTransaction refund = RefundTransaction.builder()
                 .id(StringUtil.generateUniqueId())
                 .orderId(transaction.getOrderId())
                 .paymentTransactionId(transaction.getId())
                 .orderCancellationId(orderCancellationId)
-                .amount(transaction.getAmount())
+                .returnRequestId(returnRequestId)
+                .amount(refundAmount)
                 .status(RefundStatus.REFUND_PENDING)
                 .method(METHOD_MANUAL_BANK_TRANSFER)
                 .build();
@@ -125,6 +180,10 @@ public class RefundServiceImpl implements RefundService {
                 .orderId(refund.getOrderId())
                 .paymentTransactionId(refund.getPaymentTransactionId())
                 .orderCancellationId(refund.getOrderCancellationId())
+                .returnRequestId(refund.getReturnRequestId())
+                .bankCode(refund.getBankCode())
+                .accountHolder(refund.getAccountHolder())
+                .maskedAccountNumber(maskAccountNumber(refund.getAccountNumber()))
                 .amount(refund.getAmount())
                 .status(refund.getStatus().name())
                 .method(refund.getMethod())
@@ -137,6 +196,13 @@ public class RefundServiceImpl implements RefundService {
                 .createdAt(refund.getCreatedAt() == null ? null : refund.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .updatedAt(refund.getUpdatedAt() == null ? null : refund.getUpdatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
                 .build();
+    }
+
+    private String maskAccountNumber(String acc) {
+        if (!StringUtils.hasText(acc)) return null;
+        String trimmed = acc.trim();
+        if (trimmed.length() <= 4) return "******" + trimmed;
+        return "******" + trimmed.substring(trimmed.length() - 4);
     }
 
     private String trim(String value) {

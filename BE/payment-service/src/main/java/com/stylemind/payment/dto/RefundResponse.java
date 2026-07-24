@@ -14,6 +14,10 @@ public class RefundResponse {
     private String orderId;
     private String paymentTransactionId;
     private String orderCancellationId;
+    private String returnRequestId;
+    private String bankCode;
+    private String accountHolder;
+    private String maskedAccountNumber;
     private BigDecimal amount;
     private String status;
     private String method;
