@@ -1,5 +1,5 @@
-import { apiClient } from '../../lib/api-client'
-import { ENDPOINTS } from '../../config/api.config'
+import apiClient from '../../services/apiClient.js'
+import { ENDPOINTS } from '../../config/api.config.js'
 
 export async function evaluateReturnEligibility(orderId) {
   return apiClient.get(`${ENDPOINTS.ORDERS}/${orderId}/returns/eligibility`)
