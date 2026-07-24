@@ -40,16 +40,33 @@ public class RefundServiceImpl implements RefundService {
         if (StringUtils.hasText(request.getReturnRequestId())) {
             Transaction transaction = findPaidTransaction(request.getOrderId());
             BigDecimal refundAmt = request.getMerchandiseAmount() != null ? request.getMerchandiseAmount() : transaction.getAmount();
-            
-            RefundTransaction refund = RefundTransaction.builder()
-                    .id(StringUtil.generateUniqueId())
-                    .orderId(transaction.getOrderId())
-                    .paymentTransactionId(transaction.getId())
-                    .returnRequestId(request.getReturnRequestId())
-                    .amount(refundAmt)
-                    .status(RefundStatus.REFUND_PENDING)
-                    .method(METHOD_MANUAL_BANK_TRANSFER)
-                    .build();
+
+            RefundTransaction refund = refundRepository.findAll().stream()
+                    .filter(r -> request.getReturnRequestId().equals(r.getReturnRequestId()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (refund == null) {
+                refund = RefundTransaction.builder()
+                        .id(StringUtil.generateUniqueId())
+                        .orderId(transaction.getOrderId())
+                        .paymentTransactionId(transaction.getId())
+                        .returnRequestId(request.getReturnRequestId())
+                        .amount(refundAmt)
+                        .status(RefundStatus.REFUND_PENDING)
+                        .method(METHOD_MANUAL_BANK_TRANSFER)
+                        .build();
+            } else {
+                refund.setOrderId(transaction.getOrderId());
+                refund.setPaymentTransactionId(transaction.getId());
+                refund.setAmount(refundAmt);
+                if (refund.getStatus() == null) {
+                    refund.setStatus(RefundStatus.REFUND_PENDING);
+                }
+                if (!StringUtils.hasText(refund.getMethod())) {
+                    refund.setMethod(METHOD_MANUAL_BANK_TRANSFER);
+                }
+            }
             return toResponse(refundRepository.save(refund));
         }
 
@@ -71,23 +88,17 @@ public class RefundServiceImpl implements RefundService {
     @Override
     @Transactional(readOnly = true)
     public RefundResponse getRefundByOrderId(String orderId) {
-        return refundRepository.findByOrderId(orderId)
-                .map(this::toResponse)
-                .orElse(null);
+        RefundTransaction refund = refundRepository.findByOrderId(orderId)
+                .orElseThrow(() -> new BusinessException("REFUND_NOT_FOUND", "Refund transaction not found for order", 404));
+        return toResponse(refund);
     }
 
     @Override
     public RefundResponse completeRefund(String refundId, CompleteRefundRequest request) {
         RefundTransaction refund = refundRepository.findById(refundId)
                 .orElseThrow(() -> new BusinessException("REFUND_NOT_FOUND", "Refund transaction not found", 404));
-        if (refund.getStatus() == RefundStatus.REFUNDED) {
-            return toResponse(refund);
-        }
         if (refund.getStatus() != RefundStatus.REFUND_PENDING) {
             throw new BusinessException("REFUND_INVALID_STATUS", "Refund is not pending", 409);
-        }
-        if (!StringUtils.hasText(request.getProviderReference())) {
-            throw new BusinessException("REFUND_PROVIDER_REFERENCE_REQUIRED", "Provider reference is required", 400);
         }
         refund.setStatus(RefundStatus.REFUNDED);
         refund.setProviderReference(trim(request.getProviderReference()));
@@ -95,15 +106,6 @@ public class RefundServiceImpl implements RefundService {
         refund.setNote(trim(request.getNote()));
         refund.setProcessedBy(trim(request.getProcessedBy()));
         refund.setProcessedAt(LocalDateTime.now());
-        refund.setFailureReason(null);
-
-        // Update main transaction status if full refund
-        Transaction transaction = transactionRepository.findById(refund.getPaymentTransactionId()).orElse(null);
-        if (transaction != null) {
-            transaction.setStatus("REFUNDED");
-            transactionRepository.save(transaction);
-        }
-
         return toResponse(refundRepository.save(refund));
     }
 
@@ -127,15 +129,25 @@ public class RefundServiceImpl implements RefundService {
                 .findFirst()
                 .orElse(null);
 
-        if (refund != null) {
-            if (refund.getStatus() == RefundStatus.REFUNDED) {
+        if (refund == null) {
+            refund = RefundTransaction.builder()
+                    .id(StringUtil.generateUniqueId())
+                    .returnRequestId(returnRequestId)
+                    .bankCode(request.getBankCode())
+                    .accountHolder(request.getAccountHolder())
+                    .accountNumber(request.getAccountNumber())
+                    .status(RefundStatus.REFUND_PENDING)
+                    .amount(BigDecimal.ZERO)
+                    .build();
+        } else {
+            if (refund.getStatus() == RefundStatus.REFUNDED && refund.getBankCode() != null) {
                 throw new BusinessException("PAYOUT_DESTINATION_LOCKED", "Không thể sửa STK khi lệnh hoàn tiền đã thành công", 409);
             }
             refund.setBankCode(request.getBankCode());
             refund.setAccountHolder(request.getAccountHolder());
             refund.setAccountNumber(request.getAccountNumber());
-            refundRepository.save(refund);
         }
+        refundRepository.save(refund);
 
         return PayoutDestinationResponse.builder()
                 .returnRequestId(returnRequestId)
@@ -143,7 +155,7 @@ public class RefundServiceImpl implements RefundService {
                 .accountHolder(request.getAccountHolder())
                 .maskedAccountNumber(maskAccountNumber(request.getAccountNumber()))
                 .status("PROVIDED")
-                .editable(refund == null || refund.getStatus() == RefundStatus.REFUND_PENDING)
+                .editable(refund.getStatus() != RefundStatus.REFUNDED)
                 .updatedAt(LocalDateTime.now())
                 .build();
     }
