@@ -28,6 +28,7 @@ import AIPipelinePage from '../pages/admin/AIPipelinePage'
 import KnowledgeGraphPage from '../pages/admin/KnowledgeGraphPage'
 import RecommendationAnalyticsPage from '../pages/admin/RecommendationAnalyticsPage'
 import NotificationManagementPage from '../pages/admin/NotificationManagementPage'
+import AdminReturnManagementPage from '../pages/admin/AdminReturnManagementPage'
 
 export default function AppRouter() {
   return (
@@ -65,6 +66,7 @@ export default function AppRouter() {
           <Route path="/admin/products" element={<ProductManagementPage />} />
           <Route path="/admin/orders" element={<OrderManagementPage />} />
           <Route path="/admin/orders/:orderId" element={<AdminOrderDetailPage />} />
+          <Route path="/admin/returns" element={<AdminReturnManagementPage />} />
           <Route path="/admin/users" element={<UserManagementPage />} />
           <Route path="/admin/ai-pipeline" element={<AIPipelinePage />} />
           <Route path="/admin/knowledge-graph" element={<KnowledgeGraphPage />} />

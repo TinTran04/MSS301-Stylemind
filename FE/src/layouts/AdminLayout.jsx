@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingCart, UserCog,
-  Network, Bell, LogOut, ChevronLeft, ChevronRight
+  Network, Bell, LogOut, ChevronLeft, ChevronRight, RotateCcw
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { getInitials } from '../features/auth/auth.utils'
@@ -12,6 +12,7 @@ const sidebarLinks = [
   { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
   { to: '/admin/products', label: 'Sản phẩm', icon: Package },
   { to: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
+  { to: '/admin/returns', label: 'Trả hàng & Hoàn tiền', icon: RotateCcw },
   { to: '/admin/users', label: 'Quản lý người dùng', icon: UserCog },
   { to: '/admin/notifications', label: 'Thông báo', icon: Bell },
   { to: '/admin/knowledge-graph', label: 'Đồ thị tri thức', icon: Network },

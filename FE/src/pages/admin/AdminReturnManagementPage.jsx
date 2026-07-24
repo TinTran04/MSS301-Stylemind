@@ -1,0 +1,295 @@
+import React, { useEffect, useState } from 'react'
+import { RotateCcw, CheckCircle2, XCircle, PackageCheck, Eye } from 'lucide-react'
+import Badge from '../../components/common/Badge'
+import Modal from '../../components/common/Modal'
+import { adminGetReturns, adminReviewReturn, adminReceiveAndQc } from '../../features/orders/return.api'
+import { formatDateTime } from '../../utils/formatDate'
+
+const STATUS_OPTIONS = [
+  { key: '', label: 'Tất cả trạng thái' },
+  { key: 'REQUESTED', label: 'Chờ duyệt' },
+  { key: 'APPROVED', label: 'Đã chấp nhận' },
+  { key: 'RETURN_IN_TRANSIT', label: 'Đang vận chuyển' },
+  { key: 'QC_PASSED', label: 'QC Đạt (Đã hoàn tiền)' },
+  { key: 'QC_FAILED', label: 'QC Thất bại' },
+  { key: 'REJECTED', label: 'Bị từ chối' },
+]
+
+export default function AdminReturnManagementPage() {
+  const [returns, setReturns] = useState([])
+  const [selectedStatus, setSelectedStatus] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const [selectedReturn, setSelectedReturn] = useState(null)
+  const [reviewModalOpen, setReviewModalOpen] = useState(false)
+  const [qcModalOpen, setQcModalOpen] = useState(false)
+  const [adminNote, setAdminNote] = useState('')
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [isPhysicalReturn, setIsPhysicalReturn] = useState(true)
+  const [actionLoading, setActionLoading] = useState(false)
+
+  const fetchReturns = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await adminGetReturns(selectedStatus)
+      const content = res?.data?.content || res?.content || []
+      setReturns(content)
+    } catch (err) {
+      setError('Không thể tải danh sách yêu cầu trả hàng.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchReturns()
+  }, [selectedStatus])
+
+  const handleReviewSubmit = async (action) => {
+    if (!selectedReturn) return
+    setActionLoading(true)
+    try {
+      await adminReviewReturn(selectedReturn.id, {
+        action,
+        isPhysicalReturn,
+        adminNote: adminNote.trim(),
+        rejectionReason: action === 'REJECT' ? rejectionReason.trim() : null,
+      })
+      setReviewModalOpen(false)
+      fetchReturns()
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Không thể duyệt yêu cầu trả hàng.')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  const handleQcSubmit = async (qcPassed) => {
+    if (!selectedReturn) return
+    setActionLoading(true)
+    try {
+      await adminReceiveAndQc(selectedReturn.id, {
+        qcPassed,
+        adminNote: adminNote.trim(),
+      })
+      setQcModalOpen(false)
+      fetchReturns()
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Có lỗi khi kiểm định QC trả hàng.')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <RotateCcw className="text-emerald-600" /> Quản lý Trả hàng & Hoàn tiền
+          </h1>
+          <p className="text-xs text-gray-500 mt-1">Duyệt yêu cầu trả hàng, tiếp nhận bưu gửi và kiểm định QC</p>
+        </div>
+
+        <select
+          value={selectedStatus}
+          onChange={(e) => setSelectedStatus(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 bg-white"
+        >
+          {STATUS_OPTIONS.map((opt) => (
+            <option key={opt.key} value={opt.key}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading && <div className="py-12 text-center text-sm text-gray-500">Đang tải yêu cầu trả hàng...</div>}
+      {error && <div className="p-4 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">{error}</div>}
+
+      {!loading && !error && returns.length === 0 && (
+        <div className="py-16 text-center text-gray-400 bg-white rounded-xl border border-gray-100">
+          <RotateCcw size={40} className="mx-auto mb-2 opacity-30" />
+          <p className="text-sm font-medium">Không có yêu cầu trả hàng nào.</p>
+        </div>
+      )}
+
+      {!loading && !error && returns.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase font-semibold">
+              <tr>
+                <th className="p-3">Mã Yêu Cầu</th>
+                <th className="p-3">Đơn Hàng</th>
+                <th className="p-3">Khách Hàng ID</th>
+                <th className="p-3">Lý Do Trả</th>
+                <th className="p-3">Ngày Gửi</th>
+                <th className="p-3">Trạng Thái</th>
+                <th className="p-3 text-right">Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+              {returns.map((ret) => (
+                <tr key={ret.id} className="hover:bg-gray-50/50">
+                  <td className="p-3 font-semibold text-emerald-700">{ret.id}</td>
+                  <td className="p-3">{ret.orderId}</td>
+                  <td className="p-3 text-gray-500">{ret.userId}</td>
+                  <td className="p-3">{ret.reason}</td>
+                  <td className="p-3 text-gray-500">{formatDateTime(ret.requestedAt)}</td>
+                  <td className="p-3">
+                    <Badge variant={ret.status === 'QC_PASSED' ? 'success' : ret.status === 'REJECTED' ? 'error' : 'warning'}>
+                      {ret.status}
+                    </Badge>
+                  </td>
+                  <td className="p-3 text-right space-x-2">
+                    {ret.status === 'REQUESTED' && (
+                      <button
+                        onClick={() => {
+                          setSelectedReturn(ret)
+                          setAdminNote('')
+                          setRejectionReason('')
+                          setReviewModalOpen(true)
+                        }}
+                        className="px-2.5 py-1 bg-emerald-600 text-white rounded font-medium hover:bg-emerald-700"
+                      >
+                        Duyệt / Từ chối
+                      </button>
+                    )}
+
+                    {['APPROVED', 'RETURN_IN_TRANSIT'].includes(ret.status) && (
+                      <button
+                        onClick={() => {
+                          setSelectedReturn(ret)
+                          setAdminNote('')
+                          setQcModalOpen(true)
+                        }}
+                        className="px-2.5 py-1 bg-blue-600 text-white rounded font-medium hover:bg-blue-700"
+                      >
+                        Nhận hàng & QC
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Review Modal */}
+      {selectedReturn && (
+        <Modal isOpen={reviewModalOpen} onClose={() => setReviewModalOpen(false)} title={`Duyệt Yêu Cầu Trả Hàng #${selectedReturn.id}`}>
+          <div className="space-y-4 text-xs">
+            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <p className="font-semibold text-gray-800">Lý do trả: <span className="text-emerald-700">{selectedReturn.reason}</span></p>
+              <p className="text-gray-600 mt-1">Ghi chú khách: {selectedReturn.customerNote || 'Không có'}</p>
+            </div>
+
+            {selectedReturn.evidences?.length > 0 && (
+              <div>
+                <p className="font-semibold mb-1">Ảnh bằng chứng:</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedReturn.evidences.map((ev) => (
+                    <img key={ev.id} src={ev.secureUrl} alt="evidence" className="w-16 h-16 object-cover rounded border" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block font-semibold mb-1">Hình thức xử lý</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" checked={isPhysicalReturn} onChange={() => setIsPhysicalReturn(true)} />
+                  <span>Yêu cầu gửi hàng về kho</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="radio" checked={!isPhysicalReturn} onChange={() => setIsPhysicalReturn(false)} />
+                  <span>Hoàn tiền không cần trả hàng</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-semibold mb-1">Ghi chú Admin</label>
+              <textarea
+                rows="2"
+                value={adminNote}
+                onChange={(e) => setAdminNote(e.target.value)}
+                className="w-full p-2 border rounded"
+                placeholder="Ghi chú nội bộ..."
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold mb-1 text-red-600">Lý do từ chối (Nếu từ chối)</label>
+              <input
+                type="text"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                className="w-full p-2 border rounded"
+                placeholder="Nhập lý do từ chối..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button
+                disabled={actionLoading}
+                onClick={() => handleReviewSubmit('REJECT')}
+                className="px-3 py-1.5 bg-red-600 text-white rounded font-semibold hover:bg-red-700"
+              >
+                Từ Chối Yêu Cầu
+              </button>
+              <button
+                disabled={actionLoading}
+                onClick={() => handleReviewSubmit('APPROVE')}
+                className="px-3 py-1.5 bg-emerald-600 text-white rounded font-semibold hover:bg-emerald-700"
+              >
+                Đồng Ý Duyệt Trả
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* QC Modal */}
+      {selectedReturn && (
+        <Modal isOpen={qcModalOpen} onClose={() => setQcModalOpen(false)} title={`Kiểm Định QC Bưu Gửi #${selectedReturn.id}`}>
+          <div className="space-y-4 text-xs">
+            <p className="text-gray-600">Xác nhận nhận bưu gửi từ khách hàng và đánh giá chất lượng sản phẩm.</p>
+
+            <div>
+              <label className="block font-semibold mb-1">Ghi chú kiểm định QC</label>
+              <textarea
+                rows="2"
+                value={adminNote}
+                onChange={(e) => setAdminNote(e.target.value)}
+                className="w-full p-2 border rounded"
+                placeholder="Mô tả kết quả kiểm định sản phẩm..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button
+                disabled={actionLoading}
+                onClick={() => handleQcSubmit(false)}
+                className="px-3 py-1.5 bg-red-600 text-white rounded font-semibold hover:bg-red-700"
+              >
+                QC Thất Bại (Trả về)
+              </button>
+              <button
+                disabled={actionLoading}
+                onClick={() => handleQcSubmit(true)}
+                className="px-3 py-1.5 bg-emerald-600 text-white rounded font-semibold hover:bg-emerald-700"
+              >
+                QC Đạt (Cộng Kho & Tạo Refund)
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  )
+}
