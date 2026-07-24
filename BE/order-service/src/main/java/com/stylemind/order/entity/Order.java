@@ -17,6 +17,10 @@ public class Order extends BaseEntity {
     @Column(name = "id", length = 50)
     private String id;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @Column(name = "user_id", length = 50, nullable = false)
     private String userId;
 
@@ -73,6 +77,8 @@ public class Order extends BaseEntity {
     // Explicit getters/setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
     public java.math.BigDecimal getTotalAmount() { return totalAmount; }

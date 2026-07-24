@@ -2,8 +2,10 @@ package com.stylemind.payment.controller;
 
 import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.exception.BusinessException;
+import com.stylemind.payment.dto.CancelPaymentRequest;
 import com.stylemind.payment.dto.CodCheckoutRequest;
 import com.stylemind.payment.dto.PaymentResponse;
+import com.stylemind.payment.dto.PaymentCancellationResponse;
 import com.stylemind.payment.dto.PaymentRevenueCandidate;
 import com.stylemind.payment.dto.RevenueOrderIdsRequest;
 import com.stylemind.payment.dto.SepayCheckoutRequest;
@@ -49,6 +51,14 @@ public class InternalPaymentController {
     public ResponseEntity<ApiResponse<Void>> expirePayment(@PathVariable String orderId) {
         paymentService.expirePendingSepayPayment(orderId);
         return ResponseEntity.ok(ApiResponse.success("Payment expired", null));
+    }
+
+    @PostMapping("/orders/{orderId}/cancel")
+    public ResponseEntity<ApiResponse<PaymentCancellationResponse>> cancelPayment(
+            @PathVariable String orderId,
+            @Valid @RequestBody CancelPaymentRequest request) {
+        PaymentCancellationResponse response = paymentService.cancelPayment(orderId, request);
+        return ResponseEntity.ok(ApiResponse.success("Payment cancellation checked", response));
     }
 
     @PostMapping("/{transactionId}/refund")

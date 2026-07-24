@@ -2,11 +2,7 @@ package com.stylemind.payment.service.impl;
 
 import com.stylemind.common.exception.BusinessException;
 import com.stylemind.common.util.StringUtil;
-import com.stylemind.payment.dto.CodCheckoutRequest;
-import com.stylemind.payment.dto.PaymentResponse;
-import com.stylemind.payment.dto.PaymentRevenueCandidate;
-import com.stylemind.payment.dto.SepayCheckoutRequest;
-import com.stylemind.payment.dto.SepayWebhookPayload;
+import com.stylemind.payment.dto.*;
 import com.stylemind.payment.entity.PaymentWebhookEvent;
 import com.stylemind.payment.entity.Transaction;
 import com.stylemind.payment.feign.OrderClient;
@@ -14,6 +10,7 @@ import com.stylemind.payment.repository.PaymentWebhookEventRepository;
 import com.stylemind.payment.repository.TransactionRepository;
 import com.stylemind.payment.service.PaymentReferenceMatcher;
 import com.stylemind.payment.service.PaymentService;
+import com.stylemind.payment.service.RefundService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -43,12 +40,15 @@ public class PaymentServiceImpl implements PaymentService {
     private static final String STATUS_PAID = "PAID";
     private static final String STATUS_FAILED = "FAILED";
     private static final String STATUS_EXPIRED = "EXPIRED";
+    private static final String STATUS_CANCELLED = "CANCELLED";
+    private static final String STATUS_PAID_AFTER_CANCEL = "PAID_AFTER_CANCEL";
     private static final int NOTIFY_MAX_ATTEMPTS = 3;
 
     private final TransactionRepository transactionRepository;
     private final PaymentWebhookEventRepository webhookEventRepository;
     private final OrderClient orderClient;
     private final PaymentReferenceMatcher paymentReferenceMatcher;
+    private final RefundService refundService;
 
     @Value("${app.vietqr.bank-id:970436}")
     private String vietQrBankId;
@@ -165,7 +165,12 @@ public class PaymentServiceImpl implements PaymentService {
         String incomingTransferContent = String.join(" | ", incomingTransferContents);
         Transaction match = findPendingSepayTransactionByContent(incomingTransferContents);
         if (match == null) {
-            Transaction expiredMatch = findExpiredSepayTransactionByContent(incomingTransferContents);
+            Transaction cancelledMatch = findSepayTransactionByContentAndStatuses(incomingTransferContents, List.of(STATUS_CANCELLED));
+            if (cancelledMatch != null) {
+                handleWebhookAfterCancellation(webhookEvent, cancelledMatch, gatewayTransactionId, payload);
+                return;
+            }
+            Transaction expiredMatch = findSepayTransactionByContentAndStatuses(incomingTransferContents, List.of(STATUS_EXPIRED, STATUS_FAILED));
             if (expiredMatch != null) {
                 finalizeWebhookEvent(webhookEvent, expiredMatch.getId(), "LATE_AFTER_EXPIRY", false,
                         "Webhook arrived after payment/order expiration");
@@ -214,7 +219,7 @@ public class PaymentServiceImpl implements PaymentService {
             return;
         }
 
-        if (STATUS_EXPIRED.equalsIgnoreCase(transaction.getStatus()) || "CANCELLED".equalsIgnoreCase(transaction.getStatus())) {
+        if (STATUS_EXPIRED.equalsIgnoreCase(transaction.getStatus()) || STATUS_CANCELLED.equalsIgnoreCase(transaction.getStatus())) {
             return;
         }
 
@@ -222,6 +227,41 @@ public class PaymentServiceImpl implements PaymentService {
             transaction.setStatus(STATUS_EXPIRED);
             transactionRepository.save(transaction);
         }
+    }
+
+    @Override
+    public PaymentCancellationResponse cancelPayment(String orderId, CancelPaymentRequest request) {
+        Transaction transaction = transactionRepository.findTopByOrderIdOrderByCreatedAtDesc(orderId)
+                .orElseThrow(() -> new BusinessException(
+                        "PAYMENT_NOT_FOUND", "No transaction found for order: " + orderId, 404));
+
+        if (STATUS_PAID.equalsIgnoreCase(transaction.getStatus())
+                || STATUS_PAID_AFTER_CANCEL.equalsIgnoreCase(transaction.getStatus())) {
+            return toCancellationResponse(transaction, true);
+        }
+
+        if (STATUS_CANCELLED.equalsIgnoreCase(transaction.getStatus())) {
+            if (transaction.getOrderCancellationId() == null) {
+                transaction.setOrderCancellationId(request.getOrderCancellationId());
+                transaction = transactionRepository.save(transaction);
+            }
+            return toCancellationResponse(transaction, false);
+        }
+
+        if (METHOD_SEPAY.equalsIgnoreCase(transaction.getMethod()) && STATUS_PENDING.equalsIgnoreCase(transaction.getStatus())) {
+            transaction.setStatus(STATUS_CANCELLED);
+            transaction.setOrderCancellationId(request.getOrderCancellationId());
+            transaction = transactionRepository.save(transaction);
+            return toCancellationResponse(transaction, false);
+        }
+
+        if (METHOD_COD.equalsIgnoreCase(transaction.getMethod()) && STATUS_PENDING.equalsIgnoreCase(transaction.getStatus())) {
+            transaction.setOrderCancellationId(request.getOrderCancellationId());
+            transaction = transactionRepository.save(transaction);
+            return toCancellationResponse(transaction, false);
+        }
+
+        return toCancellationResponse(transaction, false);
     }
 
     @Override
@@ -308,12 +348,39 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElse(null);
     }
 
-    private Transaction findExpiredSepayTransactionByContent(List<String> rawContents) {
-        return transactionRepository.findByMethodAndStatusIn(METHOD_SEPAY, List.of(STATUS_EXPIRED, STATUS_FAILED, "CANCELLED")).stream()
+    private Transaction findSepayTransactionByContentAndStatuses(List<String> rawContents, List<String> statuses) {
+        return transactionRepository.findByMethodAndStatusIn(METHOD_SEPAY, statuses).stream()
                 .filter(t -> rawContents.stream()
                         .anyMatch(rawContent -> paymentReferenceMatcher.matches(t.getTransferContent(), rawContent)))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private void handleWebhookAfterCancellation(
+            PaymentWebhookEvent webhookEvent,
+            Transaction transaction,
+            String gatewayTransactionId,
+            SepayWebhookPayload payload) {
+        boolean amountMatches = payload.getTransferAmount() != null
+                && transaction.getAmount().compareTo(payload.getTransferAmount()) == 0;
+        if (!amountMatches) {
+            finalizeWebhookEvent(webhookEvent, transaction.getId(), "CANCELLED_AMOUNT_MISMATCH", false,
+                    "Transfer arrived after cancellation but amount does not match");
+            log.warn("Late SePay webhook after cancellation had wrong amount orderId={} gatewayTxnId={}",
+                    transaction.getOrderId(), gatewayTransactionId);
+            return;
+        }
+
+        transaction.setStatus(STATUS_PAID_AFTER_CANCEL);
+        transaction.setGatewayTransactionId(gatewayTransactionId);
+        transaction.setPaidAt(LocalDateTime.now());
+        transactionRepository.save(transaction);
+        if (transaction.getOrderCancellationId() != null) {
+            refundService.createRefundForLatePayment(transaction.getId());
+        }
+        finalizeWebhookEvent(webhookEvent, transaction.getId(), "PAID_AFTER_CANCEL_REFUND_PENDING", true, null);
+        log.info("Late SePay payment captured after cancellation orderId={} transactionId={}",
+                transaction.getOrderId(), transaction.getId());
     }
 
     private String gatewayTransactionId(SepayWebhookPayload payload) {
@@ -445,7 +512,7 @@ public class PaymentServiceImpl implements PaymentService {
             qrImageUrl = buildQrImageUrl(transaction.getAmount(), transferContent);
         }
 
-        return PaymentResponse.builder()
+        PaymentResponse response = PaymentResponse.builder()
                 .transactionId(transaction.getId())
                 .status(transaction.getStatus())
                 .amount(transaction.getAmount())
@@ -461,6 +528,20 @@ public class PaymentServiceImpl implements PaymentService {
                 .expiresAt(transaction.getExpiresAt() == null
                         ? null
                         : transaction.getExpiresAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
+                .build();
+        response.setRefund(refundService.getRefundByOrderId(transaction.getOrderId()));
+        return response;
+    }
+
+    private PaymentCancellationResponse toCancellationResponse(Transaction transaction, boolean paymentReceived) {
+        return PaymentCancellationResponse.builder()
+                .transactionId(transaction.getId())
+                .orderId(transaction.getOrderId())
+                .status(transaction.getStatus())
+                .method(transaction.getMethod())
+                .amount(transaction.getAmount())
+                .paymentReceived(paymentReceived)
+                .orderCancellationId(transaction.getOrderCancellationId())
                 .build();
     }
 }

@@ -3,9 +3,18 @@ import { ArrowLeft, Check, Copy, CreditCard, ImageIcon, ImageOff, MapPin, Packag
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Card from '../../components/common/Card'
 import Badge from '../../components/common/Badge'
+import Modal from '../../components/common/Modal'
 import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog'
+import AdminRefundPanel from '../../components/admin/AdminRefundPanel'
 import StatusBadge from '../../components/admin/StatusBadge'
-import { getAdminOrder, updateAdminOrderStatus } from '../../features/orders/admin-order.api'
+import {
+  approveOrderCancellation,
+  completeOrderRefund,
+  failOrderRefund,
+  getAdminOrder,
+  rejectOrderCancellation,
+  updateAdminOrderStatus,
+} from '../../features/orders/admin-order.api'
 import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/orderStatus'
 import { getAdminErrorMessage } from '../../features/admin/admin-error-messages'
 import { formatCurrency } from '../../utils/formatCurrency'
@@ -19,6 +28,7 @@ import {
   resolveAdminOrderBackUrl,
 } from './adminOrderDetail.utils'
 import { getAdminOrderStatusOptions, getStatusUpdateErrorMessage } from './adminOrderStatus.utils'
+import OrderCancellationPanel from '../../components/customer/OrderCancellationPanel'
 
 function DetailSection({ title, icon: Icon, children, className = '' }) {
   return (
@@ -194,6 +204,11 @@ export default function AdminOrderDetailPage() {
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [statusError, setStatusError] = useState(null)
   const [statusToast, setStatusToast] = useState('')
+  const [cancellationUpdating, setCancellationUpdating] = useState(false)
+  const [refundUpdating, setRefundUpdating] = useState(false)
+  const [rejectDialogOpen, setRejectDialogOpen] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [rejectionError, setRejectionError] = useState('')
   const backUrl = useMemo(() => resolveAdminOrderBackUrl(location.search), [location.search])
 
   const fetchOrder = useCallback(async () => {
@@ -243,6 +258,7 @@ export default function AdminOrderDetailPage() {
     : paymentMethodValue?.includes('sepay')
       ? 'SePay'
       : order.paymentMethod
+  const hasPendingCancellation = Boolean(order.hasPendingCancellation || order.latestCancellation?.status === 'REQUESTED')
 
   const handleStatusSelection = (event) => {
     const nextStatus = event.target.value
@@ -282,6 +298,76 @@ export default function AdminOrderDetailPage() {
     }
   }
 
+  const handleApproveCancellation = async () => {
+    if (!order.latestCancellation?.id || cancellationUpdating) return
+    setCancellationUpdating(true)
+    setStatusToast('')
+    try {
+      await approveOrderCancellation(order.latestCancellation.id)
+      await fetchOrder()
+      setStatusToast('Đã duyệt yêu cầu hủy đơn.')
+    } finally {
+      setCancellationUpdating(false)
+    }
+  }
+
+  const openRejectDialog = () => {
+    if (!order.latestCancellation?.id || cancellationUpdating) return
+    setRejectionReason('')
+    setRejectionError('')
+    setRejectDialogOpen(true)
+  }
+
+  const closeRejectDialog = () => {
+    if (cancellationUpdating) return
+    setRejectDialogOpen(false)
+    setRejectionReason('')
+    setRejectionError('')
+  }
+
+  const handleRejectCancellation = async () => {
+    if (!order.latestCancellation?.id || cancellationUpdating) return
+    const trimmedReason = rejectionReason.trim()
+    if (!trimmedReason) {
+      setRejectionError('Vui lòng nhập lý do từ chối hủy đơn.')
+      return
+    }
+    setCancellationUpdating(true)
+    setRejectionError('')
+    setStatusToast('')
+    try {
+      await rejectOrderCancellation(order.latestCancellation.id, { rejectionReason: trimmedReason })
+      await fetchOrder()
+      setRejectDialogOpen(false)
+      setRejectionReason('')
+      setStatusToast('Đã từ chối yêu cầu hủy đơn.')
+    } finally {
+      setCancellationUpdating(false)
+    }
+  }
+
+  const handleCompleteRefund = async (payload) => {
+    if (!order.refund?.id || refundUpdating) return
+    setRefundUpdating(true)
+    try {
+      await completeOrderRefund(order.id, order.refund.id, payload)
+      await fetchOrder()
+    } finally {
+      setRefundUpdating(false)
+    }
+  }
+
+  const handleFailRefund = async (payload) => {
+    if (!order.refund?.id || refundUpdating) return
+    setRefundUpdating(true)
+    try {
+      await failOrderRefund(order.id, order.refund.id, payload)
+      await fetchOrder()
+    } finally {
+      setRefundUpdating(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -313,7 +399,7 @@ export default function AdminOrderDetailPage() {
                   id="admin-order-status"
                   value={selectedStatus}
                   onChange={handleStatusSelection}
-                  disabled={statusUpdating}
+                  disabled={statusUpdating || hasPendingCancellation}
                   className="w-full rounded-lg border border-outline-variant/30 bg-surface-container-lowest px-3 py-2 text-sm text-primary outline-none focus:border-tertiary-container disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <option value="">Chọn trạng thái mới</option>
@@ -376,6 +462,43 @@ export default function AdminOrderDetailPage() {
               <InfoRow label="Thời gian thanh toán" value={order.paidAt ? formatDateTime(order.paidAt) : null} />
               <InfoRow label="Hết hạn lúc" value={order.paymentExpiresAt ? formatDateTime(order.paymentExpiresAt) : null} />
             </dl>
+              </DetailSection>
+          <DetailSection title="Hủy đơn / Hoàn tiền">
+            {hasPendingCancellation ? (
+              <p className="mb-3 text-sm text-on-surface-variant">Đơn này đang có yêu cầu hủy chờ duyệt. Hãy xử lý yêu cầu trước khi đổi trạng thái thủ công.</p>
+            ) : (
+              <p className="mb-3 text-sm text-on-surface-variant">Chưa có yêu cầu hủy nào.</p>
+            )}
+            <OrderCancellationPanel cancellation={order.latestCancellation} refund={order.refund} />
+            <div className="mt-4">
+              <AdminRefundPanel
+                orderId={order.id}
+                refund={order.refund}
+                loading={refundUpdating}
+                onComplete={handleCompleteRefund}
+                onFail={handleFailRefund}
+              />
+            </div>
+            {hasPendingCancellation && (
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleApproveCancellation}
+                  disabled={cancellationUpdating}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary disabled:opacity-50"
+                >
+                  Duyệt hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={openRejectDialog}
+                  disabled={cancellationUpdating}
+                  className="rounded-lg border border-outline-variant/30 px-4 py-2 text-sm font-medium text-primary disabled:opacity-50"
+                >
+                  Từ chối
+                </button>
+              </div>
+            )}
           </DetailSection>
         </aside>
       </div>
@@ -390,6 +513,50 @@ export default function AdminOrderDetailPage() {
         onConfirm={handleStatusConfirm}
         onCancel={closeStatusDialog}
       />
+
+      <Modal isOpen={rejectDialogOpen} onClose={closeRejectDialog} title="Từ chối yêu cầu hủy" className="max-w-lg">
+        <div className="space-y-4">
+          <p className="text-sm text-on-surface-variant">
+            Nhập lý do để khách hàng biết vì sao yêu cầu hủy đơn không được chấp nhận.
+          </p>
+          <div>
+            <label htmlFor="admin-rejection-reason" className="mb-2 block text-sm font-medium text-on-surface">
+              Lý do từ chối
+            </label>
+            <textarea
+              id="admin-rejection-reason"
+              value={rejectionReason}
+              onChange={(event) => {
+                setRejectionReason(event.target.value)
+                if (rejectionError) setRejectionError('')
+              }}
+              rows={4}
+              disabled={cancellationUpdating}
+              className="w-full rounded-xl border border-outline-variant/30 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none focus:border-primary disabled:opacity-60"
+              placeholder="Ví dụ: Đơn hàng đã được chuẩn bị giao, chưa thể hủy ở bước này."
+            />
+            {rejectionError && <p role="alert" className="mt-2 text-sm text-error">{rejectionError}</p>}
+          </div>
+          <div className="flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              onClick={closeRejectDialog}
+              disabled={cancellationUpdating}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-on-surface-variant hover:bg-surface-container-high disabled:opacity-50"
+            >
+              Đóng
+            </button>
+            <button
+              type="button"
+              onClick={handleRejectCancellation}
+              disabled={cancellationUpdating || !rejectionReason.trim()}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-on-primary hover:opacity-90 disabled:opacity-50"
+            >
+              {cancellationUpdating ? 'Đang xử lý...' : 'Xác nhận từ chối'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

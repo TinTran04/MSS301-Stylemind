@@ -13,7 +13,6 @@ test('status options use backend transitions and exclude the current status', ()
     }),
     [
       { value: 'PROCESSING', label: 'Đang xử lý' },
-      { value: 'CANCELLED', label: 'Đã hủy' },
     ],
   )
 })
@@ -31,7 +30,6 @@ test('COD status options skip payment milestones', () => {
     }),
     [
       { value: 'CONFIRMED', label: 'Đã xác nhận' },
-      { value: 'CANCELLED', label: 'Đã hủy' },
     ],
   )
 })

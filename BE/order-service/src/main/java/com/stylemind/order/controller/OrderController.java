@@ -5,7 +5,9 @@ import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.security.UserPrincipal;
 import com.stylemind.common.web.PaginationSupport;
 import com.stylemind.order.dto.*;
+import com.stylemind.order.entity.CustomerCancellationReason;
 import com.stylemind.order.service.OrderService;
+import com.stylemind.order.service.OrderCancellationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class OrderController {
 
     private final OrderService orderService;
+    private final OrderCancellationService orderCancellationService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
@@ -57,9 +60,35 @@ public class OrderController {
     @PatchMapping("/{orderId}/cancel")
     public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
             @AuthenticationPrincipal UserPrincipal principal,
-            @PathVariable String orderId) {
-        OrderResponse order = orderService.cancelOrder(principal.getUserId(), orderId);
+            @PathVariable String orderId,
+            @RequestBody(required = false) CreateOrderCancellationRequest request) {
+        CreateOrderCancellationRequest effectiveRequest = request != null ? request : CreateOrderCancellationRequest.builder()
+                .reasonCode(CustomerCancellationReason.OTHER.name())
+                .customerNote("Khách hàng hủy đơn từ luồng cũ.")
+                .build();
+        orderCancellationService.requestCustomerCancellation(principal.getUserId(), orderId, null, effectiveRequest);
+        OrderResponse order = orderService.getOrder(principal.getUserId(), orderId);
         return ResponseEntity.ok(ApiResponse.success("Order cancelled successfully", order));
+    }
+
+    @PostMapping("/{orderId}/cancellations")
+    public ResponseEntity<ApiResponse<OrderCancellationResponse>> createCancellation(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String orderId,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody CreateOrderCancellationRequest request) {
+        OrderCancellationResponse response = orderCancellationService.requestCustomerCancellation(
+                principal.getUserId(), orderId, idempotencyKey, request);
+        return ResponseEntity.ok(ApiResponse.success("Cancellation requested successfully", response));
+    }
+
+    @GetMapping("/{orderId}/cancellations")
+    public ResponseEntity<ApiResponse<java.util.List<OrderCancellationResponse>>> getCancellations(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable String orderId) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Cancellation history fetched successfully",
+                orderCancellationService.getCustomerCancellations(principal.getUserId(), orderId)));
     }
 
     @PostMapping(value = "/{orderId}/delivery-images", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

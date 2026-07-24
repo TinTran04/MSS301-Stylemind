@@ -44,6 +44,10 @@ public class OrderResponse {
     private List<OrderItemResponse> items;
     private List<OrderDeliveryImageResponse> deliveryImages;
     private List<OrderStatusHistoryResponse> statusHistory;
+    private OrderCancellationResponse latestCancellation;
+    private List<OrderCancellationResponse> cancellationHistory;
+    private Boolean hasPendingCancellation;
+    private RefundSummaryResponse refund;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -113,6 +117,14 @@ public class OrderResponse {
     public void setDeliveryImages(List<OrderDeliveryImageResponse> deliveryImages) { this.deliveryImages = deliveryImages; }
     public List<OrderStatusHistoryResponse> getStatusHistory() { return statusHistory; }
     public void setStatusHistory(List<OrderStatusHistoryResponse> statusHistory) { this.statusHistory = statusHistory; }
+    public OrderCancellationResponse getLatestCancellation() { return latestCancellation; }
+    public void setLatestCancellation(OrderCancellationResponse latestCancellation) { this.latestCancellation = latestCancellation; }
+    public List<OrderCancellationResponse> getCancellationHistory() { return cancellationHistory; }
+    public void setCancellationHistory(List<OrderCancellationResponse> cancellationHistory) { this.cancellationHistory = cancellationHistory; }
+    public Boolean getHasPendingCancellation() { return hasPendingCancellation; }
+    public void setHasPendingCancellation(Boolean hasPendingCancellation) { this.hasPendingCancellation = hasPendingCancellation; }
+    public RefundSummaryResponse getRefund() { return refund; }
+    public void setRefund(RefundSummaryResponse refund) { this.refund = refund; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

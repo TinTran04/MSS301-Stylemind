@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Image as ImageIcon, Loader2, Package, Truck, Upload } from 'lucide-react'
+import { ArrowRight, Image as ImageIcon, Loader2, Package, RotateCcw, Truck, Upload } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Badge from '../../components/common/Badge'
 import Drawer from '../../components/common/Drawer'
@@ -9,6 +9,13 @@ import { formatDateTime } from '../../utils/formatDate'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { formatStatusLabel, normalizeOrderStatus } from '../../features/orders/orderStatus'
 import { isCodPaymentMethod, TAX_LABEL } from '../../features/cart/cart.utils'
+import OrderCancellationDialog from '../../components/customer/OrderCancellationDialog'
+import OrderCancellationPanel from '../../components/customer/OrderCancellationPanel'
+import ReturnRequestModal from '../../components/customer/ReturnRequestModal'
+import ReturnRequestPanel from '../../components/customer/ReturnRequestPanel'
+import { requestOrderCancellation } from '../../features/orders/order.api'
+import { canDirectCancel, canRequestCancellation, isCancellationRequested } from '../../features/orders/order-cancellation.utils'
+import { evaluateReturnEligibility, createReturnRequest, savePayoutDestination, getCustomerReturns } from '../../features/orders/return.api'
 
 const statusTabs = [
   { key: 'All', label: 'Tất cả' },
@@ -254,9 +261,10 @@ function DeliveryImagesSection({ order, onOrderUpdated }) {
   )
 }
 
-function OrderDetailContent({ order, onContinuePayment, onOrderUpdated }) {
+function OrderDetailContent({ order, activeReturn, onContinuePayment, onRequestCancellation, onRequestReturn, onReturnUpdated, onOrderUpdated }) {
   const canContinueSepayPayment = normalizeOrderStatus(order.status) === 'PAYMENT_PENDING'
     && String(order.paymentMethod || '').toLowerCase() === 'sepay'
+  const allowCancellation = !isCancellationRequested(order) && (canDirectCancel(order) || canRequestCancellation(order))
 
   return (
     <div className="space-y-7">
@@ -278,6 +286,14 @@ function OrderDetailContent({ order, onContinuePayment, onOrderUpdated }) {
           <Badge variant={badgeVariants[normalizeOrderStatus(order.status).toLowerCase()] || 'default'}>{formatStatusLabel(order.status)}</Badge>
           {order.paymentMethod && <Badge variant="default">{isCodPaymentMethod(order.paymentMethod) ? 'Thanh toán khi nhận hàng' : 'SePay'}</Badge>}
         </div>
+        <div className="mt-4">
+          <OrderCancellationPanel cancellation={order.latestCancellation} refund={order.refund} />
+        </div>
+        {activeReturn && (
+          <div className="mt-4">
+            <ReturnRequestPanel returnRequest={activeReturn} onUpdate={onReturnUpdated} />
+          </div>
+        )}
       </header>
 
       <OrderTimeline order={order} />
@@ -321,6 +337,30 @@ function OrderDetailContent({ order, onContinuePayment, onOrderUpdated }) {
 
       <DeliveryImagesSection order={order} onOrderUpdated={onOrderUpdated} />
 
+      {allowCancellation && (
+        <section className="border-t border-outline-variant/20 pt-5">
+          <button
+            type="button"
+            onClick={onRequestCancellation}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-outline-variant/30 px-5 py-3 text-sm font-medium text-primary transition-colors hover:bg-surface-container-high focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            {canDirectCancel(order) ? 'Hủy đơn' : 'Yêu cầu hủy'}
+          </button>
+        </section>
+      )}
+
+      {!activeReturn && normalizeOrderStatus(order.status) === 'COMPLETED' && (
+        <section className="border-t border-outline-variant/20 pt-5">
+          <button
+            type="button"
+            onClick={onRequestReturn}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-emerald-600 bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+          >
+            <RotateCcw size={16} /> Yêu cầu Trả hàng & Hoàn tiền (30 ngày)
+          </button>
+        </section>
+      )}
+
       {canContinueSepayPayment && (
         <section className="border-t border-outline-variant/20 pt-5">
           {order.paymentExpiresAt && <p className="mb-3 text-xs leading-relaxed text-on-surface-variant">Phiên thanh toán hết hạn lúc {formatDateTime(order.paymentExpiresAt)}.</p>}
@@ -347,6 +387,11 @@ export default function OrderTrackingPage() {
   const [detailError, setDetailError] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false)
+  const [cancellationSubmitting, setCancellationSubmitting] = useState(false)
+  const [returnModalOpen, setReturnModalOpen] = useState(false)
+  const [returnEligibilityData, setReturnEligibilityData] = useState(null)
+  const [customerReturn, setCustomerReturn] = useState(null)
   const triggerRefs = useRef(new Map())
   const selectedOrderIdRef = useRef(null)
   const detailRequestIdRef = useRef(0)
@@ -391,11 +436,23 @@ export default function OrderTrackingPage() {
     selectedOrderIdRef.current = order.id
     setSelectedOrderId(order.id)
     setDetailOrder(null)
+    setCustomerReturn(null)
     setDetailError('')
     setDetailLoading(true)
     try {
       const nextOrder = await getOrderById(order.id)
-      if (detailRequestIdRef.current === requestId && selectedOrderIdRef.current === order.id) setDetailOrder(nextOrder)
+      if (detailRequestIdRef.current === requestId && selectedOrderIdRef.current === order.id) {
+        setDetailOrder(nextOrder)
+        try {
+          const retRes = await getCustomerReturns(order.id)
+          const returnsList = retRes?.data || retRes || []
+          if (Array.isArray(returnsList) && returnsList.length > 0) {
+            setCustomerReturn(returnsList[0])
+          }
+        } catch {
+          // Silent fallback if no return exists
+        }
+      }
     } catch {
       if (detailRequestIdRef.current === requestId && selectedOrderIdRef.current === order.id) setDetailError('Không thể tải chi tiết đơn hàng.')
     } finally {
@@ -428,6 +485,47 @@ export default function OrderTrackingPage() {
     navigate('/checkout', { state: { resumePaymentOrder: detailOrder } })
   }
 
+  const handleRequestCancellation = async (payload) => {
+    if (!detailOrder || cancellationSubmitting) return
+    setCancellationSubmitting(true)
+    try {
+      await requestOrderCancellation(detailOrder.id, payload, { idempotencyKey: `cancel-${detailOrder.id}` })
+      await openOrderDetail({ id: detailOrder.id })
+      setCancellationDialogOpen(false)
+    } finally {
+      setCancellationSubmitting(false)
+    }
+  }
+
+  const handleOpenReturnModal = async () => {
+    if (!detailOrder) return
+    try {
+      const res = await evaluateReturnEligibility(detailOrder.id)
+      setReturnEligibilityData(res.data)
+      setReturnModalOpen(true)
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Không thể kiểm tra điều kiện trả hàng.')
+    }
+  }
+
+  const handleCreateReturnSubmit = async (payload) => {
+    if (!detailOrder) return
+    const res = await createReturnRequest(detailOrder.id, {
+      reason: payload.reason,
+      customerNote: payload.customerNote,
+      items: payload.items,
+      evidences: payload.evidences,
+    })
+
+    const returnId = res?.data?.id
+    if (returnId && payload.payoutDestination) {
+      await savePayoutDestination(returnId, payload.payoutDestination)
+    }
+
+    await openOrderDetail({ id: detailOrder.id })
+    setReturnModalOpen(false)
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 lg:py-14">
       <h1 className="font-headline-md text-primary">Đơn hàng của tôi</h1>
@@ -454,8 +552,33 @@ export default function OrderTrackingPage() {
       <Drawer isOpen={Boolean(selectedOrderId)} onClose={closeOrderDetail} title="Chi tiết đơn hàng" panelClassName="max-w-2xl">
         {detailLoading && <OrderDetailLoading />}
         {!detailLoading && detailError && <div role="alert" className="py-12 text-center"><p className="text-sm text-error">{detailError}</p><button type="button" onClick={retryOrderDetail} className="mt-4 rounded-full border border-primary px-4 py-2 text-sm font-medium text-primary">Thử lại</button></div>}
-        {!detailLoading && !detailError && detailOrder && <OrderDetailContent order={detailOrder} onContinuePayment={handleContinuePayment} onOrderUpdated={setDetailOrder} />}
+        {!detailLoading && !detailError && detailOrder && (
+          <OrderDetailContent
+            order={detailOrder}
+            activeReturn={customerReturn}
+            onContinuePayment={handleContinuePayment}
+            onRequestCancellation={() => setCancellationDialogOpen(true)}
+            onRequestReturn={handleOpenReturnModal}
+            onReturnUpdated={() => openOrderDetail(detailOrder)}
+            onOrderUpdated={setDetailOrder}
+          />
+        )}
       </Drawer>
+
+      <OrderCancellationDialog
+        isOpen={cancellationDialogOpen}
+        loading={cancellationSubmitting}
+        onClose={() => setCancellationDialogOpen(false)}
+        onConfirm={handleRequestCancellation}
+      />
+
+      <ReturnRequestModal
+        isOpen={returnModalOpen}
+        onClose={() => setReturnModalOpen(false)}
+        order={detailOrder}
+        remainingQuantities={returnEligibilityData?.remainingReturnableQuantities || {}}
+        onSubmit={handleCreateReturnSubmit}
+      />
     </div>
   )
 }

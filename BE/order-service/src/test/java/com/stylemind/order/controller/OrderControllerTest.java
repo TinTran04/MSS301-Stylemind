@@ -4,6 +4,7 @@ import com.stylemind.common.dto.ApiResponse;
 import com.stylemind.common.dto.PageResponse;
 import com.stylemind.common.security.UserPrincipal;
 import com.stylemind.order.dto.OrderSummaryResponse;
+import com.stylemind.order.service.OrderCancellationService;
 import com.stylemind.order.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
@@ -22,7 +23,8 @@ import static org.mockito.Mockito.when;
 class OrderControllerTest {
 
     private final OrderService orderService = mock(OrderService.class);
-    private final OrderController controller = new OrderController(orderService);
+    private final OrderCancellationService cancellationService = mock(OrderCancellationService.class);
+    private final OrderController controller = new OrderController(orderService, cancellationService);
 
     @Test
     void getOrders_usesPrincipalUserAndDefaultPagination() {

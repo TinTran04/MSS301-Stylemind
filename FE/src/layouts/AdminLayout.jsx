@@ -1,16 +1,18 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, Outlet, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Package, ShoppingCart, UserCog,
-  Network, Bell, LogOut, ChevronLeft, ChevronRight
+  Network, Bell, LogOut, ChevronLeft, ChevronRight, RotateCcw
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { getInitials } from '../features/auth/auth.utils'
+import { getPendingCancellationSummary } from '../features/orders/admin-order.api'
 
 const sidebarLinks = [
   { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
   { to: '/admin/products', label: 'Sản phẩm', icon: Package },
   { to: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
+  { to: '/admin/returns', label: 'Trả hàng & Hoàn tiền', icon: RotateCcw },
   { to: '/admin/users', label: 'Quản lý người dùng', icon: UserCog },
   { to: '/admin/notifications', label: 'Thông báo', icon: Bell },
   { to: '/admin/knowledge-graph', label: 'Đồ thị tri thức', icon: Network },
@@ -20,7 +22,21 @@ export default function AdminLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
+  const [pendingCancellationCount, setPendingCancellationCount] = useState(0)
   const { user, logout } = useAuth()
+
+  useEffect(() => {
+    let active = true
+    getPendingCancellationSummary()
+      .then((response) => {
+        if (!active) return
+        setPendingCancellationCount(Number(response?.pendingCount || response?.data?.pendingCount || 0))
+      })
+      .catch(() => {
+        if (active) setPendingCancellationCount(0)
+      })
+    return () => { active = false }
+  }, [])
 
   const handleLogout = () => {
     logout()
@@ -88,7 +104,12 @@ export default function AdminLayout() {
                 } ${collapsed ? 'justify-center' : ''}`}
                 title={collapsed ? link.label : undefined}
               >
-                <Icon size={18} />
+                <span className="relative inline-flex">
+                  <Icon size={18} />
+                  {link.to === '/admin/orders' && pendingCancellationCount > 0 && (
+                    <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-error ring-2 ring-surface-container-lowest" />
+                  )}
+                </span>
               {!collapsed && <span className="hidden md:inline">{link.label}</span>}
               </Link>
             )
