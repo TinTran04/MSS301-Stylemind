@@ -25,7 +25,11 @@ public class InternalRefundController {
 
     @GetMapping("/orders/{orderId}")
     public ResponseEntity<ApiResponse<RefundResponse>> getRefundByOrder(@PathVariable String orderId) {
-        return ResponseEntity.ok(ApiResponse.success("OK", refundService.getRefundByOrderId(orderId)));
+        RefundResponse refund = refundService.getRefundByOrderId(orderId);
+        if (refund == null) {
+            throw new com.stylemind.common.exception.BusinessException("REFUND_NOT_FOUND", "Refund transaction not found for order", 404);
+        }
+        return ResponseEntity.ok(ApiResponse.success("OK", refund));
     }
 
     @PostMapping("/{refundId}/complete")

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { RotateCcw, CheckCircle2, XCircle, CreditCard, Eye, ExternalLink } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
-import { adminGetReturns, adminReviewReturn, adminReceiveAndQc, getPayoutDestination, adminCompleteRefund } from '../../features/orders/return.api'
+import { adminGetReturns, adminReviewReturn, adminReceiveAndQc, getPayoutDestination, adminCompleteRefund, adminGetRefunds } from '../../features/orders/return.api'
 import { formatDateTime } from '../../utils/formatDate'
 
 const STATUS_OPTIONS = [
@@ -16,9 +16,12 @@ const STATUS_OPTIONS = [
 ]
 
 export default function AdminReturnManagementPage() {
+  const [activeTab, setActiveTab] = useState('returns') // 'returns' | 'refunds'
   const [returns, setReturns] = useState([])
+  const [refunds, setRefunds] = useState([])
   const [selectedStatus, setSelectedStatus] = useState('')
   const [loading, setLoading] = useState(true)
+  const [refundsLoading, setRefundsLoading] = useState(false)
   const [error, setError] = useState('')
 
   const [selectedReturn, setSelectedReturn] = useState(null)
@@ -53,9 +56,22 @@ export default function AdminReturnManagementPage() {
     }
   }
 
+  const fetchRefunds = async () => {
+    setRefundsLoading(true)
+    try {
+      const res = await adminGetRefunds()
+      setRefunds(res?.data || res || [])
+    } catch {
+      setRefunds([])
+    } finally {
+      setRefundsLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchReturns()
-  }, [selectedStatus])
+    fetchRefunds()
+  }, [selectedStatus, activeTab])
 
   const handleOpenDetail = async (ret) => {
     setSelectedReturn(ret)
@@ -84,6 +100,7 @@ export default function AdminReturnManagementPage() {
       })
       setReviewModalOpen(false)
       fetchReturns()
+      fetchRefunds()
     } catch (err) {
       alert(err?.response?.data?.message || 'Không thể duyệt yêu cầu trả hàng.')
     } finally {
@@ -101,6 +118,7 @@ export default function AdminReturnManagementPage() {
       })
       setQcModalOpen(false)
       fetchReturns()
+      fetchRefunds()
     } catch (err) {
       alert(err?.response?.data?.message || 'Có lỗi khi kiểm định QC trả hàng.')
     } finally {
@@ -110,8 +128,9 @@ export default function AdminReturnManagementPage() {
 
   const handleCompleteRefundSubmit = async (e) => {
     e.preventDefault()
-    if (!selectedReturn?.refundId) {
-      alert('Không tìm thấy bản ghi hoàn tiền (Refund ID).')
+    const targetRefundId = selectedReturn?.refundId || payoutInfo?.refundId || selectedReturn?.id || selectedReturn?.orderId
+    if (!targetRefundId) {
+      alert('Không tìm thấy thông tin để thực hiện hoàn tiền.')
       return
     }
     if (!providerRef.trim()) {
@@ -120,7 +139,7 @@ export default function AdminReturnManagementPage() {
     }
     setRefundSubmitting(true)
     try {
-      await adminCompleteRefund(selectedReturn.refundId, {
+      await adminCompleteRefund(targetRefundId, {
         providerReference: providerRef.trim(),
         proofUrl: proofUrl.trim(),
         note: refundNote.trim(),
@@ -129,6 +148,7 @@ export default function AdminReturnManagementPage() {
       alert('Đã xác nhận hoàn tiền & chuyển Bill cho khách thành công!')
       setDetailModalOpen(false)
       fetchReturns()
+      fetchRefunds()
     } catch (err) {
       alert(err?.response?.data?.message || 'Không thể xác nhận hoàn tiền.')
     } finally {
@@ -143,99 +163,206 @@ export default function AdminReturnManagementPage() {
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <RotateCcw className="text-emerald-600" /> Quản lý Trả hàng & Hoàn tiền
           </h1>
-          <p className="text-xs text-gray-500 mt-1">Duyệt yêu cầu trả hàng, tiếp nhận bưu gửi, kiểm định QC & xem STK chuyển tiền</p>
+          <p className="text-xs text-gray-500 mt-1">Duyệt yêu cầu trả hàng, kiểm định QC, xem STK & quản lý nhật ký hoàn tiền</p>
         </div>
 
-        <select
-          value={selectedStatus}
-          onChange={(e) => setSelectedStatus(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 bg-white"
-        >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.key} value={opt.key}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-3">
+          <div className="flex bg-gray-100 p-1 rounded-lg border border-gray-200">
+            <button
+              onClick={() => setActiveTab('returns')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                activeTab === 'returns' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              📋 Danh sách Yêu cầu Trả hàng
+            </button>
+            <button
+              onClick={() => setActiveTab('refunds')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                activeTab === 'refunds' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              💳 Nhật ký Hoàn tiền (Refund Records)
+            </button>
+          </div>
+
+          {activeTab === 'returns' && (
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 bg-white"
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
-      {loading && <div className="py-12 text-center text-sm text-gray-500">Đang tải yêu cầu trả hàng...</div>}
-      {error && <div className="p-4 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">{error}</div>}
+      {activeTab === 'returns' && (
+        <>
+          {loading && <div className="py-12 text-center text-sm text-gray-500">Đang tải yêu cầu trả hàng...</div>}
+          {error && <div className="p-4 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">{error}</div>}
 
-      {!loading && !error && returns.length === 0 && (
-        <div className="py-16 text-center text-gray-400 bg-white rounded-xl border border-gray-100">
-          <RotateCcw size={40} className="mx-auto mb-2 opacity-30" />
-          <p className="text-sm font-medium">Không có yêu cầu trả hàng nào.</p>
-        </div>
+          {!loading && !error && returns.length === 0 && (
+            <div className="py-16 text-center text-gray-400 bg-white rounded-xl border border-gray-100">
+              <RotateCcw size={40} className="mx-auto mb-2 opacity-30" />
+              <p className="text-sm font-medium">Không có yêu cầu trả hàng nào.</p>
+            </div>
+          )}
+
+          {!loading && !error && returns.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase font-semibold">
+                  <tr>
+                    <th className="p-3">Mã Yêu Cầu</th>
+                    <th className="p-3">Đơn Hàng</th>
+                    <th className="p-3">Khách Hàng ID</th>
+                    <th className="p-3">Lý Do Trả</th>
+                    <th className="p-3">Ngày Gửi</th>
+                    <th className="p-3">Trạng Thái</th>
+                    <th className="p-3 text-right">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                  {returns.map((ret) => {
+                    const matchingRefund = refunds.find(rf => (rf.returnRequestId === ret.id || rf.orderId === ret.orderId || rf.id === ret.refundId))
+                    const isRefunded = matchingRefund ? matchingRefund.status === 'REFUNDED' : false
+                    return (
+                      <tr key={ret.id} className="hover:bg-gray-50/50">
+                        <td className="p-3 font-semibold text-emerald-700">{ret.id}</td>
+                        <td className="p-3">{ret.orderId}</td>
+                        <td className="p-3 text-gray-500">{ret.userId}</td>
+                        <td className="p-3">{ret.reason}</td>
+                        <td className="p-3 text-gray-500">{formatDateTime(ret.requestedAt)}</td>
+                        <td className="p-3">
+                          {ret.status === 'QC_PASSED' ? (
+                            <Badge variant={isRefunded ? 'success' : 'warning'}>
+                              {isRefunded ? 'QC Đạt (Đã hoàn tiền)' : 'QC Đạt (Chờ chuyển tiền)'}
+                            </Badge>
+                          ) : (
+                            <Badge variant={ret.status === 'APPROVED' ? 'success' : ret.status === 'REJECTED' ? 'error' : 'warning'}>
+                              {ret.status}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="p-3 text-right space-x-1.5">
+                          <button
+                            onClick={() => handleOpenDetail(ret)}
+                            className="px-2.5 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded font-medium inline-flex items-center gap-1"
+                          >
+                            <Eye size={12} /> Chi tiết & STK
+                          </button>
+
+                          {ret.status === 'REQUESTED' && (
+                            <button
+                              onClick={() => {
+                                setSelectedReturn(ret)
+                                setAdminNote('')
+                                setRejectionReason('')
+                                setReviewModalOpen(true)
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 text-white rounded font-medium hover:bg-emerald-700"
+                            >
+                              Duyệt / Từ chối
+                            </button>
+                          )}
+
+                          {['APPROVED', 'RETURN_IN_TRANSIT'].includes(ret.status) && (
+                            <button
+                              onClick={() => {
+                                setSelectedReturn(ret)
+                                setAdminNote('')
+                                setQcModalOpen(true)
+                              }}
+                              className="px-2.5 py-1 bg-blue-600 text-white rounded font-medium hover:bg-blue-700"
+                            >
+                              Nhận hàng & QC
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
-      {!loading && !error && returns.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase font-semibold">
-              <tr>
-                <th className="p-3">Mã Yêu Cầu</th>
-                <th className="p-3">Đơn Hàng</th>
-                <th className="p-3">Khách Hàng ID</th>
-                <th className="p-3">Lý Do Trả</th>
-                <th className="p-3">Ngày Gửi</th>
-                <th className="p-3">Trạng Thái</th>
-                <th className="p-3 text-right">Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
-              {returns.map((ret) => (
-                <tr key={ret.id} className="hover:bg-gray-50/50">
-                  <td className="p-3 font-semibold text-emerald-700">{ret.id}</td>
-                  <td className="p-3">{ret.orderId}</td>
-                  <td className="p-3 text-gray-500">{ret.userId}</td>
-                  <td className="p-3">{ret.reason}</td>
-                  <td className="p-3 text-gray-500">{formatDateTime(ret.requestedAt)}</td>
-                  <td className="p-3">
-                    <Badge variant={ret.status === 'QC_PASSED' ? 'success' : ret.status === 'REJECTED' ? 'error' : 'warning'}>
-                      {ret.status}
-                    </Badge>
-                  </td>
-                  <td className="p-3 text-right space-x-1.5">
-                    <button
-                      onClick={() => handleOpenDetail(ret)}
-                      className="px-2.5 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded font-medium inline-flex items-center gap-1"
-                    >
-                      <Eye size={12} /> Chi tiết & STK
-                    </button>
+      {/* Tab Nhật ký Hoàn tiền (Refund Records) */}
+      {activeTab === 'refunds' && (
+        <>
+          {refundsLoading && <div className="py-12 text-center text-sm text-gray-500">Đang tải nhật ký hoàn tiền...</div>}
+          {!refundsLoading && refunds.length === 0 && (
+            <div className="py-16 text-center text-gray-400 bg-white rounded-xl border border-gray-100">
+              <CreditCard size={40} className="mx-auto mb-2 opacity-30" />
+              <p className="text-sm font-medium">Chưa có giao dịch hoàn tiền nào.</p>
+            </div>
+          )}
 
-                    {ret.status === 'REQUESTED' && (
-                      <button
-                        onClick={() => {
-                          setSelectedReturn(ret)
-                          setAdminNote('')
-                          setRejectionReason('')
-                          setReviewModalOpen(true)
-                        }}
-                        className="px-2.5 py-1 bg-emerald-600 text-white rounded font-medium hover:bg-emerald-700"
-                      >
-                        Duyệt / Từ chối
-                      </button>
-                    )}
-
-                    {['APPROVED', 'RETURN_IN_TRANSIT'].includes(ret.status) && (
-                      <button
-                        onClick={() => {
-                          setSelectedReturn(ret)
-                          setAdminNote('')
-                          setQcModalOpen(true)
-                        }}
-                        className="px-2.5 py-1 bg-blue-600 text-white rounded font-medium hover:bg-blue-700"
-                      >
-                        Nhận hàng & QC
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          {!refundsLoading && refunds.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 uppercase font-semibold">
+                  <tr>
+                    <th className="p-3">Refund ID</th>
+                    <th className="p-3">Đơn Hàng ID</th>
+                    <th className="p-3">Mã Trả Hàng</th>
+                    <th className="p-3">Số Tiền Hoàn</th>
+                    <th className="p-3">Ngân Hàng & STK</th>
+                    <th className="p-3">Mã Giao Dịch</th>
+                    <th className="p-3">Bill Chuyển Tiền</th>
+                    <th className="p-3">Trạng Thái</th>
+                    <th className="p-3">Thời Gian</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 font-medium text-gray-800">
+                  {refunds.map((rf) => {
+                    const matchingReturn = returns.find(r => r.id === rf.returnRequestId || r.refundId === rf.id)
+                    const displayOrderId = (matchingReturn?.orderId && (rf.orderId === 'order_001' || !rf.orderId)) ? matchingReturn.orderId : rf.orderId
+                    return (
+                      <tr key={rf.id} className="hover:bg-gray-50/50">
+                        <td className="p-3 font-mono font-semibold text-emerald-700">{rf.id}</td>
+                        <td className="p-3 font-mono font-semibold text-gray-900">{displayOrderId}</td>
+                        <td className="p-3 font-semibold text-emerald-700">{rf.returnRequestId || 'N/A'}</td>
+                        <td className="p-3 font-bold text-gray-900">{rf.amount ? Number(rf.amount).toLocaleString('vi-VN') + ' đ' : '0 đ'}</td>
+                      <td className="p-3">
+                        {rf.bankCode ? (
+                          <span><span className="font-bold">{rf.bankCode}</span> - {rf.accountHolder} ({rf.accountNumber})</span>
+                        ) : (
+                          <span className="text-gray-400 italic">Chưa nhập STK</span>
+                        )}
+                      </td>
+                      <td className="p-3 font-mono text-emerald-900 font-semibold">{rf.providerReference || '---'}</td>
+                      <td className="p-3">
+                        {rf.proofUrl ? (
+                          <a href={rf.proofUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline flex items-center gap-1 font-semibold">
+                            <ExternalLink size={12} /> Xem Bill
+                          </a>
+                        ) : (
+                          <span className="text-gray-400">Không có</span>
+                        )}
+                      </td>
+                      <td className="p-3">
+                        <Badge variant={rf.status === 'REFUNDED' ? 'success' : rf.status === 'REFUND_FAILED' ? 'error' : 'warning'}>
+                          {rf.status === 'REFUNDED' ? 'Đã Chuyển Tiền' : rf.status === 'REFUND_FAILED' ? 'Thất Bại' : 'Đang Chờ'}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-gray-500">{rf.processedAt ? formatDateTime(rf.processedAt) : formatDateTime(rf.createdAt)}</td>
+                    </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {/* Detail & Payout Info Modal */}
@@ -269,7 +396,7 @@ export default function AdminReturnManagementPage() {
             </div>
 
             {/* Form xác nhận chuyển khoản & đính kèm Bill */}
-            {selectedReturn.refundId && selectedReturn.status === 'QC_PASSED' && (
+            {(selectedReturn.refundId || payoutInfo?.refundId || selectedReturn.status === 'QC_PASSED') && (
               <form onSubmit={handleCompleteRefundSubmit} className="bg-emerald-500/10 p-3.5 rounded-lg border border-emerald-300 space-y-2">
                 <p className="font-bold text-emerald-900 flex items-center gap-1.5">
                   <CheckCircle2 size={16} /> Xác nhận đã chuyển khoản cho khách (Đính kèm Bill chuyển tiền):

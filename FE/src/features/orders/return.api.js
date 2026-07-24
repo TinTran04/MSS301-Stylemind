@@ -45,3 +45,7 @@ export async function adminReceiveAndQc(returnId, payload) {
 export async function adminCompleteRefund(refundId, payload) {
   return apiClient.post(`/api/v1/admin/refunds/${refundId}/complete`, payload)
 }
+
+export async function adminGetRefunds() {
+  return apiClient.get('/api/v1/admin/refunds')
+}

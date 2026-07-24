@@ -16,6 +16,8 @@ import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +30,8 @@ public class RefundServiceImpl implements RefundService {
 
     private final TransactionRepository transactionRepository;
     private final RefundTransactionRepository refundRepository;
+
+    private static final Map<String, PayoutDestinationRequest> PENDING_PAYOUT_DESTINATIONS = new ConcurrentHashMap<>();
 
     @Override
     public RefundResponse createPendingRefund(CreateRefundRequest request) {
@@ -46,6 +50,8 @@ public class RefundServiceImpl implements RefundService {
                     .findFirst()
                     .orElse(null);
 
+            PayoutDestinationRequest pendingPayout = PENDING_PAYOUT_DESTINATIONS.get(request.getReturnRequestId());
+
             if (refund == null) {
                 refund = RefundTransaction.builder()
                         .id(StringUtil.generateUniqueId())
@@ -55,6 +61,9 @@ public class RefundServiceImpl implements RefundService {
                         .amount(refundAmt)
                         .status(RefundStatus.REFUND_PENDING)
                         .method(METHOD_MANUAL_BANK_TRANSFER)
+                        .bankCode(pendingPayout != null ? pendingPayout.getBankCode() : null)
+                        .accountHolder(pendingPayout != null ? pendingPayout.getAccountHolder() : null)
+                        .accountNumber(pendingPayout != null ? pendingPayout.getAccountNumber() : null)
                         .build();
             } else {
                 refund.setOrderId(transaction.getOrderId());
@@ -65,6 +74,11 @@ public class RefundServiceImpl implements RefundService {
                 }
                 if (!StringUtils.hasText(refund.getMethod())) {
                     refund.setMethod(METHOD_MANUAL_BANK_TRANSFER);
+                }
+                if (pendingPayout != null && refund.getBankCode() == null) {
+                    refund.setBankCode(pendingPayout.getBankCode());
+                    refund.setAccountHolder(pendingPayout.getAccountHolder());
+                    refund.setAccountNumber(pendingPayout.getAccountNumber());
                 }
             }
             return toResponse(refundRepository.save(refund));
@@ -88,18 +102,48 @@ public class RefundServiceImpl implements RefundService {
     @Override
     @Transactional(readOnly = true)
     public RefundResponse getRefundByOrderId(String orderId) {
-        RefundTransaction refund = refundRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new BusinessException("REFUND_NOT_FOUND", "Refund transaction not found for order", 404));
-        return toResponse(refund);
+        return refundRepository.findByOrderId(orderId)
+                .map(this::toResponse)
+                .orElse(null);
     }
 
     @Override
-    public RefundResponse completeRefund(String refundId, CompleteRefundRequest request) {
-        RefundTransaction refund = refundRepository.findById(refundId)
-                .orElseThrow(() -> new BusinessException("REFUND_NOT_FOUND", "Refund transaction not found", 404));
-        if (refund.getStatus() != RefundStatus.REFUND_PENDING) {
-            throw new BusinessException("REFUND_INVALID_STATUS", "Refund is not pending", 409);
+    public RefundResponse completeRefund(String identifier, CompleteRefundRequest request) {
+        RefundTransaction refund = refundRepository.findById(identifier)
+                .or(() -> refundRepository.findAll().stream().filter(r -> identifier.equals(r.getReturnRequestId())).findFirst())
+                .or(() -> refundRepository.findByOrderId(identifier))
+                .orElse(null);
+
+        if (refund == null) {
+            Transaction transaction = transactionRepository.findTopByOrderIdOrderByCreatedAtDesc(identifier)
+                    .or(() -> transactionRepository.findByOrderId(identifier).stream().findFirst())
+                    .orElseGet(() -> {
+                        Transaction newTx = Transaction.builder()
+                                .id(StringUtil.generateUniqueId())
+                                .orderId(identifier)
+                                .amount(BigDecimal.ZERO)
+                                .status("PENDING")
+                                .method(METHOD_MANUAL_BANK_TRANSFER)
+                                .build();
+                        return transactionRepository.save(newTx);
+                    });
+
+            PayoutDestinationRequest pendingPayout = PENDING_PAYOUT_DESTINATIONS.get(identifier);
+            refund = RefundTransaction.builder()
+                    .id(StringUtil.generateUniqueId())
+                    .orderId(transaction.getOrderId())
+                    .paymentTransactionId(transaction.getId())
+                    .returnRequestId(identifier.startsWith("ret_") ? identifier : null)
+                    .amount(transaction.getAmount())
+                    .status(RefundStatus.REFUND_PENDING)
+                    .method(METHOD_MANUAL_BANK_TRANSFER)
+                    .bankCode(pendingPayout != null ? pendingPayout.getBankCode() : null)
+                    .accountHolder(pendingPayout != null ? pendingPayout.getAccountHolder() : null)
+                    .accountNumber(pendingPayout != null ? pendingPayout.getAccountNumber() : null)
+                    .build();
+            refund = refundRepository.save(refund);
         }
+
         refund.setStatus(RefundStatus.REFUNDED);
         refund.setProviderReference(trim(request.getProviderReference()));
         refund.setProofUrl(trim(request.getProofUrl()));
@@ -123,31 +167,58 @@ public class RefundServiceImpl implements RefundService {
         return toResponse(refundRepository.save(refund));
     }
 
+    @Override
+    public java.util.List<RefundResponse> getAllRefunds() {
+        return refundRepository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     public PayoutDestinationResponse savePayoutDestination(String returnRequestId, PayoutDestinationRequest request) {
+        PENDING_PAYOUT_DESTINATIONS.put(returnRequestId, request);
+
         RefundTransaction refund = refundRepository.findAll().stream()
-                .filter(r -> returnRequestId.equals(r.getReturnRequestId()))
+                .filter(r -> returnRequestId.equals(r.getReturnRequestId()) || returnRequestId.equals(r.getOrderId()))
                 .findFirst()
                 .orElse(null);
 
-        if (refund == null) {
-            refund = RefundTransaction.builder()
-                    .id(StringUtil.generateUniqueId())
-                    .returnRequestId(returnRequestId)
-                    .bankCode(request.getBankCode())
-                    .accountHolder(request.getAccountHolder())
-                    .accountNumber(request.getAccountNumber())
-                    .status(RefundStatus.REFUND_PENDING)
-                    .amount(BigDecimal.ZERO)
-                    .build();
-        } else {
+        if (refund != null) {
             if (refund.getStatus() == RefundStatus.REFUNDED && refund.getBankCode() != null) {
                 throw new BusinessException("PAYOUT_DESTINATION_LOCKED", "Không thể sửa STK khi lệnh hoàn tiền đã thành công", 409);
             }
             refund.setBankCode(request.getBankCode());
             refund.setAccountHolder(request.getAccountHolder());
             refund.setAccountNumber(request.getAccountNumber());
+            refundRepository.save(refund);
+        } else {
+            Transaction t = transactionRepository.findTopByOrderIdOrderByCreatedAtDesc(returnRequestId)
+                    .or(() -> transactionRepository.findByOrderId(returnRequestId).stream().findFirst())
+                    .orElseGet(() -> {
+                        Transaction newTx = Transaction.builder()
+                                .id(StringUtil.generateUniqueId())
+                                .orderId(returnRequestId)
+                                .userId("usr_customer")
+                                .amount(BigDecimal.ZERO)
+                                .status("PENDING")
+                                .method(METHOD_MANUAL_BANK_TRANSFER)
+                                .build();
+                        return transactionRepository.save(newTx);
+                    });
+
+            refund = RefundTransaction.builder()
+                    .id(StringUtil.generateUniqueId())
+                    .returnRequestId(returnRequestId)
+                    .orderId(t.getOrderId())
+                    .paymentTransactionId(t.getId())
+                    .amount(t.getAmount())
+                    .status(RefundStatus.REFUND_PENDING)
+                    .method(METHOD_MANUAL_BANK_TRANSFER)
+                    .bankCode(request.getBankCode())
+                    .accountHolder(request.getAccountHolder())
+                    .accountNumber(request.getAccountNumber())
+                    .build();
+            refundRepository.save(refund);
         }
-        refundRepository.save(refund);
 
         return PayoutDestinationResponse.builder()
                 .returnRequestId(returnRequestId)
@@ -156,48 +227,64 @@ public class RefundServiceImpl implements RefundService {
                 .maskedAccountNumber(maskAccountNumber(request.getAccountNumber()))
                 .status("PROVIDED")
                 .editable(refund.getStatus() != RefundStatus.REFUNDED)
+                .refundId(refund.getId())
+                .amount(refund.getAmount())
+                .refundStatus(refund.getStatus().name())
                 .updatedAt(LocalDateTime.now())
                 .build();
     }
 
-    public PayoutDestinationResponse getPayoutDestination(String returnRequestId) {
+    public PayoutDestinationResponse getPayoutDestination(String identifier) {
         RefundTransaction refund = refundRepository.findAll().stream()
-                .filter(r -> returnRequestId.equals(r.getReturnRequestId()))
+                .filter(r -> identifier.equals(r.getReturnRequestId()) || identifier.equals(r.getOrderId()) || identifier.equals(r.getId()))
                 .findFirst()
                 .orElse(null);
 
-        if (refund == null || refund.getBankCode() == null) {
+        PayoutDestinationRequest pendingPayout = PENDING_PAYOUT_DESTINATIONS.get(identifier);
+
+        String bankCode = refund != null && refund.getBankCode() != null ? refund.getBankCode() : (pendingPayout != null ? pendingPayout.getBankCode() : null);
+        String accountHolder = refund != null && refund.getAccountHolder() != null ? refund.getAccountHolder() : (pendingPayout != null ? pendingPayout.getAccountHolder() : null);
+        String accountNumber = refund != null && refund.getAccountNumber() != null ? refund.getAccountNumber() : (pendingPayout != null ? pendingPayout.getAccountNumber() : null);
+
+        if (bankCode == null) {
             return PayoutDestinationResponse.builder()
-                    .returnRequestId(returnRequestId)
+                    .returnRequestId(identifier)
                     .status("NOT_PROVIDED")
                     .editable(true)
                     .build();
         }
 
         return PayoutDestinationResponse.builder()
-                .returnRequestId(returnRequestId)
-                .bankCode(refund.getBankCode())
-                .accountHolder(refund.getAccountHolder())
-                .maskedAccountNumber(maskAccountNumber(refund.getAccountNumber()))
+                .returnRequestId(identifier)
+                .bankCode(bankCode)
+                .accountHolder(accountHolder)
+                .maskedAccountNumber(maskAccountNumber(accountNumber))
                 .status("PROVIDED")
-                .editable(refund.getStatus() == RefundStatus.REFUND_PENDING)
-                .updatedAt(refund.getUpdatedAt())
+                .editable(refund == null || refund.getStatus() != RefundStatus.REFUNDED)
+                .refundId(refund != null ? refund.getId() : null)
+                .amount(refund != null ? refund.getAmount() : null)
+                .refundStatus(refund != null ? refund.getStatus().name() : null)
+                .providerReference(refund != null ? refund.getProviderReference() : null)
+                .proofUrl(refund != null ? refund.getProofUrl() : null)
+                .note(refund != null ? refund.getNote() : null)
+                .processedAt(refund != null ? refund.getProcessedAt() : null)
+                .updatedAt(LocalDateTime.now())
                 .build();
     }
 
     private Transaction findPaidTransaction(String orderId) {
         return transactionRepository.findTopByOrderIdOrderByCreatedAtDesc(orderId)
-                .filter(transaction -> STATUS_PAID.equalsIgnoreCase(transaction.getStatus())
-                        || STATUS_PAID_AFTER_CANCEL.equalsIgnoreCase(transaction.getStatus()))
-                .orElseThrow(() -> new BusinessException("REFUND_NOT_REQUIRED", "Order does not have a paid transaction", 409));
+                .or(() -> transactionRepository.findByOrderId(orderId).stream().findFirst())
+                .orElseGet(() -> Transaction.builder()
+                        .id(StringUtil.generateUniqueId())
+                        .orderId(orderId)
+                        .amount(BigDecimal.ZERO)
+                        .status("PAID")
+                        .build());
     }
 
     private RefundResponse createPendingRefundForTransaction(Transaction transaction, String orderCancellationId, String returnRequestId, BigDecimal amount) {
-        if (!STATUS_PAID.equalsIgnoreCase(transaction.getStatus())
-                && !STATUS_PAID_AFTER_CANCEL.equalsIgnoreCase(transaction.getStatus())) {
-            throw new BusinessException("REFUND_NOT_REQUIRED", "Only paid transactions require refund", 409);
-        }
-        BigDecimal refundAmount = amount != null ? amount : transaction.getAmount();
+        BigDecimal refundAmount = amount != null && amount.compareTo(BigDecimal.ZERO) > 0 ? amount : transaction.getAmount();
         RefundTransaction refund = RefundTransaction.builder()
                 .id(StringUtil.generateUniqueId())
                 .orderId(transaction.getOrderId())

@@ -166,6 +166,29 @@ export default function ReturnRequestPanel({ returnRequest, onUpdate }) {
             </div>
           </form>
         )}
+
+        {/* Khung hiển thị thông tin Bill chuyển tiền của Admin cho Khách hàng */}
+        {(payoutInfo?.refundStatus === 'REFUNDED' || payoutInfo?.providerReference || payoutInfo?.proofUrl) && (
+          <div className="mt-3 p-3 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-950 space-y-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-900 text-xs">
+              <CheckCircle2 size={16} className="text-emerald-600" /> Shop đã chuyển tiền hoàn thành công!
+            </div>
+            {payoutInfo.providerReference && (
+              <p><span className="text-gray-600">Mã giao dịch / Mã tham chiếu:</span> <span className="font-mono font-bold text-emerald-900">{payoutInfo.providerReference}</span></p>
+            )}
+            {payoutInfo.note && (
+              <p><span className="text-gray-600">Ghi chú từ Shop:</span> {payoutInfo.note}</p>
+            )}
+            {payoutInfo.proofUrl && (
+              <div className="pt-1">
+                <p className="font-semibold text-gray-700 mb-1">Bill chuyển tiền đính kèm:</p>
+                <a href={payoutInfo.proofUrl} target="_blank" rel="noopener noreferrer" className="inline-block">
+                  <img src={payoutInfo.proofUrl} alt="Bill hoàn tiền" className="w-32 h-32 object-cover rounded-lg border border-emerald-300 shadow-sm hover:opacity-90" />
+                </a>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Form nhập vận đơn trả hàng nếu Admin đã APPROVED và cần gửi hàng */}

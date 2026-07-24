@@ -13,4 +13,9 @@ public class FailRefundRequest {
 
     @NotBlank
     private String processedBy;
+
+    public String getFailureReason() { return failureReason; }
+    public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
+    public String getProcessedBy() { return processedBy; }
+    public void setProcessedBy(String processedBy) { this.processedBy = processedBy; }
 }

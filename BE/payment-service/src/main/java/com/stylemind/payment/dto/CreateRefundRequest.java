@@ -24,4 +24,19 @@ public class CreateRefundRequest {
     private BigDecimal shippingAmount;
 
     private String reason;
+
+    public String getOrderId() { return orderId; }
+    public void setOrderId(String orderId) { this.orderId = orderId; }
+    public String getOrderCancellationId() { return orderCancellationId; }
+    public void setOrderCancellationId(String orderCancellationId) { this.orderCancellationId = orderCancellationId; }
+    public String getReturnRequestId() { return returnRequestId; }
+    public void setReturnRequestId(String returnRequestId) { this.returnRequestId = returnRequestId; }
+    public BigDecimal getMerchandiseAmount() { return merchandiseAmount; }
+    public void setMerchandiseAmount(BigDecimal merchandiseAmount) { this.merchandiseAmount = merchandiseAmount; }
+    public BigDecimal getTaxAmount() { return taxAmount; }
+    public void setTaxAmount(BigDecimal taxAmount) { this.taxAmount = taxAmount; }
+    public BigDecimal getShippingAmount() { return shippingAmount; }
+    public void setShippingAmount(BigDecimal shippingAmount) { this.shippingAmount = shippingAmount; }
+    public String getReason() { return reason; }
+    public void setReason(String reason) { this.reason = reason; }
 }

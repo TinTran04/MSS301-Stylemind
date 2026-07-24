@@ -11,4 +11,5 @@ public interface RefundService {
     RefundResponse getRefundByOrderId(String orderId);
     RefundResponse completeRefund(String refundId, CompleteRefundRequest request);
     RefundResponse failRefund(String refundId, FailRefundRequest request);
+    java.util.List<RefundResponse> getAllRefunds();
 }

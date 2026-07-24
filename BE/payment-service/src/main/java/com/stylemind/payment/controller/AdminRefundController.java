@@ -17,6 +17,11 @@ public class AdminRefundController {
 
     private final RefundService refundService;
 
+    @GetMapping
+    public ResponseEntity<ApiResponse<java.util.List<RefundResponse>>> getAllRefunds() {
+        return ResponseEntity.ok(ApiResponse.success(refundService.getAllRefunds()));
+    }
+
     @PostMapping("/{refundId}/complete")
     public ResponseEntity<ApiResponse<RefundResponse>> completeRefund(
             @PathVariable("refundId") String refundId,
