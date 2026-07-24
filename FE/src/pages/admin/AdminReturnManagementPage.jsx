@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { RotateCcw, CheckCircle2, XCircle, CreditCard, Eye, ExternalLink } from 'lucide-react'
 import Badge from '../../components/common/Badge'
 import Modal from '../../components/common/Modal'
-import { adminGetReturns, adminReviewReturn, adminReceiveAndQc, getPayoutDestination } from '../../features/orders/return.api'
+import { adminGetReturns, adminReviewReturn, adminReceiveAndQc, getPayoutDestination, adminCompleteRefund } from '../../features/orders/return.api'
 import { formatDateTime } from '../../utils/formatDate'
 
 const STATUS_OPTIONS = [
@@ -33,6 +33,11 @@ export default function AdminReturnManagementPage() {
   const [rejectionReason, setRejectionReason] = useState('')
   const [isPhysicalReturn, setIsPhysicalReturn] = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
+
+  const [providerRef, setProviderRef] = useState('')
+  const [proofUrl, setProofUrl] = useState('')
+  const [refundNote, setRefundNote] = useState('')
+  const [refundSubmitting, setRefundSubmitting] = useState(false)
 
   const fetchReturns = async () => {
     setLoading(true)
@@ -100,6 +105,34 @@ export default function AdminReturnManagementPage() {
       alert(err?.response?.data?.message || 'Có lỗi khi kiểm định QC trả hàng.')
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  const handleCompleteRefundSubmit = async (e) => {
+    e.preventDefault()
+    if (!selectedReturn?.refundId) {
+      alert('Không tìm thấy bản ghi hoàn tiền (Refund ID).')
+      return
+    }
+    if (!providerRef.trim()) {
+      alert('Vui lòng nhập Mã giao dịch / Tham chiếu ngân hàng.')
+      return
+    }
+    setRefundSubmitting(true)
+    try {
+      await adminCompleteRefund(selectedReturn.refundId, {
+        providerReference: providerRef.trim(),
+        proofUrl: proofUrl.trim(),
+        note: refundNote.trim(),
+        processedBy: 'Admin',
+      })
+      alert('Đã xác nhận hoàn tiền & chuyển Bill cho khách thành công!')
+      setDetailModalOpen(false)
+      fetchReturns()
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Không thể xác nhận hoàn tiền.')
+    } finally {
+      setRefundSubmitting(false)
     }
   }
 
@@ -234,6 +267,46 @@ export default function AdminReturnManagementPage() {
                 <p className="text-gray-500 italic">Khách hàng chưa cập nhật thông tin STK ngân hàng.</p>
               )}
             </div>
+
+            {/* Form xác nhận chuyển khoản & đính kèm Bill */}
+            {selectedReturn.refundId && selectedReturn.status === 'QC_PASSED' && (
+              <form onSubmit={handleCompleteRefundSubmit} className="bg-emerald-500/10 p-3.5 rounded-lg border border-emerald-300 space-y-2">
+                <p className="font-bold text-emerald-900 flex items-center gap-1.5">
+                  <CheckCircle2 size={16} /> Xác nhận đã chuyển khoản cho khách (Đính kèm Bill chuyển tiền):
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="Mã giao dịch / Mã tham chiếu ngân hàng (bắt buộc)"
+                    value={providerRef}
+                    onChange={(e) => setProviderRef(e.target.value)}
+                    className="p-2 border border-gray-300 rounded text-xs bg-white"
+                    required
+                  />
+                  <input
+                    type="text"
+                    placeholder="URL ảnh Bill chuyển khoản (Cloudinary URL)"
+                    value={proofUrl}
+                    onChange={(e) => setProofUrl(e.target.value)}
+                    className="p-2 border border-gray-300 rounded text-xs bg-white"
+                  />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Ghi chú hoàn tiền (Tùy chọn)"
+                  value={refundNote}
+                  onChange={(e) => setRefundNote(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded text-xs bg-white"
+                />
+                <button
+                  type="submit"
+                  disabled={refundSubmitting}
+                  className="w-full py-2 bg-emerald-600 text-white font-bold rounded hover:bg-emerald-700 transition-colors"
+                >
+                  {refundSubmitting ? 'Đang xử lý...' : 'Xác nhận Đã Chuyển Tiền & Gửi Bill Cho Khách'}
+                </button>
+              </form>
+            )}
 
             {selectedReturn.shipment && (
               <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-blue-900 space-y-1">

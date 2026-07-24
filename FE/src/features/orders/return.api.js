@@ -41,3 +41,7 @@ export async function adminReviewReturn(returnId, payload) {
 export async function adminReceiveAndQc(returnId, payload) {
   return apiClient.post(`/api/v1/admin/returns/${returnId}/receive-qc`, payload)
 }
+
+export async function adminCompleteRefund(refundId, payload) {
+  return apiClient.post(`/api/v1/admin/refunds/${refundId}/complete`, payload)
+}
