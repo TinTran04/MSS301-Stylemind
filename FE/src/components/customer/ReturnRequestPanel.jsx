@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
-import { RotateCcw, Truck, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { RotateCcw, Truck, CheckCircle2, XCircle, Clock, CreditCard } from 'lucide-react'
 import Badge from '../common/Badge'
-import { submitReturnShipment, cancelReturnRequest } from '../../features/orders/return.api'
+import { submitReturnShipment, cancelReturnRequest, getPayoutDestination, savePayoutDestination } from '../../features/orders/return.api'
 import { formatDateTime } from '../../utils/formatDate'
 
 const STATUS_CONFIG = {
@@ -20,10 +20,51 @@ export default function ReturnRequestPanel({ returnRequest, onUpdate }) {
   const [cancelling, setCancelling] = useState(false)
   const [error, setError] = useState('')
 
+  const [payoutInfo, setPayoutInfo] = useState(null)
+  const [bankCode, setBankCode] = useState('VCB')
+  const [accountHolder, setAccountHolder] = useState('')
+  const [accountNumber, setAccountNumber] = useState('')
+  const [payoutSubmitting, setPayoutSubmitting] = useState(false)
+
+  const fetchPayout = async () => {
+    if (!returnRequest) return
+    try {
+      const res = await getPayoutDestination(returnRequest.id)
+      setPayoutInfo(res?.data || res)
+    } catch {
+      setPayoutInfo(null)
+    }
+  }
+
+  useEffect(() => {
+    fetchPayout()
+  }, [returnRequest?.id])
+
   if (!returnRequest) return null
 
   const config = STATUS_CONFIG[returnRequest.status] || { label: returnRequest.status, variant: 'default', icon: Clock }
   const Icon = config.icon
+
+  const handlePayoutSubmit = async (e) => {
+    e.preventDefault()
+    if (!accountHolder.trim() || !accountNumber.trim()) {
+      alert('Vui lòng nhập tên chủ tài khoản và số tài khoản.')
+      return
+    }
+    setPayoutSubmitting(true)
+    try {
+      await savePayoutDestination(returnRequest.id, {
+        bankCode,
+        accountHolder: accountHolder.trim().toUpperCase(),
+        accountNumber: accountNumber.trim(),
+      })
+      fetchPayout()
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Không thể lưu thông tin STK.')
+    } finally {
+      setPayoutSubmitting(false)
+    }
+  }
 
   const handleShipmentSubmit = async (e) => {
     e.preventDefault()
@@ -90,6 +131,40 @@ export default function ReturnRequestPanel({ returnRequest, onUpdate }) {
             <p className="font-semibold text-xs text-red-900">Lý do từ chối:</p>
             <p className="mt-0.5 text-xs">{returnRequest.rejectionReason}</p>
           </div>
+        )}
+      </div>
+
+      {/* Thông tin STK nhận tiền hoàn */}
+      <div className="bg-white p-3 rounded-xl border border-emerald-200 text-xs space-y-2">
+        <div className="flex items-center justify-between font-semibold text-emerald-950">
+          <span className="flex items-center gap-1"><CreditCard size={14} /> Tài khoản nhận tiền hoàn:</span>
+        </div>
+
+        {payoutInfo?.status === 'PROVIDED' ? (
+          <div className="space-y-0.5 text-gray-700">
+            <p><span className="text-gray-500">Ngân hàng:</span> <span className="font-semibold">{payoutInfo.bankCode}</span></p>
+            <p><span className="text-gray-500">Chủ tài khoản:</span> <span className="font-semibold uppercase">{payoutInfo.accountHolder}</span></p>
+            <p><span className="text-gray-500">Số tài khoản:</span> <span className="font-mono font-semibold">{payoutInfo.maskedAccountNumber}</span></p>
+          </div>
+        ) : (
+          <form onSubmit={handlePayoutSubmit} className="space-y-2 pt-1 border-t border-gray-100">
+            <p className="text-[11px] text-amber-700 font-medium">Bạn chưa nhập STK. Vui lòng nhập để shop chuyển khoản hoàn tiền:</p>
+            <div className="grid grid-cols-2 gap-2">
+              <select value={bankCode} onChange={(e) => setBankCode(e.target.value)} className="p-1.5 border rounded text-xs">
+                <option value="VCB">Vietcombank</option>
+                <option value="MB">MBBank</option>
+                <option value="TCB">Techcombank</option>
+                <option value="ACB">ACB</option>
+                <option value="VPB">VPBank</option>
+                <option value="BIDV">BIDV</option>
+              </select>
+              <input type="text" placeholder="CHỦ TÀI KHOẢN" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value.toUpperCase())} className="p-1.5 border rounded text-xs uppercase" />
+            </div>
+            <div className="flex gap-2">
+              <input type="text" placeholder="Số tài khoản" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="flex-1 p-1.5 border rounded text-xs" />
+              <button type="submit" disabled={payoutSubmitting} className="px-3 py-1.5 bg-emerald-600 text-white font-semibold rounded text-xs hover:bg-emerald-700">Lưu STK</button>
+            </div>
+          </form>
         )}
       </div>
 
