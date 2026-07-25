@@ -12,6 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -58,7 +59,7 @@ public class GlobalExceptionHandler {
             BadCredentialsException ex, HttpServletRequest request) {
         log.warn("Bad credentials: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(ErrorCode.AUTH_INVALID_CREDENTIALS.name(), ex.getMessage()));
+                .body(ApiResponse.error(ErrorCode.AUTH_INVALID_CREDENTIALS.name(), ErrorCode.AUTH_INVALID_CREDENTIALS.getMessage()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -75,6 +76,14 @@ public class GlobalExceptionHandler {
         log.warn("Bad request: {}", ex.getMessage());
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error(ErrorCode.INVALID_REQUEST.name(), "Yêu cầu không hợp lệ: " + ex.getMessage()));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
+        log.warn("Method not allowed: {} {}", ex.getMethod(), request.getRequestURI());
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(ApiResponse.error(ErrorCode.METHOD_NOT_ALLOWED.name(), ErrorCode.METHOD_NOT_ALLOWED.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)

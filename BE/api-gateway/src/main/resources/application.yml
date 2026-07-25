@@ -4,74 +4,216 @@ server:
 spring:
   application:
     name: api-gateway
+  main:
+    allow-bean-definition-overriding: true
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
   cloud:
     gateway:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "*"
-            allowedMethods: "*"
-            allowedHeaders: "*"
-            exposedHeaders: "X-Request-Id,X-User-Id,X-User-Roles"
+            allowedOriginPatterns: '*'
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - PATCH
+              - OPTIONS
+            allowedHeaders: '*'
+            exposedHeaders: 'X-Request-Id,X-User-Id,X-User-Roles'
+            allowCredentials: false
+      # Strip duplicate CORS headers that downstream services add on top of gateway's own headers
+      # (every service's own common-lib SecurityConfig also has a CorsConfigurationSource).
+      # Without this, browser sees two values for these headers and can block the response —
+      # covers Allow-Origin/Allow-Credentials plus Expose-Headers/Vary, which the gateway's own
+      # globalcors filter and each downstream service both add independently.
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Access-Control-Expose-Headers Vary, RETAIN_FIRST
       routes:
         - id: auth-service
-          uri: lb://auth-service
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
           predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/auth/**
         - id: user-service
-          uri: lb://user-service
+          uri: ${USER_SERVICE_URL:http://localhost:8082}
           predicates:
-            - Path=/api/users/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/users/**
         - id: product-service
-          uri: lb://product-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
           predicates:
-            - Path=/api/products/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/products/**
         - id: category-service
-          uri: lb://product-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
           predicates:
-            - Path=/api/categories/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/categories/**
         - id: cart-service
-          uri: lb://cart-service
+          uri: ${CART_SERVICE_URL:http://localhost:8086}
           predicates:
-            - Path=/api/cart/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/v1/cart/**
         - id: order-service
-          uri: lb://order-service
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
           predicates:
-            - Path=/api/orders/**
-          filters:
-            - StripPrefix=1
-        - id: payment-service
-          uri: lb://payment-service
+            - Path=/api/v1/orders/**
+        - id: admin-order-service
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
           predicates:
-            - Path=/api/payment/**
-          filters:
-            - StripPrefix=1
-        - id: ai-service
-          uri: lb://ai-agent-service
+            - Path=/api/v1/admin/orders/**
+        - id: payout-destination-service
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8088}
           predicates:
-            - Path=/api/ai-stylist/**
-          filters:
-            - StripPrefix=1
-        - id: admin-service
-          uri: lb://product-service
+            - Path=/api/v1/returns/*/payout-destination
+        - id: returns-service
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
           predicates:
-            - Path=/api/admin/**
+            - Path=/api/v1/returns/**
+        - id: admin-returns-service
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
+          predicates:
+            - Path=/api/v1/admin/returns/**
+        - id: admin-refunds-service
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8088}
+          predicates:
+            - Path=/api/v1/admin/refunds/**
+        - id: sepay-webhook
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8088}
+          predicates:
+            - Path=/api/v1/payments/webhook/sepay
+            - Method=POST
+        - id: notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
+          predicates:
+            - Path=/api/v1/notifications/**
+        - id: admin-notification-service
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
+          predicates:
+            - Path=/api/v1/admin/notifications/**
+        - id: ai-chat-service
+          uri: ${AI_CHAT_SERVICE_URL:${AI_SERVICE_URL:http://host.docker.internal:8000}}
+          predicates:
+            - Path=/api/v1/ai-stylist/sessions,/api/v1/ai-stylist/sessions/**,/api/v1/ai-stylist/knowledge,/api/v1/ai-stylist/knowledge/**
           filters:
-            - StripPrefix=1
+            - RewritePath=/api/v1/ai-stylist/(?<segment>.*), /api/v1/$\{segment}
+          metadata:
+            response-timeout: 300000
+            connect-timeout: 5000
+        - id: ai-service-catch-all
+          uri: ${AI_SERVICE_URL:http://host.docker.internal:8000}
+          predicates:
+            - Path=/api/v1/ai-stylist/**
+          filters:
+            - RewritePath=/api/v1/ai-stylist/(?<segment>.*), /api/v1/$\{segment}
+        - id: admin-users-service
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/v1/admin/users/**
+        - id: admin-product-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/admin/products/**
+        - id: admin-category-service
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/v1/admin/categories/**
+        - id: auth-service-v3-docs
+          uri: ${AUTH_SERVICE_URL:http://localhost:8081}
+          predicates:
+            - Path=/v3/api-docs/auth-service
+          filters:
+            - RewritePath=/v3/api-docs/auth-service, /v3/api-docs
+        - id: user-service-v3-docs
+          uri: ${USER_SERVICE_URL:http://localhost:8082}
+          predicates:
+            - Path=/v3/api-docs/user-service
+          filters:
+            - RewritePath=/v3/api-docs/user-service, /v3/api-docs
+        - id: product-service-v3-docs
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:8083}
+          predicates:
+            - Path=/v3/api-docs/product-service
+          filters:
+            - RewritePath=/v3/api-docs/product-service, /v3/api-docs
+        - id: cart-service-v3-docs
+          uri: ${CART_SERVICE_URL:http://localhost:8086}
+          predicates:
+            - Path=/v3/api-docs/cart-service
+          filters:
+            - RewritePath=/v3/api-docs/cart-service, /v3/api-docs
+        - id: order-service-v3-docs
+          uri: ${ORDER_SERVICE_URL:http://localhost:8087}
+          predicates:
+            - Path=/v3/api-docs/order-service
+          filters:
+            - RewritePath=/v3/api-docs/order-service, /v3/api-docs
+        - id: payment-service-v3-docs
+          uri: ${PAYMENT_SERVICE_URL:http://localhost:8088}
+          predicates:
+            - Path=/v3/api-docs/payment-service
+          filters:
+            - RewritePath=/v3/api-docs/payment-service, /v3/api-docs
+        - id: notification-service-v3-docs
+          uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
+          predicates:
+            - Path=/v3/api-docs/notification-service
+          filters:
+            - RewritePath=/v3/api-docs/notification-service, /v3/api-docs
+        - id: ai-stylist-service-v3-docs
+          uri: ${AI_SERVICE_URL:http://host.docker.internal:8000}
+          predicates:
+            - Path=/v3/api-docs/ai-stylist-service
+          filters:
+            - RewritePath=/v3/api-docs/ai-stylist-service, /openapi.json
         - id: internal-block
-          uri: "no://op"
+          uri: no://op
           predicates:
-            - Path=/internal/**
+            - Path=/internal/v1/**
+          filters:
+            - SetStatus=401
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: 1. Auth Service
+        url: /v3/api-docs/auth-service
+      - name: 2. User Service
+        url: /v3/api-docs/user-service
+      - name: 3. Product Service
+        url: /v3/api-docs/product-service
+      - name: 4. Cart Service
+        url: /v3/api-docs/cart-service
+      - name: 5. Order Service
+        url: /v3/api-docs/order-service
+      - name: 6. Payment Service
+        url: /v3/api-docs/payment-service
+      - name: 7. Notification Service
+        url: /v3/api-docs/notification-service
+      - name: 8. AI Stylist Service
+        url: /v3/api-docs/ai-stylist-service
+
+# JWT Asymmetric Key Configuration (Consumer)
+jwt:
+  # Public Key Path ONLY - REQUIRED for token verification
+  # NO DEFAULT VALUE - Must be set via environment variable
+  public-key-path: ${JWT_PUBLIC_KEY_PATH}
+  
+  # Algorithm Configuration (must match issuer)
+  algorithm: ${JWT_ALGORITHM:RSA}
+  key-size: ${JWT_KEY_SIZE:2048}
+  
+  # Token Expiration (for validation checks)
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
 
 management:
   endpoints:
@@ -87,4 +229,4 @@ logging:
     com.stylemind.gateway: DEBUG
     org.springframework.cloud.gateway: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n"
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n'

@@ -17,28 +17,84 @@ public class Order extends BaseEntity {
     @Column(name = "id", length = 50)
     private String id;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @Column(name = "user_id", length = 50, nullable = false)
     private String userId;
 
     @Column(name = "total_amount", precision = 12, scale = 2, nullable = false)
     private java.math.BigDecimal totalAmount;
 
+    @Column(name = "subtotal_amount", precision = 12, scale = 2)
+    private java.math.BigDecimal subtotalAmount;
+
+    @Column(name = "shipping_fee", precision = 12, scale = 2)
+    private java.math.BigDecimal shippingFee;
+
+    @Column(name = "tax_amount", precision = 12, scale = 2)
+    private java.math.BigDecimal taxAmount;
+
+    @Column(name = "rounding_adjustment", precision = 12, scale = 2)
+    private java.math.BigDecimal roundingAdjustment;
+
     @Column(name = "order_status", length = 30, nullable = false)
+    @Enumerated(EnumType.STRING)
     @Builder.Default
-    private String orderStatus = "PENDING";
+    private OrderStatus orderStatus = OrderStatus.PENDING;
 
     @Column(name = "shipping_address", columnDefinition = "TEXT", nullable = false)
     private String shippingAddress;
 
+    @Column(name = "source_address_id", length = 50)
+    private String sourceAddressId;
+
+    @Column(name = "shipping_recipient_name", length = 100)
+    private String shippingRecipientName;
+
+    @Column(name = "shipping_phone", length = 20)
+    private String shippingPhone;
+
+    @Column(name = "shipping_province_code", length = 10)
+    private String shippingProvinceCode;
+
+    @Column(name = "shipping_province_name", length = 150)
+    private String shippingProvinceName;
+
+    @Column(name = "shipping_ward_code", length = 10)
+    private String shippingWardCode;
+
+    @Column(name = "shipping_ward_name", length = 150)
+    private String shippingWardName;
+
+    @Column(name = "shipping_address_line", columnDefinition = "TEXT")
+    private String shippingAddressLine;
+
+    @Column(name = "shipping_note", columnDefinition = "TEXT")
+    private String shippingNote;
+
     // Explicit getters/setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
     public java.math.BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(java.math.BigDecimal totalAmount) { this.totalAmount = totalAmount; }
-    public String getOrderStatus() { return orderStatus; }
-    public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    public java.math.BigDecimal getSubtotalAmount() { return subtotalAmount; }
+    public void setSubtotalAmount(java.math.BigDecimal subtotalAmount) { this.subtotalAmount = subtotalAmount; }
+    public java.math.BigDecimal getShippingFee() { return shippingFee; }
+    public void setShippingFee(java.math.BigDecimal shippingFee) { this.shippingFee = shippingFee; }
+    public java.math.BigDecimal getTaxAmount() { return taxAmount; }
+    public void setTaxAmount(java.math.BigDecimal taxAmount) { this.taxAmount = taxAmount; }
+    public java.math.BigDecimal getRoundingAdjustment() { return roundingAdjustment; }
+    public void setRoundingAdjustment(java.math.BigDecimal roundingAdjustment) { this.roundingAdjustment = roundingAdjustment; }
+    // Mutating this directly bypasses OrderStatusService.changeStatus() and its
+    // transition validation/audit trail. Only OrderStatusService should call this.
+    public OrderStatus getOrderStatus() { return orderStatus; }
+    public void setOrderStatus(OrderStatus orderStatus) { this.orderStatus = orderStatus; }
     public String getShippingAddress() { return shippingAddress; }
     public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }
 }

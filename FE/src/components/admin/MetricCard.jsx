@@ -4,6 +4,11 @@ import clsx from 'clsx'
 
 export default function MetricCard({ title, value, change, subtitle, icon: Icon, status }) {
   const isPositive = change >= 0
+  const statusLabel = {
+    good: 'Tốt',
+    warning: 'Cảnh báo',
+    error: 'Lỗi',
+  }[status] || status
 
   return (
     <motion.div
@@ -30,7 +35,7 @@ export default function MetricCard({ title, value, change, subtitle, icon: Icon,
             status === 'warning' && 'bg-tertiary-fixed/30 text-tertiary',
             status === 'error' && 'bg-error-container text-error'
           )}>
-            {status}
+            {statusLabel}
           </span>
         )}
       </div>

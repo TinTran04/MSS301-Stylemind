@@ -1,28 +1,52 @@
-import { mockProducts } from '../../data/mockProducts'
+import apiClient from '../../services/apiClient'
+import { ENDPOINTS } from '../../services/endpoints'
+import { mapProduct, mapProductPage } from './product.mapper'
+
+function toSortParam(sort) {
+  const sortMap = {
+    price_asc: 'basePrice,asc',
+    price_desc: 'basePrice,desc',
+    newest: 'createdAt,desc',
+  }
+  return sortMap[sort] || sort || 'createdAt,desc'
+}
+
+export async function getProductPage(filters = {}) {
+  const params = {
+    page: filters.page ?? 0,
+    size: filters.size ?? 50,
+    sort: toSortParam(filters.sort),
+  }
+
+  if (filters.search) params.search = filters.search
+  if (filters.minPrice != null) params.minPrice = filters.minPrice
+  if (filters.maxPrice != null) params.maxPrice = filters.maxPrice
+  if (filters.targetDemographic) params.targetDemographic = filters.targetDemographic
+  if (filters.category && !Number.isNaN(Number(filters.category))) {
+    params.category = Number(filters.category)
+  } else if (filters.categorySlug) {
+    params.categorySlug = filters.categorySlug
+  }
+
+  const response = await apiClient.get(ENDPOINTS.PRODUCTS, { params })
+  return mapProductPage(response)
+}
 
 export async function getProducts(filters = {}) {
-  let results = [...mockProducts]
-  if (filters.category) {
-    results = results.filter(p => p.category === filters.category)
-  }
-  if (filters.search) {
-    const q = filters.search.toLowerCase()
-    results = results.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
-  }
-  if (filters.minPrice) results = results.filter(p => p.price >= filters.minPrice)
-  if (filters.maxPrice) results = results.filter(p => p.price <= filters.maxPrice)
-  if (filters.sort === 'price_asc') results.sort((a, b) => a.price - b.price)
-  if (filters.sort === 'price_desc') results.sort((a, b) => b.price - a.price)
-  if (filters.sort === 'rating') results.sort((a, b) => b.rating - a.rating)
-  if (filters.sort === 'ai_match') results.sort((a, b) => b.aiMatchScore - a.aiMatchScore)
-  return results
+  const page = await getProductPage(filters)
+  return page.content
 }
 
 export async function getProductById(id) {
-  return mockProducts.find(p => p.id === id) || null
+  const response = await apiClient.get(`${ENDPOINTS.PRODUCTS}/${id}`)
+  return mapProduct(response)
 }
 
 export async function searchProducts(query) {
-  const q = query.toLowerCase()
-  return mockProducts.filter(p => p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q))
+  return getProducts({ search: query })
+}
+
+export async function getCategories() {
+  const response = await apiClient.get(ENDPOINTS.CATEGORIES)
+  return Array.isArray(response) ? response : []
 }

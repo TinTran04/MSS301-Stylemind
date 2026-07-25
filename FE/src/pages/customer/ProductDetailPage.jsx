@@ -1,174 +1,248 @@
-import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { ShoppingBag, Heart, Share2, Sparkles, Star, Check } from 'lucide-react'
-import Badge from '../../components/common/Badge'
+import { useEffect, useState } from 'react'
+import { ShoppingBag } from 'lucide-react'
+import { Link, useParams } from 'react-router-dom'
 import ProductCard from '../../components/customer/ProductCard'
+import ProductImage from '../../components/customer/ProductImage'
 import useCartStore from '../../features/cart/cart.store'
 import { getProductById, getProducts } from '../../features/products/product.api'
-import { mockInventory } from '../../data/mockInventory'
+import {
+  getSizeOptions,
+  getColorOptions,
+  isOptionOutOfStock,
+  getAddToCartState,
+  getDisplayedPrice,
+  getVisibleAddToCartMessage,
+  resolveVariant,
+  normalizeLabel,
+} from '../../features/products/product.variant-selection.js'
+
+const priceFormatter = new Intl.NumberFormat('vi-VN', {
+  style: 'currency',
+  currency: 'VND',
+  maximumFractionDigits: 0,
+})
 
 export default function ProductDetailPage() {
   const { id } = useParams()
   const [product, setProduct] = useState(null)
   const [recommendations, setRecommendations] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [selectedSize, setSelectedSize] = useState(null)
   const [selectedColor, setSelectedColor] = useState(null)
-  const addItem = useCartStore((s) => s.addItem)
+  const [selectedVariantId, setSelectedVariantId] = useState(null)
+  const [addToCartAttempted, setAddToCartAttempted] = useState(false)
+  const addItem = useCartStore((state) => state.addItem)
 
   useEffect(() => {
-    getProductById(id).then(setProduct)
-    getProducts().then((all) => {
-      setRecommendations(all.filter((p) => p.id !== id).slice(0, 3))
-    })
+    let cancelled = false
+    setLoading(true)
+    setError('')
+
+    Promise.all([
+      getProductById(id),
+      getProducts({ size: 4, sort: 'newest' }),
+    ])
+      .then(([detail, products]) => {
+        if (cancelled) return
+        setProduct(detail)
+        setSelectedSize(null)
+        setSelectedColor(null)
+        setSelectedVariantId(null)
+        setAddToCartAttempted(false)
+        setRecommendations(products.filter((item) => item.id !== id).slice(0, 3))
+      })
+      .catch(() => {
+        if (!cancelled) setError('Không thể tải sản phẩm.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
-  if (!product) {
-    return <div className="max-w-[1440px] mx-auto px-16 py-20 text-center">Loading...</div>
+  if (loading) {
+    return <div className="mx-auto max-w-[1440px] px-6 py-20 text-center">Đang tải...</div>
   }
 
-  const inventory = mockInventory.find((i) => i.productId === id)
-  const availableStock = inventory ? inventory.currentStock - inventory.reservedStock : 0
-  const isOutOfStock = availableStock <= 0
+  if (error || !product) {
+    return (
+      <div className="mx-auto max-w-[1440px] px-6 py-20 text-center md:px-16">
+        <p className="text-error">{error || 'Không tìm thấy sản phẩm.'}</p>
+        <Link to="/shop" className="mt-3 inline-block text-primary hover:underline">
+          Quay lại cửa hàng
+        </Link>
+      </div>
+    )
+  }
+
+  const variants = product.variants || []
+  const hasAnyVariant = variants.length > 0
+  // Selection is size-first: sizes are always the full list (never filtered
+  // by color, since a color can't be picked before its size), and colors
+  // only exist once a size is chosen.
+  const sizeOptions = getSizeOptions(variants, null)
+  const colorOptions = selectedSize ? getColorOptions(variants, selectedSize) : []
+  const addToCartState = getAddToCartState(variants, selectedSize, selectedColor)
+  const selectedVariant = selectedVariantId
+    ? variants.find((variant) => variant.id === selectedVariantId) || null
+    : null
+  const displayPrice = getDisplayedPrice(product.basePrice, selectedVariant)
+  const addToCartMessage = getVisibleAddToCartMessage(variants, selectedSize, selectedColor, addToCartAttempted)
+
+  const handleSelectSize = (size) => {
+    const isSameSize = normalizeLabel(selectedSize) === normalizeLabel(size)
+    // Clicking the already-selected size unselects it; picking a different
+    // size always clears the color, since it belonged to the previous size.
+    setSelectedSize(isSameSize ? null : size)
+    setSelectedColor(null)
+    setSelectedVariantId(null)
+    setAddToCartAttempted(false)
+  }
+
+  const handleSelectColor = (color) => {
+    setSelectedColor(color)
+    setSelectedVariantId(resolveVariant(variants, selectedSize, color)?.id || null)
+    setAddToCartAttempted(false)
+  }
 
   const handleAddToCart = () => {
-    addItem(product, 1, selectedSize || product.sizes[0], selectedColor || product.colors[0])
+    setAddToCartAttempted(true)
+    if (addToCartState.disabled) return
+    setAddToCartAttempted(false)
+    addItem(product, 1, selectedSize, selectedColor)
   }
 
   return (
-    <div className="max-w-[1440px] mx-auto px-6 md:px-16 py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Image Gallery */}
-        <div className="space-y-4">
-          <div className="relative rounded-[24px] overflow-hidden aspect-[3/4]">
-            <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
-            {product.aiMatchScore >= 90 && (
-              <div className="absolute top-4 left-4">
-                <Badge variant="ai"><Sparkles size={12} /> {product.aiMatchScore}% Match</Badge>
-              </div>
-            )}
-          </div>
+    <main className="mx-auto max-w-[1440px] px-6 py-8 md:px-16">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-14">
+        <div className="aspect-[3/4] overflow-hidden rounded-lg bg-surface-container">
+          <ProductImage
+            src={product.primaryImageUrl}
+            alt={product.name}
+            className="h-full w-full object-cover"
+          />
         </div>
 
-        {/* Product Info */}
-        <div className="space-y-6">
-          <div>
+        <div className="space-y-7 lg:pt-4">
+          <div className="border-b border-outline-variant/20 pb-6">
+            {product.category ? (
+              <p className="mb-2 text-sm text-on-surface-variant">{product.category}</p>
+            ) : null}
             <h1 className="font-headline-md text-primary">{product.name}</h1>
-            <div className="flex items-center gap-4 mt-2">
-              <span className="text-2xl font-semibold text-primary">${product.price}</span>
-              {product.originalPrice && (
-                <span className="text-on-surface-variant line-through">${product.originalPrice}</span>
-              )}
-              <div className="flex items-center gap-1">
-                <Star size={14} className="text-tertiary fill-tertiary" />
-                <span className="text-sm text-on-surface-variant">{product.rating} ({product.reviews})</span>
+            <p className="mt-3 text-xl font-semibold text-primary">
+              {priceFormatter.format(displayPrice)}
+            </p>
+          </div>
+
+          {product.description ? (
+            <p className="leading-relaxed text-on-surface-variant">{product.description}</p>
+          ) : null}
+
+          {sizeOptions.length > 0 ? (
+            <fieldset>
+              <legend className="mb-3 text-xs font-medium uppercase text-on-surface-variant">
+                Kích cỡ
+              </legend>
+              <div className="flex flex-wrap gap-2">
+                {sizeOptions.map((size) => {
+                  const isSelected = normalizeLabel(selectedSize) === normalizeLabel(size)
+                  // Other sizes stay clickable while one is selected — they're
+                  // just muted so the selected size reads as the active choice.
+                  const isMuted = Boolean(selectedSize) && !isSelected
+                  return (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => handleSelectSize(size)}
+                      className={`flex h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm transition-colors ${
+                        isSelected
+                          ? 'border-primary bg-primary text-on-primary'
+                          : isMuted
+                            ? 'border-outline-variant/20 text-on-surface-variant/60 opacity-60 hover:border-primary hover:opacity-100'
+                            : 'border-outline-variant/30 hover:border-primary'
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  )
+                })}
               </div>
-            </div>
-          </div>
+            </fieldset>
+          ) : null}
 
-          <p className="text-on-surface-variant leading-relaxed">{product.description}</p>
+          {hasAnyVariant ? (
+            <fieldset>
+              <legend className="mb-3 text-xs font-medium uppercase text-on-surface-variant">
+                Màu sắc
+              </legend>
+              {!selectedSize ? (
+                <p className="text-sm text-on-surface-variant">Vui lòng chọn kích cỡ trước.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {colorOptions.map((color) => {
+                    const outOfStock = isOptionOutOfStock(variants, 'color', color, 'size', selectedSize)
+                    const isSelected = normalizeLabel(selectedColor) === normalizeLabel(color)
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => handleSelectColor(color)}
+                        disabled={outOfStock}
+                        title={outOfStock ? 'Hết hàng' : undefined}
+                        className={`rounded-lg border px-4 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                          isSelected
+                            ? 'border-primary bg-primary text-on-primary'
+                            : 'border-outline-variant/30 hover:border-primary'
+                        }`}
+                      >
+                        {color}
+                        {outOfStock ? ' · Hết hàng' : ''}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </fieldset>
+          ) : null}
 
-          {/* Colors */}
-          <div>
-            <label className="font-label-sm uppercase tracking-wider text-on-surface-variant mb-3 block">Color</label>
-            <div className="flex gap-3">
-              {product.colors.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setSelectedColor(color)}
-                  className={`px-4 py-2 rounded-lg border text-sm active:scale-95 transition-all ${
-                    selectedColor === color
-                      ? 'border-tertiary-container bg-surface-container-low'
-                      : 'border-outline-variant/20 hover:border-outline-variant'
-                  }`}
-                >
-                  {color}
-                </button>
-              ))}
+          {!hasAnyVariant ? (
+            <div className="bg-error-container/40 px-4 py-3 text-sm font-medium text-error">
+              Sản phẩm chưa có biến thể khả dụng.
             </div>
-          </div>
-
-          {/* Sizes */}
-          <div>
-            <label className="font-label-sm uppercase tracking-wider text-on-surface-variant mb-3 block">Size</label>
-            <div className="flex gap-3">
-              {product.sizes.map((size) => (
-                <button
-                  key={size}
-                  onClick={() => setSelectedSize(size)}
-                  className={`w-12 h-12 rounded-lg border text-sm font-medium active:scale-95 transition-all ${
-                    selectedSize === size
-                      ? 'border-primary bg-primary text-on-primary'
-                      : 'border-outline-variant/20 hover:border-outline-variant'
-                  }`}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Stock Status */}
-          {isOutOfStock ? (
-            <div className="bg-error-container/50 text-error px-4 py-3 rounded-lg text-sm font-medium">
-              Out of Stock
-            </div>
-          ) : availableStock <= 5 ? (
-            <div className="bg-tertiary-fixed/20 text-tertiary px-4 py-3 rounded-lg text-sm">
-              Low Stock - Only {availableStock} left
+          ) : addToCartMessage ? (
+            <div className="bg-error-container/40 px-4 py-3 text-sm font-medium text-error">
+              {addToCartMessage}
             </div>
           ) : null}
 
-          {/* Add to Cart */}
           <div className="flex gap-3">
             <button
+              type="button"
               onClick={handleAddToCart}
-              disabled={isOutOfStock}
-              className="group/bag flex-1 bg-primary text-on-primary rounded-lg py-3 text-sm font-medium hover:opacity-90 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!hasAnyVariant}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary py-3 text-sm font-medium text-on-primary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <ShoppingBag size={16} className="transform group-hover/bag:-translate-y-0.5 transition-transform duration-300" />
-              {isOutOfStock ? 'Out of Stock' : 'Add to Bag'}
-            </button>
-            <button className="group/btn p-3 rounded-lg border border-outline-variant/20 hover:bg-surface-container-high active:scale-90 transition-all">
-              <Heart size={18} className="text-on-surface-variant transform group-hover/btn:scale-110 transition-transform duration-300" />
-            </button>
-            <button className="group/btn p-3 rounded-lg border border-outline-variant/20 hover:bg-surface-container-high active:scale-90 transition-all">
-              <Share2 size={18} className="text-on-surface-variant transform group-hover/btn:scale-110 transition-transform duration-300" />
+              <ShoppingBag size={16} aria-hidden="true" />
+              Thêm vào giỏ hàng
             </button>
           </div>
-
-          {/* AI Match Analysis */}
-          {product.aiMatchScore && (
-            <div className="bg-ai-lavender/20 rounded-2xl p-5 border border-ai-lavender/30">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles size={16} className="text-tertiary" />
-                <span className="font-label-sm uppercase text-on-surface-variant">AI Match Analysis</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-on-surface-variant">Style Compatibility</span>
-                  <span className="font-medium text-primary">{product.aiMatchScore}%</span>
-                </div>
-                <div className="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-                  <div className="h-full bg-tertiary-container rounded-full" style={{ width: `${product.aiMatchScore}%` }} />
-                </div>
-                <p className="text-xs text-on-surface-variant mt-2">
-                  This piece aligns with your minimalist aesthetic and neutral color preference.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Complete the Look */}
-      <section className="mt-16">
-        <h2 className="font-headline-md text-primary mb-6">Complete the Look</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-          {recommendations.map((rec) => (
-            <ProductCard key={rec.id} product={rec} />
-          ))}
-        </div>
-      </section>
-    </div>
+      {recommendations.length > 0 ? (
+        <section className="mt-16 border-t border-outline-variant/20 pt-10">
+          <h2 className="font-headline-md text-primary">Các sản phẩm khác</h2>
+          <div className="mt-7 grid grid-cols-2 gap-x-3 gap-y-8 md:grid-cols-3 md:gap-x-5">
+            {recommendations.map((recommendation) => (
+              <ProductCard key={recommendation.id} product={recommendation} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </main>
   )
 }

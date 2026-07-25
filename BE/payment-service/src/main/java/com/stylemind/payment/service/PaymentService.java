@@ -1,101 +1,33 @@
 package com.stylemind.payment.service;
 
-import com.stylemind.payment.dto.*;
-import com.stylemind.payment.entity.Transaction;
-import com.stylemind.payment.repository.TransactionRepository;
-import com.stylemind.common.exception.BusinessException;
-import com.stylemind.common.util.StringUtil;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import com.stylemind.payment.dto.CodCheckoutRequest;
+import com.stylemind.payment.dto.CancelPaymentRequest;
+import com.stylemind.payment.dto.PaymentResponse;
+import com.stylemind.payment.dto.PaymentCancellationResponse;
+import com.stylemind.payment.dto.PaymentRevenueCandidate;
+import com.stylemind.payment.dto.SepayCheckoutRequest;
+import com.stylemind.payment.dto.SepayWebhookPayload;
 
-import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
 
-@Service
-@RequiredArgsConstructor
-@Slf4j
-@Transactional
-public class PaymentService {
+public interface PaymentService {
 
-    private final TransactionRepository transactionRepository;
+    PaymentResponse createCodPayment(CodCheckoutRequest request);
 
-    public PaymentResponse checkout(CheckoutRequest request) {
-        // Create transaction record
-        Transaction transaction = Transaction.builder()
-                .id(StringUtil.generateUniqueId())
-                .orderId(request.getOrderId())
-                .userId("") // Will be filled by order service
-                .amount(request.getAmount())
-                .method(request.getMethod())
-                .status("PENDING")
-                .transactionRef(StringUtil.generateUniqueId())
-                .build();
+    PaymentResponse createSepayPayment(SepayCheckoutRequest request);
 
-        transaction = transactionRepository.save(transaction);
+    PaymentResponse getPaymentStatus(String orderId);
 
-        // Simulate payment processing
-        if ("online_simulated".equals(request.getMethod())) {
-            // In real implementation, integrate with payment gateway
-            // For now, always succeed
-            transaction.setStatus("COMPLETED");
-            transaction = transactionRepository.save(transaction);
-            
-            return PaymentResponse.builder()
-                    .transactionId(transaction.getId())
-                    .status("COMPLETED")
-                    .amount(transaction.getAmount())
-                    .build();
-        } else {
-            // COD - pending until delivery
-            return PaymentResponse.builder()
-                    .transactionId(transaction.getId())
-                    .status("PENDING")
-                    .amount(transaction.getAmount())
-                    .build();
-        }
-    }
+    void processSepayWebhook(String authorizationHeader, SepayWebhookPayload payload);
 
-    public PaymentResponse processPayment(ProcessPaymentRequest request) {
-        Transaction transaction = transactionRepository.findById(request.getTransactionId())
-                .orElseThrow(() -> new BusinessException("TRANSACTION_NOT_FOUND", "Không tìm thấy giao dịch", 404));
+    void expirePendingSepayPayment(String orderId);
 
-        if (!transaction.getOrderId().equals(request.getOrderId())) {
-            throw new BusinessException("TRANSACTION_MISMATCH", "Transaction ID không khớp với Order ID", 400);
-        }
+    PaymentCancellationResponse cancelPayment(String orderId, CancelPaymentRequest request);
 
-        // Simulate payment gateway call
-        boolean success = simulatePaymentGateway(request.getAmount());
-        
-        if (success) {
-            transaction.setStatus("COMPLETED");
-        } else {
-            transaction.setStatus("FAILED");
-        }
-        
-        transaction = transactionRepository.save(transaction);
+    void refund(String transactionId);
 
-        return PaymentResponse.builder()
-                .transactionId(transaction.getId())
-                .status(transaction.getStatus())
-                .amount(transaction.getAmount())
-                .build();
-    }
+    List<PaymentRevenueCandidate> findSepayRevenueCandidates(LocalDateTime from, LocalDateTime to);
 
-    private boolean simulatePaymentGateway(BigDecimal amount) {
-        // Simulate 99% success rate
-        return Math.random() > 0.01;
-    }
-
-    public void refund(String transactionId) {
-        Transaction transaction = transactionRepository.findById(transactionId)
-                .orElseThrow(() -> new BusinessException("TRANSACTION_NOT_FOUND", "Không tìm thấy giao dịch", 404));
-
-        if (!"COMPLETED".equals(transaction.getStatus())) {
-            throw new BusinessException("INVALID_REFUND", "Chỉ có thể hoàn tiền giao dịch đã hoàn thành", 400);
-        }
-
-        transaction.setStatus("REFUNDED");
-        transactionRepository.save(transaction);
-    }
+    List<PaymentRevenueCandidate> findRevenueCandidatesByOrderIds(List<String> orderIds);
 }

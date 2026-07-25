@@ -26,6 +26,7 @@ public enum ErrorCode {
     BUNDLE_NOT_FOUND("Không tìm thấy bộ outfit", 404),
     CONVERSATION_NOT_FOUND("Không tìm thấy hội thoại", 404),
     NOTIFICATION_NOT_FOUND("Không tìm thấy thông báo", 404),
+    NOTIFICATION_NOT_RETRYABLE("Chỉ có thể gửi lại thông báo ở trạng thái FAILED", 409),
     TRANSACTION_NOT_FOUND("Không tìm thấy giao dịch", 404),
     JOB_NOT_FOUND("Không tìm thấy job", 404),
     
@@ -49,7 +50,8 @@ public enum ErrorCode {
     INTERNAL_ERROR("Lỗi hệ thống", 500),
     SERVICE_UNAVAILABLE("Dịch vụ không khả dụng", 503),
     INTERNAL_TOKEN_INVALID("Token nội bộ không hợp lệ", 401),
-    INVALID_REQUEST("Yêu cầu không hợp lệ", 400);
+    INVALID_REQUEST("Yêu cầu không hợp lệ", 400),
+    METHOD_NOT_ALLOWED("Phương thức HTTP không được hỗ trợ cho tài nguyên này", 405);
 
     private final String message;
     private final int httpStatus;

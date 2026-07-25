@@ -8,7 +8,7 @@ spring:
   application:
     name: auth-service
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/auth_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/auth_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
@@ -20,20 +20,35 @@ spring:
       max-lifetime: 1800000
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
   sql:
     init:
       mode: never
 
 jwt:
-  secret: ${JWT_SECRET:super-secure-stylemind-secret-key-signature-2026-xyz}
-  access-token-expiration: 3600000
-  refresh-token-expiration: 604800000
+  # JWT Asymmetric Key Configuration (Issuer)
+  # Private Key Path - REQUIRED for signing tokens
+  private-key-path: ${JWT_PRIVATE_KEY_PATH}
+  
+  # Public Key Path - REQUIRED for verification (if needed internally)
+  public-key-path: ${JWT_PUBLIC_KEY_PATH}
+  
+  # Algorithm Configuration
+  algorithm: ${JWT_ALGORITHM:RSA}
+  key-size: ${JWT_KEY_SIZE:2048}
+  
+  # Token Expiration
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
 
 management:
   endpoints:
@@ -53,3 +68,29 @@ logging:
     org.springframework.security: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n"
+
+notification:
+  service:
+    # Default to localhost so services run from an IDE reach notification-service
+    # without extra env vars (matches the datasource/Redis localhost defaults).
+    # Docker overrides this to the container hostname (docker-compose.full.yml).
+    url: ${NOTIFICATION_SERVICE_URL:http://localhost:8089}
+
+app:
+  frontend-base-url: ${APP_FRONTEND_BASE_URL:http://localhost:5173}
+  auth:
+    setup-token-expiry-minutes: ${AUTH_SETUP_TOKEN_EXPIRY_MINUTES:1440}
+    reset-otp-expiry-minutes: ${AUTH_RESET_OTP_EXPIRY_MINUTES:10}
+    reset-token-expiry-minutes: ${AUTH_RESET_TOKEN_EXPIRY_MINUTES:30}
+    reset-otp-max-attempts: ${AUTH_RESET_OTP_MAX_ATTEMPTS:5}
+    reset-otp-resend-cooldown-seconds: ${AUTH_RESET_OTP_RESEND_COOLDOWN_SECONDS:60}
+    register-otp-expiry-minutes: ${AUTH_REGISTER_OTP_EXPIRY_MINUTES:10}
+    register-otp-max-attempts: ${AUTH_REGISTER_OTP_MAX_ATTEMPTS:5}
+    register-otp-resend-cooldown-seconds: ${AUTH_REGISTER_OTP_RESEND_COOLDOWN_SECONDS:60}
+
+feign:
+  client:
+    config:
+      notification-internal-client:
+        connectTimeout: 3000
+        readTimeout: 5000

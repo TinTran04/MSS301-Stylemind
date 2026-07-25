@@ -1,9 +1,9 @@
 package com.stylemind.gateway.filter;
 
-import com.stylemind.common.security.JwtUtil;
-import com.stylemind.common.security.UserPrincipal;
+import com.stylemind.gateway.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -21,19 +21,31 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
 
     private final JwtUtil jwtUtil;
 
-    private static final List<String> PUBLIC_PATHS = List.of(
-            "/api/auth/login",
-            "/api/auth/register",
-            "/api/auth/me",
+    private static final List<String> PUBLIC_EXACT_PATHS = List.of(
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/auth/register/verify-otp",
+            "/api/v1/auth/register/resend-otp",
+            // Pre-login password recovery: the user has no JWT yet, so these must be
+            // public at the gateway (auth-service SecurityConfig already permits them).
+            // Admin-created account setup uses the same unauthenticated browser flow
+            // and must also pass without a JWT.
+            "/api/v1/auth/password/setup",
+            "/api/v1/auth/forgot-password",
+            "/api/v1/auth/verify-reset-otp",
+            "/api/v1/auth/reset-password",
             "/actuator/health",
             "/actuator/info",
-            "/v3/api-docs",
-            "/swagger-ui"
+            // SePay's own servers call this directly - no user JWT exists for that
+            // request. Authenticity is instead verified inside payment-service via
+            // the webhook's Authorization/API-key header (see PaymentService).
+            "/api/v1/payments/webhook/sepay"
     );
 
     @Override
@@ -41,20 +53,28 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().value();
 
-        // Skip JWT validation for public paths
-        if (isPublicPath(path)) {
-            return chain.filter(exchange);
+        // Correlation id: every request gets one, regardless of whether it's a
+        // public or authenticated path, so downstream logs can always be traced.
+        String requestId = request.getHeaders().getFirst("X-Request-Id");
+        if (!StringUtils.hasText(requestId)) {
+            requestId = UUID.randomUUID().toString();
         }
+        String finalRequestId = requestId;
 
-        // Strip any incoming X-User-Id and X-User-Roles headers (security)
         ServerHttpRequest mutatedRequest = request.mutate()
-                .header("X-User-Id", "")
-                .header("X-User-Roles", "")
+                .headers(headers -> {
+                    headers.remove("X-User-Id");
+                    headers.remove("X-User-Roles");
+                    headers.remove("X-User-Email");
+                    headers.set("X-Request-Id", finalRequestId);
+                })
                 .build();
 
-        // Extract JWT token
         String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
         if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
+            if (isPublicPath(path)) {
+                return chain.filter(exchange.mutate().request(mutatedRequest).build());
+            }
             return unauthorizedResponse(exchange.getResponse(), "Missing or invalid Authorization header");
         }
 
@@ -77,25 +97,30 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     .header("X-User-Email", email)
                     .build();
 
-            // Add request ID for tracing
-            String requestId = request.getHeaders().getFirst("X-Request-Id");
-            if (!StringUtils.hasText(requestId)) {
-                requestId = UUID.randomUUID().toString();
-            }
-            mutatedRequest = mutatedRequest.mutate()
-                    .header("X-Request-Id", requestId)
-                    .build();
-
         } catch (Exception ex) {
             log.warn("JWT validation failed: {}", ex.getMessage());
             return unauthorizedResponse(exchange.getResponse(), "Invalid token: " + ex.getMessage());
         }
 
-        return chain.filter(exchange.mutate().request(mutatedRequest).build());
+        // WebFlux handles one request per thread only within a given operator
+        // chain, not for its whole lifetime, so MDC is set for this synchronous
+        // block (covers this filter's own log lines) and passed to downstream
+        // services via the header for their own MDC population.
+        org.slf4j.MDC.put("X-Request-Id", finalRequestId);
+        try {
+            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+        } finally {
+            org.slf4j.MDC.remove("X-Request-Id");
+        }
     }
 
     private boolean isPublicPath(String path) {
-        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+        if (path.startsWith("/api/v1/products") || path.startsWith("/api/v1/categories")
+                || path.startsWith("/api/v1/cart") || path.startsWith("/v3/api-docs")
+                || path.startsWith("/swagger-ui")) {
+            return true;
+        }
+        return PUBLIC_EXACT_PATHS.stream().anyMatch(path::equals);
     }
 
     private Mono<Void> unauthorizedResponse(ServerHttpResponse response, String message) {

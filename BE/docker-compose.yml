@@ -1,28 +1,7 @@
-version: '3.8'
-
 services:
   # ----------------------------------------------------
-  # 1. Infrastructure: Databases & Message Broker
+  # 1. Infrastructure Services (Profile: infra, all)
   # ----------------------------------------------------
-  postgres:
-    image: postgres:15-alpine
-    container_name: stylemind-postgres
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./init-scripts:/docker-entrypoint-initdb.d
-    networks:
-      - stylemind-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     container_name: stylemind-redis
@@ -35,6 +14,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -47,10 +30,14 @@ services:
     networks:
       - stylemind-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   neo4j:
     image: neo4j:5-community
@@ -71,6 +58,10 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
+    profiles:
+      - infra
+      - app
+      - all
 
   minio:
     image: minio/minio:latest
@@ -91,9 +82,188 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - infra
+      - app
+      - all
 
   # ----------------------------------------------------
-  # 2. API Gateway & Auth Service
+  # 2. PostgreSQL Databases (Profile: infra, all)
+  # ----------------------------------------------------
+  postgres-auth:
+    image: postgres:15-alpine
+    container_name: postgres-auth
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata-auth:/var/lib/postgresql/data
+      - ./init-scripts/01-auth-db.sql:/docker-entrypoint-initdb.d/01-auth-db.sql
+    networks:
+      - stylemind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+      - app
+      - all
+
+  postgres-user:
+    image: postgres:15-alpine
+    container_name: postgres-user
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata-user:/var/lib/postgresql/data
+      - ./init-scripts/02-user-db.sql:/docker-entrypoint-initdb.d/02-user-db.sql
+    networks:
+      - stylemind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d user_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+      - app
+      - all
+
+  postgres-product:
+    image: postgres:15-alpine
+    container_name: postgres-product
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: product_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata-product:/var/lib/postgresql/data
+      - ./init-scripts/03-product-db.sql:/docker-entrypoint-initdb.d/03-product-db.sql
+      - ./init-scripts/04-product-seed-normalized-from-3-datasets.sql:/docker-entrypoint-initdb.d/04-product-seed-normalized-from-3-datasets.sql
+    networks:
+      - stylemind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d product_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+      - app
+      - all
+
+  postgres-cart:
+    image: postgres:15-alpine
+    container_name: postgres-cart
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_DB: cart_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata-cart:/var/lib/postgresql/data
+      - ./init-scripts/05-cart-db.sql:/docker-entrypoint-initdb.d/05-cart-db.sql
+    networks:
+      - stylemind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cart_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+      - app
+      - all
+
+  postgres-order:
+    image: postgres:15-alpine
+    container_name: postgres-order
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_DB: order_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata-order:/var/lib/postgresql/data
+      - ./init-scripts/06-order-db.sql:/docker-entrypoint-initdb.d/06-order-db.sql
+    networks:
+      - stylemind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d order_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+      - app
+      - all
+
+  postgres-payment:
+    image: postgres:15-alpine
+    container_name: postgres-payment
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata-payment:/var/lib/postgresql/data
+      - ./init-scripts/07-payment-db.sql:/docker-entrypoint-initdb.d/07-payment-db.sql
+    networks:
+      - stylemind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d payment_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+      - app
+      - all
+
+
+
+
+  postgres-notification:
+    image: postgres:15-alpine
+    container_name: postgres-notification
+    ports:
+      - "5440:5432"
+    environment:
+      POSTGRES_DB: notification_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - pgdata-notification:/var/lib/postgresql/data
+      - ./init-scripts/09-notification-db.sql:/docker-entrypoint-initdb.d/09-notification-db.sql
+    networks:
+      - stylemind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d notification_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+      - app
+      - all
+
+  # ----------------------------------------------------
+  # 4. API Gateway (Profile: app, all)
   # ----------------------------------------------------
   api-gateway:
     build:
@@ -103,47 +273,73 @@ services:
     container_name: stylemind-gateway
     ports:
       - "3000:3000"
+      - "5005:5005"
     environment:
-      SERVER_PORT: 3000
-      JWT_SECRET: ${JWT_SECRET}
-      AUTH_SERVICE_URL: http://auth-service:8081
-      PRODUCT_SERVICE_URL: http://product-service:8083
-      USER_SERVICE_URL: http://user-service:8082
-      CART_SERVICE_URL: http://cart-service:8086
-      ORDER_SERVICE_URL: http://order-service:8087
-      AI_SERVICE_URL: http://ai-agent-service:8085
-      PAYMENT_SERVICE_URL: http://payment-service:8088
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-    depends_on:
-      postgres:
-        condition: service_healthy
+      SERVER_PORT: ${SERVER_PORT}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_KEY_SIZE: ${JWT_KEY_SIZE}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
+      PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL}
+      USER_SERVICE_URL: ${USER_SERVICE_URL}
+      CART_SERVICE_URL: ${CART_SERVICE_URL}
+      ORDER_SERVICE_URL: ${ORDER_SERVICE_URL}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai-stylist-service:8000}
+      PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+    volumes:
+      - ./.docker/certs:/app/certs:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Linux: resolve host.docker.internal → host machine
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
+  # ----------------------------------------------------
+  # 5. Auth Service (Profile: app, all)
+  # ----------------------------------------------------
   auth-service:
     build:
       context: .
       dockerfile: auth-service/Dockerfile
     image: stylemind/auth-service:latest
     container_name: auth-service
-    ports:
-      - "8081:8081"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      JWT_SECRET: ${JWT_SECRET}
-      SERVER_PORT: 8081
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-auth:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_KEY_SIZE: ${JWT_KEY_SIZE}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL}
+      # Auth's shared security and Feign configuration use the canonical token.
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      SERVER_PORT: ${SERVER_PORT_AUTH}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
       SPRING_MAIN_ALLOW_CIRCULAR_REFERENCES: "true"
+    volumes:
+      - ./.docker/certs:/app/certs:ro
     depends_on:
-      postgres:
+      postgres-auth:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   # ----------------------------------------------------
-  # 3. Business Services
+  # 6. Business Services (Profile: app, all)
   # ----------------------------------------------------
   user-service:
     build:
@@ -151,20 +347,29 @@ services:
       dockerfile: user-service/Dockerfile
     image: stylemind/user-service:latest
     container_name: user-service
-    ports:
-      - "8082:8082"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      SERVER_PORT: 8082
-      AUTH_SERVICE_URL: http://auth-service:8081
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/user_db
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_KEY_SIZE: ${JWT_KEY_SIZE}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      SERVER_PORT: ${SERVER_PORT_USER}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
+    volumes:
+      - ./.docker/certs:/app/certs:ro
     depends_on:
-      postgres:
+      postgres-user:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   product-service:
     build:
@@ -172,26 +377,38 @@ services:
       dockerfile: product-service/Dockerfile
     image: stylemind/product-service:latest
     container_name: product-service
-    ports:
-      - "8083:8083"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/product_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY: admin
-      S3_SECRET_KEY: password
-      S3_BUCKET: stylemind-products
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      SERVER_PORT: 8083
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-product:5432/product_db
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_KEY_SIZE: ${JWT_KEY_SIZE}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      CLOUDINARY_FOLDER: ${CLOUDINARY_FOLDER}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      SERVER_PORT: ${SERVER_PORT_PRODUCT}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
+    volumes:
+      - ./.docker/certs:/app/certs:ro
     depends_on:
-      postgres:
+      postgres-product:
         condition: service_healthy
       minio:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   cart-service:
     build:
@@ -199,22 +416,30 @@ services:
       dockerfile: cart-service/Dockerfile
     image: stylemind/cart-service:latest
     container_name: cart-service
-    ports:
-      - "8086:8086"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/cart_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      SERVER_PORT: 8086
-      AUTH_SERVICE_URL: http://auth-service:8081
-      PRODUCT_SERVICE_URL: http://product-service:8083
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-cart:5432/cart_db
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_KEY_SIZE: ${JWT_KEY_SIZE}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
+      SERVER_PORT: ${SERVER_PORT_CART}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
+      PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
+    volumes:
+      - ./.docker/certs:/app/certs:ro
     depends_on:
-      postgres:
+      postgres-cart:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   order-service:
     build:
@@ -222,22 +447,34 @@ services:
       dockerfile: order-service/Dockerfile
     image: stylemind/order-service:latest
     container_name: order-service
-    ports:
-      - "8087:8087"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      PAYMENT_SERVICE_URL: http://payment-service:8088
-      CART_SERVICE_URL: http://cart-service:8086
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      SERVER_PORT: 8087
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-order:5432/order_db
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_KEY_SIZE: ${JWT_KEY_SIZE}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
+      PAYMENT_SERVICE_URL: ${PAYMENT_SERVICE_URL}
+      USER_SERVICE_URL: ${USER_SERVICE_URL}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
+      CART_SERVICE_URL: ${CART_SERVICE_URL}
+      PRODUCT_SERVICE_URL: ${PRODUCT_SERVICE_URL}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL}
+      SERVER_PORT: ${SERVER_PORT_ORDER}
+    volumes:
+      - ./.docker/certs:/app/certs:ro
     depends_on:
-      postgres:
+      postgres-order:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   payment-service:
     build:
@@ -245,20 +482,41 @@ services:
       dockerfile: payment-service/Dockerfile
     image: stylemind/payment-service:latest
     container_name: payment-service
-    ports:
-      - "8088:8088"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      SERVER_PORT: 8088
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-payment:5432/payment_db
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_KEY_SIZE: ${JWT_KEY_SIZE}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      X_INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      ORDER_SERVICE_URL: ${ORDER_SERVICE_URL}
+      SERVER_PORT: ${SERVER_PORT_PAYMENT}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
+      SEPAY_BANK_SHORT_NAME: ${SEPAY_BANK_SHORT_NAME}
+      SEPAY_ACCOUNT_NUMBER: ${SEPAY_ACCOUNT_NUMBER}
+      SEPAY_ACCOUNT_NAME: ${SEPAY_ACCOUNT_NAME}
+      SEPAY_BANK_HUB_PREFIX: ${SEPAY_BANK_HUB_PREFIX}
+      SEPAY_PAYMENT_EXPIRE_MINUTES: ${SEPAY_PAYMENT_EXPIRE_MINUTES}
+      SEPAY_QR_BASE_URL: ${SEPAY_QR_BASE_URL}
+      SEPAY_ENABLED: ${SEPAY_ENABLED}
+      SEPAY_MODE: ${SEPAY_MODE}
+      SEPAY_PAYMENT_CODE_PREFIX: ${SEPAY_PAYMENT_CODE_PREFIX}
+      SEPAY_WEBHOOK_AUTH_MODE: ${SEPAY_WEBHOOK_AUTH_MODE}
+      SEPAY_WEBHOOK_API_KEY: ${SEPAY_WEBHOOK_API_KEY}
+    volumes:
+      - ./.docker/certs:/app/certs:ro
     depends_on:
-      postgres:
+      postgres-payment:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
   notification-service:
     build:
@@ -266,80 +524,157 @@ services:
       dockerfile: notification-service/Dockerfile
     image: stylemind/notification-service:latest
     container_name: notification-service
-    ports:
-      - "8089:8089"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      SERVER_PORT: 8089
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-notification:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+
+      JWT_PUBLIC_KEY_PATH: ${JWT_PUBLIC_KEY_PATH}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      JWT_KEY_SIZE: ${JWT_KEY_SIZE}
+      JWT_ACCESS_TOKEN_EXPIRATION: ${JWT_ACCESS_TOKEN_EXPIRATION}
+      JWT_REFRESH_TOKEN_EXPIRATION: ${JWT_REFRESH_TOKEN_EXPIRATION}
+
+      SERVER_PORT: ${SERVER_PORT_NOTIFICATION}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE}
+
+      MAIL_ENABLED: ${MAIL_ENABLED}
+      # Notification's current YAML explicitly reads X_INTERNAL_TOKEN. auth-service and
+      # order-service send the canonical INTERNAL_TOKEN value as X-Internal-Token, so
+      # Notification's X_INTERNAL_TOKEN binding must carry that same value (not a separate
+      # X_INTERNAL_TOKEN .env value) or internal calls to /internal/v1/notifications/email are
+      # rejected with 403 by InternalAuthFilter.
+      X_INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      MAIL_LOG_FALLBACK: ${MAIL_LOG_FALLBACK:-true}
+
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:-true}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-true}
+
+      APP_MAIL_FROM_ADDRESS: ${APP_MAIL_FROM_ADDRESS}
+      APP_MAIL_FROM_NAME: ${APP_MAIL_FROM_NAME:-StyleMind}
+
+      MANAGEMENT_HEALTH_MAIL_ENABLED: true
+    volumes:
+      - ./.docker/certs:/app/certs:ro
     depends_on:
-      postgres:
+      postgres-notification:
         condition: service_healthy
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
+
 
   # ----------------------------------------------------
-  # 4. AI Services
+  # AI Stylist — PostgreSQL (sessions & messages DB)
+  # Profile: infra (owned infra) + all
+  # Port 5441 on host to avoid colliding with shared postgres on 5432
   # ----------------------------------------------------
-  ai-agent-service:
-    build:
-      context: .
-      dockerfile: ai-agent-service/Dockerfile
-    image: stylemind/ai-agent-service:latest
-    container_name: ai-agent-service
+  postgres-ai-stylist:
+    image: postgres:16-alpine
+    container_name: postgres-ai-stylist
     ports:
-      - "8085:8085"
+      - "5441:5432"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ai_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: password
-      QDRANT_HOST: qdrant
-      QDRANT_PORT: 6333
-      NEO4J_URI: bolt://neo4j:7687
-      NEO4J_USERNAME: neo4j
-      NEO4J_PASSWORD: password
-      LLM_API_KEY: ${LLM_API_KEY}
-      INTERNAL_TOKEN: ${X_INTERNAL_TOKEN}
-      PRODUCT_SERVICE_URL: http://product-service:8083
-      ORDER_SERVICE_URL: http://order-service:8087
-      SERVER_PORT: 8085
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      POSTGRES_DB: ${AI_POSTGRES_DB:-ai_stylist}
+      POSTGRES_USER: ${AI_POSTGRES_USER:-stylist}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-stylist123}
+    volumes:
+      - pgdata-ai-stylist:/var/lib/postgresql/data
+    networks:
+      - stylemind-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AI_POSTGRES_USER:-stylist} -d ${AI_POSTGRES_DB:-ai_stylist}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - infra
+      - app
+      - all
+
+  # ----------------------------------------------------
+  # AI Stylist — Python FastAPI Service
+  # Profile: app + all
+  # Pulls pre-built image from Docker Hub — no Python source needed locally.
+  # To rebuild: see FULL_GUIDE_START.md → "Manual Build & Push"
+  # ----------------------------------------------------
+  ai-stylist-service:
+    build:
+      context: ${AI_STYLIST_SOURCE_PATH:-../../../../py/AI_stylist}
+      dockerfile: Dockerfile
+    image: stylemind/ai-stylist-service:latest
+    container_name: ai-stylist-service
+    ports:
+      - "${AI_STYLIST_PORT:-8000}:8000"
+    environment:
+      # PostgreSQL — own sessions DB (within stylemind-network)
+      POSTGRES_HOST: postgres-ai-stylist
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${AI_POSTGRES_DB:-ai_stylist}
+      POSTGRES_USER: ${AI_POSTGRES_USER:-stylist}
+      POSTGRES_PASSWORD: ${AI_POSTGRES_PASSWORD:-stylist123}
+      # Neo4j — shared infra container
+      NEO4J_URI: bolt://stylemind-neo4j:7687
+      NEO4J_USER: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password}
+      # Qdrant — shared infra container
+      QDRANT_URL: http://stylemind-qdrant:6333
+      QDRANT_CONCEPT_COLLECTION: ${QDRANT_CONCEPT_COLLECTION:-ai_stylist_concepts}
+      QDRANT_PRODUCT_COLLECTION: ${QDRANT_PRODUCT_COLLECTION:-ai_stylist_products}
+      # Product Service — internal network
+      PRODUCT_SERVICE_BASE_URL: http://product-service:8083
+      PRODUCT_SERVICE_TIMEOUT: ${PRODUCT_SERVICE_TIMEOUT:-10}
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN}
+      # Gemini API Key
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-text-embedding-004}
+      # Firecrawl (optional — blog ingestion only)
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+      FIRECRAWL_BASE_URL: https://api.firecrawl.dev/v2
+      FIRECRAWL_TIMEOUT: ${FIRECRAWL_TIMEOUT:-120}
+      # App
+      APP_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      CONCEPT_SIMILARITY_THRESHOLD: ${CONCEPT_SIMILARITY_THRESHOLD:-0.65}
+    volumes:
+      # Zero-Trust JWT public key — mounted read-only at runtime
+      - ./.docker/certs:/app/certs:ro
     depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
+      postgres-ai-stylist:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      qdrant:
+        condition: service_started
+      product-service:
+        condition: service_started
     networks:
       - stylemind-network
+    profiles:
+      - app
+      - all
 
-  # ----------------------------------------------------
-  # 5. Frontend (optional, for full stack)
-  # ----------------------------------------------------
-  # stylemind-fe:
-  #   build:
-  #     context: ../FE
-  #     dockerfile: Dockerfile
-  #   image: stylemind/frontend:latest
-  #   container_name: stylemind-fe
-  #   ports:
-  #     - "80:80"
-  #   environment:
-  #     - VITE_API_GATEWAY=http://localhost:3000/api
-  #   depends_on:
-  #     - api-gateway
-  #   networks:
-  #     - stylemind-network
 
 networks:
   stylemind-network:
     driver: bridge
 
 volumes:
-  pgdata:
+  pgdata-auth:
+  pgdata-user:
+  pgdata-product:
+  pgdata-cart:
+  pgdata-order:
+  pgdata-payment:
+  pgdata-notification:
+  pgdata-ai-stylist:
   qdrant_data:
   neo4j_data:
   minio_data:

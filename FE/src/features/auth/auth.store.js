@@ -1,14 +1,38 @@
 import { create } from 'zustand'
+import { clearAuthSession, getAuthToken, getStoredUser, resetGuestSessionId, setAuthSession } from '../../services/apiClient'
+import useCartStore from '../cart/cart.store'
+
+const storedUser = getStoredUser()
+const storedToken = getAuthToken()
 
 const useAuthStore = create((set) => ({
-  user: null,
-  isAuthenticated: false,
-  role: null,
+  user: storedUser,
+  token: storedToken,
+  isAuthenticated: Boolean(storedToken && storedUser),
+  role: storedUser?.role || null,
   loading: false,
 
-  login: (user) => set({ user, isAuthenticated: true, role: user.role }),
-  logout: () => set({ user: null, isAuthenticated: false, role: null }),
-  setUser: (user) => set({ user }),
+  login: (sessionOrUser) => {
+    const user = sessionOrUser?.user || sessionOrUser
+    const token = sessionOrUser?.token || getAuthToken()
+    const role = user?.role?.toLowerCase() || null
+    setAuthSession({ user, token })
+    set({ user, token, isAuthenticated: Boolean(user && token), role })
+    // Best-effort: fold any guest cart into the now-authenticated user's cart.
+    useCartStore.getState().mergeGuestCart()
+  },
+  logout: () => {
+    clearAuthSession()
+    // Drop the previous user's cart from memory and the leftover guest id so
+    // neither leaks into the next guest session started after this logout.
+    resetGuestSessionId()
+    useCartStore.getState().resetLocalCart()
+    set({ user: null, token: null, isAuthenticated: false, role: null })
+  },
+  setUser: (user) => {
+    setAuthSession({ user, token: getAuthToken() })
+    set({ user, role: user?.role?.toLowerCase() || null })
+  },
   setLoading: (loading) => set({ loading }),
 }))
 

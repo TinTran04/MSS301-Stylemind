@@ -1,19 +1,21 @@
 package com.stylemind.order.dto;
 
-import jakarta.validation.constraints.*;
-import lombok.*;
-
-import java.math.BigDecimal;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class OrderItemRequest {
-    @NotBlank(message = "Variant ID không được để trống")
+    @NotBlank(message = "Variant ID is required")
     private String variantId;
 
-    @Min(value = 1, message = "Số lượng phải lớn hơn 0")
+    @Min(value = 1, message = "Quantity must be greater than 0")
     private Integer quantity;
 
     private Boolean isAiConversion = false;

@@ -1,8 +1,12 @@
 export function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-US', {
+  const value = Number(amount ?? 0)
+  if (!Number.isFinite(value)) return '0 ₫'
+
+  return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
-    currency: 'USD',
-  }).format(amount)
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(value)
 }
 
 export function formatNumber(num) {

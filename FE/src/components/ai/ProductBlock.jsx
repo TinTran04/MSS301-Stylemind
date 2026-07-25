@@ -1,60 +1,65 @@
-import { ShoppingBag, Sparkles, AlertTriangle } from 'lucide-react'
+import { useState } from 'react'
+import { ShoppingBag, Sparkles, Loader2 } from 'lucide-react'
 import useCartStore from '../../features/cart/cart.store'
-import { mockProducts } from '../../data/mockProducts'
-import { mockInventory } from '../../data/mockInventory'
+import { getProductById } from '../../features/products/product.api'
+import { formatCurrency } from '../../utils/formatCurrency'
 
-function getStockInfo(productId) {
-  const inv = mockInventory.find((i) => i.productId === productId)
-  if (!inv) return { available: 0, status: 'out_of_stock' }
-  const available = inv.currentStock - inv.reservedStock
-  if (available <= 0) return { available: 0, status: 'out_of_stock' }
-  if (available <= 5) return { available, status: 'low_stock' }
-  return { available, status: 'in_stock' }
-}
-
-export default function ProductBlock({ productId, matchScore }) {
-  const product = mockProducts.find((p) => p.id === String(productId))
+// Renders a recommendation straight from the AI stylist's stable RecommendedProduct
+// shape (productId/name/basePrice/imageUrl/matchScore) - no local mock catalog lookup,
+// since these ids come from the real product catalog.
+export default function ProductBlock({ product, bundleId }) {
   const addItem = useCartStore((s) => s.addItem)
-  const stockInfo = getStockInfo(productId)
-  const isOutOfStock = stockInfo.status === 'out_of_stock'
+  const [adding, setAdding] = useState(false)
+  const [added, setAdded] = useState(false)
 
   if (!product) return null
 
+  const matchPercent = product.matchScore != null ? Math.round(product.matchScore * 100) : null
+
+  const handleAddToCart = async () => {
+    setAdding(true)
+    try {
+      const fullProduct = await getProductById(product.productId)
+      if (fullProduct) {
+        await addItem(fullProduct, 1, undefined, undefined, {
+          isAiRecommended: true,
+          sourceBundleId: bundleId,
+        })
+        setAdded(true)
+      }
+    } finally {
+      setAdding(false)
+    }
+  }
+
   return (
-    <div className={`bg-surface-container-lowest rounded-[24px] overflow-hidden product-card-shadow soft-shadow transition-all duration-300 hover:soft-shadow-hover ${isOutOfStock ? 'opacity-60' : ''}`}>
+    <div className="h-full flex flex-col bg-surface-container-lowest rounded-[24px] overflow-hidden product-card-shadow soft-shadow transition-all duration-300 hover:soft-shadow-hover">
       <div className="relative">
         <img
-          src={product.images[0]}
+          src={product.imageUrl || 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600&h=800&fit=crop'}
           alt={product.name}
           className="w-full aspect-[3/4] object-cover"
         />
-        {matchScore && (
+        {matchPercent != null && (
           <div className="absolute top-3 left-3 bg-ai-lavender/90 backdrop-blur-sm text-ai-indigo text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 animate-pulse-glow">
             <Sparkles size={10} />
-            {matchScore}% Match
+            {matchPercent}% phù hợp
           </div>
         )}
-        <div className="absolute top-3 right-3">
-          {isOutOfStock ? (
-            <span className="bg-error-container text-error text-[10px] font-semibold px-2 py-0.5 rounded-full">Out of Stock</span>
-          ) : stockInfo.status === 'low_stock' ? (
-            <span className="bg-tertiary-fixed/30 text-tertiary text-[10px] font-semibold px-2 py-0.5 rounded-full">Low Stock</span>
-          ) : (
-            <span className="bg-green-status/10 text-green-status text-[10px] font-semibold px-2 py-0.5 rounded-full">In Stock</span>
-          )}
-        </div>
       </div>
-      <div className="p-4">
+      <div className="p-4 flex flex-col flex-1">
         <h4 className="text-sm font-medium text-primary">{product.name}</h4>
-        <p className="text-xs text-on-surface-variant mt-0.5">{product.material}</p>
-        <div className="flex items-center justify-between mt-3">
-          <span className="text-sm font-semibold text-primary">${product.price}</span>
+        {product.reason && <p className="text-xs text-on-surface-variant mt-0.5">{product.reason}</p>}
+        <div className="flex items-center justify-between mt-auto pt-3">
+          <span className="text-sm font-semibold text-primary">{formatCurrency(product.basePrice)}</span>
           <button
-            onClick={() => !isOutOfStock && addItem(product)}
-            disabled={isOutOfStock}
+            onClick={handleAddToCart}
+            disabled={adding || added || !product.productId}
+            aria-label="Thêm vào giỏ hàng"
+            title="Thêm vào giỏ hàng"
             className="p-2 rounded-full bg-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <ShoppingBag size={14} />
+            {adding ? <Loader2 size={14} className="animate-spin" /> : <ShoppingBag size={14} />}
           </button>
         </div>
       </div>

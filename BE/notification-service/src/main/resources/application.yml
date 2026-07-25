@@ -4,8 +4,10 @@ server:
 spring:
   application:
     name: notification-service
+  main:
+    allow-bean-definition-overriding: true
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/notification_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5440/notification_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
@@ -17,7 +19,7 @@ spring:
       max-lifetime: 1800000
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
@@ -26,6 +28,34 @@ spring:
   sql:
     init:
       mode: never
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:true}
+
+# JWT Asymmetric Key Configuration (Consumer)
+jwt:
+  # Public Key Path ONLY - REQUIRED for token verification
+  # NO DEFAULT VALUE - Must be set via environment variable
+  public-key-path: ${JWT_PUBLIC_KEY_PATH}
+  
+  # Algorithm Configuration (must match issuer)
+  algorithm: ${JWT_ALGORITHM:RSA}
+  key-size: ${JWT_KEY_SIZE:2048}
+  
+  # Token Expiration (for validation checks)
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
+
+internal:
+  token: ${X_INTERNAL_TOKEN:sm-secret-internal-service-token-key-2026}
 
 management:
   endpoints:
@@ -35,9 +65,21 @@ management:
   endpoint:
     health:
       show-details: always
+  health:
+    mail:
+      enabled: false
 
 logging:
   level:
     com.stylemind.notification: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%X{X-Request-Id:-}] [%thread] %-5level %logger{36} - %msg%n"
+
+app:
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+    # Sender address defaults to the authenticated SMTP account (so Gmail keeps it);
+    # display name defaults to StyleMind → "StyleMind <account>". Both overridable.
+    from-address: ${APP_MAIL_FROM_ADDRESS:${spring.mail.username:no-reply@stylemind.ai}}
+    from-name: ${APP_MAIL_FROM_NAME:StyleMind}
+    log-fallback: ${MAIL_LOG_FALLBACK:true}

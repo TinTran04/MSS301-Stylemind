@@ -1,6 +1,21 @@
+const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh'
+const BACKEND_LOCAL_DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/
+
+export function parseBackendDate(dateStr) {
+  if (!dateStr) return null
+  if (dateStr instanceof Date) return dateStr
+
+  const raw = String(dateStr).trim()
+  const normalized = BACKEND_LOCAL_DATE_TIME_RE.test(raw) ? `${raw}Z` : raw
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
 export function formatDate(dateStr) {
-  const date = new Date(dateStr)
+  const date = parseBackendDate(dateStr)
+  if (!date) return String(dateStr || '')
   return date.toLocaleDateString('en-US', {
+    timeZone: VIETNAM_TIME_ZONE,
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -8,18 +23,23 @@ export function formatDate(dateStr) {
 }
 
 export function formatDateTime(dateStr) {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+  if (!dateStr) return ''
+  const date = parseBackendDate(dateStr)
+  if (!date) return String(dateStr)
+  return date.toLocaleString('vi-VN', {
+    timeZone: VIETNAM_TIME_ZONE,
     hour: '2-digit',
     minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour12: false,
   })
 }
 
 export function formatRelativeTime(dateStr) {
-  const date = new Date(dateStr)
+  const date = parseBackendDate(dateStr)
+  if (!date) return ''
   const now = new Date()
   const diffMs = now - date
   const diffMins = Math.floor(diffMs / 60000)

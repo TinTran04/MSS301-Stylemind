@@ -1,0 +1,661 @@
+package com.stylemind.product.service;
+
+import com.stylemind.product.dto.*;
+import com.stylemind.product.entity.*;
+import com.stylemind.product.repository.*;
+import com.stylemind.product.service.impl.ProductServiceImpl;
+import com.stylemind.product.service.image.ProductImageStorage;
+import com.stylemind.product.service.image.StoredProductImage;
+import com.stylemind.common.dto.PageResponse;
+import com.stylemind.common.exception.BusinessException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.mock.web.MockMultipartFile;
+
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class ProductServiceTest {
+
+    @Mock
+    private ProductRepository productRepository;
+    @Mock
+    private ProductVariantRepository variantRepository;
+    @Mock
+    private ProductImageRepository imageRepository;
+    @Mock
+    private CategoryRepository categoryRepository;
+    @Mock
+    private ProductCategoryRepository productCategoryRepository;
+    @Mock
+    private ProductAuditLogRepository auditLogRepository;
+    @Mock
+    private ProductImageStorage imageStorage;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @InjectMocks
+    private ProductServiceImpl productService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setDefaultCurrency() {
+        org.springframework.test.util.ReflectionTestUtils.setField(productService, "defaultCurrency", "VND");
+    }
+
+    private Product activeProduct;
+    private Product inactiveProduct;
+    private ProductVariant variant;
+
+    @BeforeEach
+    void setUp() {
+        activeProduct = Product.builder()
+                .id("p1")
+                .name("Active Product")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic(TargetDemographic.UNISEX)
+                .status("ACTIVE")
+                .build();
+        activeProduct.setCreatedAt(java.time.LocalDateTime.now());
+        activeProduct.setUpdatedAt(java.time.LocalDateTime.now());
+
+        inactiveProduct = Product.builder()
+                .id("p2")
+                .name("Inactive Product")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic(TargetDemographic.UNISEX)
+                .status("INACTIVE")
+                .build();
+        inactiveProduct.setCreatedAt(java.time.LocalDateTime.now());
+        inactiveProduct.setUpdatedAt(java.time.LocalDateTime.now());
+
+        variant = ProductVariant.builder()
+                .id("v1")
+                .productId("p1")
+                .sku("SKU-1")
+                .size("M")
+                .color("Đen")
+                .priceOverride(null)
+                .stockQuantity(5)
+                .active(true)
+                .build();
+
+        // Default to "configured" so existing upload tests exercise the actual
+        // upload path; the not-configured test below overrides this to false.
+        lenient().when(imageStorage.isConfigured()).thenReturn(true);
+    }
+
+    @Test
+    void createProduct_requestedActiveStatus_persistsInactive() {
+        ProductRequest request = validProductRequest("ACTIVE");
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            saved.setCreatedAt(java.time.LocalDateTime.now());
+            saved.setUpdatedAt(java.time.LocalDateTime.now());
+            return saved;
+        });
+
+        ProductResponse response = productService.createProduct(request);
+
+        org.mockito.ArgumentCaptor<Product> captor = org.mockito.ArgumentCaptor.forClass(Product.class);
+        verify(productRepository).save(captor.capture());
+        assertEquals("INACTIVE", captor.getValue().getStatus());
+        assertEquals("INACTIVE", response.getStatus());
+    }
+
+    @Test
+    void createProduct_invalidTargetDemographic_throws400() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic("NAM")
+                .status("INACTIVE")
+                .build();
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> productService.createProduct(request));
+
+        assertEquals("INVALID_TARGET_DEMOGRAPHIC", ex.getErrorCode());
+        assertEquals(400, ex.getHttpStatus());
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void createProduct_blankTargetDemographic_defaultsToUnisex() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .status("INACTIVE")
+                .build();
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            saved.setCreatedAt(java.time.LocalDateTime.now());
+            saved.setUpdatedAt(java.time.LocalDateTime.now());
+            return saved;
+        });
+
+        ProductResponse response = productService.createProduct(request);
+
+        assertEquals("UNISEX", response.getTargetDemographic());
+    }
+
+    @Test
+    void createProduct_withMultipleCategoryIds_persistsAllInJoinTable() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic("UNISEX")
+                .status("INACTIVE")
+                .categoryIds(List.of(1L, 2L))
+                .build();
+        when(categoryRepository.existsById(1L)).thenReturn(true);
+        when(categoryRepository.existsById(2L)).thenReturn(true);
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+            Product saved = invocation.getArgument(0);
+            saved.setCreatedAt(java.time.LocalDateTime.now());
+            saved.setUpdatedAt(java.time.LocalDateTime.now());
+            return saved;
+        });
+
+        productService.createProduct(request);
+
+        org.mockito.ArgumentCaptor<List<ProductCategory>> captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(productCategoryRepository).saveAll(captor.capture());
+        assertEquals(2, captor.getValue().size());
+    }
+
+    @Test
+    void createProduct_unknownCategoryId_throwsCategoryNotFound() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic("UNISEX")
+                .status("INACTIVE")
+                .categoryIds(List.of(99L))
+                .build();
+        when(categoryRepository.existsById(99L)).thenReturn(false);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> productService.createProduct(request));
+
+        assertEquals("CATEGORY_NOT_FOUND", ex.getErrorCode());
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void updateProduct_replacesCategoriesWithNewSet() {
+        ProductRequest request = ProductRequest.builder()
+                .name("Cotton Shirt")
+                .basePrice(new BigDecimal("100.00"))
+                .targetDemographic("UNISEX")
+                .status("INACTIVE")
+                .categoryIds(List.of(5L))
+                .build();
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+        when(categoryRepository.existsById(5L)).thenReturn(true);
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        productService.updateProduct("p2", request);
+
+        verify(productCategoryRepository).deleteByProductId("p2");
+        org.mockito.ArgumentCaptor<List<ProductCategory>> captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(productCategoryRepository).saveAll(captor.capture());
+        assertEquals(5L, captor.getValue().get(0).getCategoryId());
+    }
+
+    @Test
+    void updateProduct_requestedActiveWithoutVariants_throws409() {
+        ProductRequest request = validProductRequest("ACTIVE");
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+        when(variantRepository.existsByProductId("p2")).thenReturn(false);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.updateProduct("p2", request));
+
+        assertEquals(409, exception.getHttpStatus());
+        assertEquals("PRODUCT_REQUIRES_VARIANT", exception.getErrorCode());
+        assertEquals(
+                "Cannot activate a product without variants. Add at least one variant before publishing it.",
+                exception.getMessage());
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void updateProductStatus_activeWithoutVariants_throws409() {
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+        when(variantRepository.existsByProductId("p2")).thenReturn(false);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.updateProductStatus("p2", "ACTIVE"));
+
+        assertEquals(409, exception.getHttpStatus());
+        assertEquals("PRODUCT_REQUIRES_VARIANT", exception.getErrorCode());
+        assertEquals(
+                "Cannot activate a product without variants. Add at least one variant before publishing it.",
+                exception.getMessage());
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    void updateProductStatus_activeWithVariant_succeeds() {
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+        when(variantRepository.existsByProductId("p2")).thenReturn(true);
+        when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductResponse response = productService.updateProductStatus("p2", "ACTIVE");
+
+        assertEquals("ACTIVE", response.getStatus());
+        verify(productRepository).save(inactiveProduct);
+    }
+
+    @Test
+    void getProduct_notSellable_throws404() {
+        when(productRepository.findSellableById("p2")).thenReturn(Optional.empty());
+
+        assertThrows(BusinessException.class, () -> productService.getProduct("p2"));
+    }
+
+    @Test
+    void getProduct_active_returnsProduct() {
+        when(productRepository.findSellableById("p1")).thenReturn(Optional.of(activeProduct));
+        when(productCategoryRepository.findByProductId("p1")).thenReturn(List.of(
+                ProductCategory.builder().productId("p1").categoryId(10L).build()));
+        when(categoryRepository.findAllById(List.of(10L))).thenReturn(List.of(
+                Category.builder().id(10L).name("Áo sơ mi").slug("ao-so-mi").build()));
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of());
+
+        ProductResponse response = productService.getProduct("p1");
+
+        assertNotNull(response);
+        assertEquals("p1", response.getId());
+        assertEquals(1, response.getCategories().size());
+        assertEquals("Áo sơ mi", response.getCategories().get(0).getName());
+    }
+
+    @Test
+    void getProducts_batchLoadsCategoryImagesAndVariants() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(productRepository.searchAndFilter(isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(activeProduct), pageable, 1));
+        when(productCategoryRepository.findByProductIdIn(List.of("p1"))).thenReturn(List.of(
+                ProductCategory.builder().productId("p1").categoryId(10L).build()));
+        when(categoryRepository.findAllById(List.of(10L))).thenReturn(List.of(
+                Category.builder().id(10L).name("Áo sơ mi").slug("ao-so-mi").build()));
+        when(imageRepository.findByProductIdIn(List.of("p1"))).thenReturn(List.of());
+        when(variantRepository.findByProductIdIn(List.of("p1"))).thenReturn(List.of(variant));
+
+        PageResponse<ProductResponse> response = productService.getProducts(
+                null, null, null, null, null, null, "createdAt,desc", pageable);
+
+        assertEquals(1, response.getContent().size());
+        assertEquals("Áo sơ mi", response.getContent().get(0).getCategories().get(0).getName());
+        assertEquals(1, response.getContent().get(0).getVariants().size());
+        verify(imageRepository, never()).findByProductId("p1");
+        verify(variantRepository, never()).findByProductId("p1");
+    }
+
+    @Test
+    void getProducts_validDemographicFilter_passesParsedEnumToRepository() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(productRepository.searchAndFilter(isNull(), isNull(), eq(TargetDemographic.FEMALE), isNull(), isNull(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        productService.getProducts(null, null, null, "FEMALE", null, null, "createdAt,desc", pageable);
+
+        verify(productRepository).searchAndFilter(isNull(), isNull(), eq(TargetDemographic.FEMALE), isNull(), isNull(), eq(pageable));
+    }
+
+    @Test
+    void getProducts_unrecognizedDemographicValue_isTreatedAsNoFilter() {
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(productRepository.searchAndFilter(isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+        productService.getProducts(null, null, null, "Nam", null, null, "createdAt,desc", pageable);
+
+        verify(productRepository).searchAndFilter(isNull(), isNull(), isNull(), isNull(), isNull(), eq(pageable));
+    }
+
+    @Test
+    void addVariant_duplicateSku_throws400() {
+        ProductVariantRequest request = new ProductVariantRequest();
+        request.setSku("SKU-1");
+
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.findBySku("SKU-1")).thenReturn(Optional.of(variant));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> productService.addVariant("p1", request));
+        assertEquals("SKU_EXISTS", ex.getErrorCode());
+    }
+
+    @Test
+    void addVariant_withStockQuantity_persistsAndReturnsIt() {
+        ProductVariantRequest request = ProductVariantRequest.builder()
+                .sku("SKU-2").size("S").color("Trắng").stockQuantity(10).build();
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.findBySku("SKU-2")).thenReturn(Optional.empty());
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant));
+        when(variantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ProductVariantResponse response = productService.addVariant("p1", request);
+
+        assertEquals(10, response.getStockQuantity());
+        assertEquals(true, response.getActive());
+    }
+
+    @Test
+    void addVariant_duplicateSizeColorMaterial_throwsConflict() {
+        ProductVariantRequest request = ProductVariantRequest.builder()
+                .sku("SKU-2").size(" m ").color(" đen ").stockQuantity(3).build();
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.findBySku("SKU-2")).thenReturn(Optional.empty());
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> productService.addVariant("p1", request));
+
+        assertEquals("DUPLICATE_VARIANT", ex.getErrorCode());
+        assertEquals(409, ex.getHttpStatus());
+        assertEquals(
+                "Biến thể này đã tồn tại. Vui lòng kiểm tra lại kích cỡ, màu sắc và chất liệu.",
+                ex.getMessage());
+        verify(variantRepository, never()).save(any(ProductVariant.class));
+    }
+
+    @Test
+    void addVariant_sameSizeColorDifferentMaterial_isAllowed() {
+        variant.setMaterial("Cotton");
+        ProductVariantRequest request = ProductVariantRequest.builder()
+                .sku("SKU-2").size("M").color("Đen").material("Polyester").stockQuantity(3).build();
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.findBySku("SKU-2")).thenReturn(Optional.empty());
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant));
+        when(variantRepository.save(any(ProductVariant.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ProductVariantResponse response = productService.addVariant("p1", request);
+
+        assertEquals("Polyester", response.getMaterial());
+    }
+
+    @Test
+    void updateVariant_duplicateComboAgainstAnotherVariant_throwsConflict() {
+        ProductVariant other = ProductVariant.builder()
+                .id("v2").productId("p1").sku("SKU-2").size("S").color("Trắng").stockQuantity(1).active(true).build();
+        ProductVariantRequest request = ProductVariantRequest.builder()
+                .sku("SKU-2").size("M").color("Đen").stockQuantity(1).build();
+        when(variantRepository.findById("v2")).thenReturn(Optional.of(other));
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant, other));
+
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> productService.updateVariant("p1", "v2", request));
+
+        assertEquals("DUPLICATE_VARIANT", ex.getErrorCode());
+    }
+
+    @Test
+    void getVariantSnapshot_priceOverrideNull_usesBasePrice() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
+
+        assertEquals(new BigDecimal("100.00"), response.getEffectivePrice());
+    }
+
+    @Test
+    void getVariantSnapshot_resolvesLegacySkuReference() {
+        when(variantRepository.findById("SKU-1")).thenReturn(Optional.empty());
+        when(variantRepository.findBySku("SKU-1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("SKU-1");
+
+        assertEquals("v1", response.getVariantId());
+        assertEquals("p1", response.getProductId());
+        assertEquals("SKU-1", response.getSku());
+        verify(variantRepository).findBySku("SKU-1");
+    }
+
+    @Test
+    void getVariantSnapshot_priceOverrideSet_usesPriceOverride() {
+        variant.setPriceOverride(new BigDecimal("120.00"));
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
+
+        assertEquals(new BigDecimal("120.00"), response.getEffectivePrice());
+    }
+
+    @Test
+    void getVariantSnapshot_includesStockAndActive() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
+
+        assertEquals(5, response.getStockQuantity());
+        assertEquals(true, response.getActive());
+    }
+
+    @Test
+    void getVariants_notSellableProduct_throws404() {
+        when(productRepository.findSellableById("p2")).thenReturn(Optional.empty());
+
+        assertThrows(BusinessException.class, () -> productService.getVariants("p2"));
+        verify(variantRepository, never()).findByProductId(any(String.class));
+    }
+
+    @Test
+    void getVariants_activeProduct_returnsVariants() {
+        when(productRepository.findSellableById("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.findByProductId("p1")).thenReturn(List.of(variant));
+
+        List<ProductVariantResponse> variants = productService.getVariants("p1");
+
+        assertEquals(1, variants.size());
+        assertEquals("SKU-1", variants.get(0).getSku());
+    }
+
+    @Test
+    void getVariantSnapshot_includesCurrency() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of());
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
+
+        assertEquals("VND", response.getCurrency());
+    }
+
+    @Test
+    void getVariantSnapshot_fallsBackToFirstImageWhenNoPrimaryImageExists() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageRepository.findByProductId("p1")).thenReturn(List.of(
+                ProductImage.builder()
+                        .id(1L)
+                        .productId("p1")
+                        .imageUrl("https://cdn.example/product.jpg")
+                        .isPrimary(false)
+                        .build()));
+
+        VariantSnapshotResponse response = productService.getVariantSnapshot("v1");
+
+        assertEquals("https://cdn.example/product.jpg", response.getPrimaryImageUrl());
+    }
+
+    @Test
+    void deleteProduct_setsInactiveStatus() {
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+
+        productService.deleteProduct("p1", "admin-1");
+
+        assertEquals("INACTIVE", activeProduct.getStatus());
+        verify(productRepository).save(activeProduct);
+    }
+
+    @Test
+    void deleteProduct_recordsAuditLogWithActor() {
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+
+        productService.deleteProduct("p1", "admin-1");
+
+        org.mockito.ArgumentCaptor<ProductAuditLog> captor = org.mockito.ArgumentCaptor.forClass(ProductAuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        assertEquals("admin-1", captor.getValue().getActorId());
+        assertEquals("DELETE_PRODUCT", captor.getValue().getAction());
+        assertEquals("p1", captor.getValue().getProductId());
+    }
+
+    @Test
+    void deleteVariant_recordsAuditLogWithActor() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findByIdForUpdate("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.countByProductId("p1")).thenReturn(2L);
+
+        productService.deleteVariant("p1", "v1", "admin-1");
+
+        org.mockito.ArgumentCaptor<ProductAuditLog> captor = org.mockito.ArgumentCaptor.forClass(ProductAuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        assertEquals("admin-1", captor.getValue().getActorId());
+        assertEquals("DELETE_VARIANT", captor.getValue().getAction());
+    }
+
+    @Test
+    void deleteVariant_lastVariantOfActiveProduct_throws409() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findByIdForUpdate("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.countByProductId("p1")).thenReturn(1L);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.deleteVariant("p1", "v1", "admin-1"));
+
+        assertEquals(409, exception.getHttpStatus());
+        assertEquals("LAST_ACTIVE_VARIANT", exception.getErrorCode());
+        assertEquals(
+                "Cannot delete the last variant of an active product. Deactivate the product before deleting its final variant.",
+                exception.getMessage());
+        verify(variantRepository, never()).delete(any(ProductVariant.class));
+        verify(auditLogRepository, never()).save(any(ProductAuditLog.class));
+    }
+
+    @Test
+    void deleteVariant_lastVariantOfInactiveProduct_deletesVariant() {
+        variant.setProductId("p2");
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findByIdForUpdate("p2")).thenReturn(Optional.of(inactiveProduct));
+
+        productService.deleteVariant("p2", "v1", "admin-1");
+
+        verify(variantRepository).delete(variant);
+    }
+
+    @Test
+    void deleteVariant_oneOfMultipleVariantsOfActiveProduct_deletesVariant() {
+        when(variantRepository.findById("v1")).thenReturn(Optional.of(variant));
+        when(productRepository.findByIdForUpdate("p1")).thenReturn(Optional.of(activeProduct));
+        when(variantRepository.countByProductId("p1")).thenReturn(2L);
+
+        productService.deleteVariant("p1", "v1", "admin-1");
+
+        verify(variantRepository).delete(variant);
+    }
+
+    @Test
+    void uploadImage_persistsSecureUrlAndPublicId() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "shirt.png", "image/png", new byte[]{1, 2, 3});
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageStorage.upload("p1", file))
+                .thenReturn(new StoredProductImage(
+                        "https://res.cloudinary.com/stylemind/image/upload/shirt.png",
+                        "stylemind/products/shirt"));
+        when(imageRepository.save(any(ProductImage.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        ProductImageResponse response = productService.uploadImage("p1", file, true);
+
+        assertEquals("https://res.cloudinary.com/stylemind/image/upload/shirt.png", response.getImageUrl());
+        assertEquals("stylemind/products/shirt", response.getPublicId());
+        verify(imageRepository).save(argThat(image ->
+                "stylemind/products/shirt".equals(image.getImagePublicId())));
+    }
+
+    @Test
+    void uploadImage_rejectsNonImageContentType() {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "notes.txt", "text/plain", new byte[]{1, 2, 3});
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.uploadImage("p1", file, false));
+
+        assertEquals("INVALID_IMAGE_TYPE", exception.getErrorCode());
+        verifyNoInteractions(imageStorage);
+    }
+
+    @Test
+    void uploadImage_hidesStorageProviderFailureDetails() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "shirt.png", "image/png", new byte[]{1, 2, 3});
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageStorage.upload("p1", file))
+                .thenThrow(new IllegalStateException("api_secret=do-not-leak"));
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.uploadImage("p1", file, false));
+
+        assertEquals("IMAGE_UPLOAD_FAILED", exception.getErrorCode());
+        assertFalse(exception.getMessage().contains("do-not-leak"));
+    }
+
+    @Test
+    void uploadImage_storageNotConfigured_failsFastWithoutCallingProvider() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "shirt.png", "image/png", new byte[]{1, 2, 3});
+        when(productRepository.findById("p1")).thenReturn(Optional.of(activeProduct));
+        when(imageStorage.isConfigured()).thenReturn(false);
+
+        BusinessException exception = assertThrows(
+                BusinessException.class,
+                () -> productService.uploadImage("p1", file, false));
+
+        assertEquals("IMAGE_STORAGE_NOT_CONFIGURED", exception.getErrorCode());
+        assertEquals(503, exception.getHttpStatus());
+        verify(imageStorage, never()).upload(any(), any());
+    }
+
+    private ProductRequest validProductRequest(String status) {
+        return ProductRequest.builder()
+                .name("Cotton Shirt")
+                .description("Everyday shirt")
+                .basePrice(new BigDecimal("379000"))
+                .targetDemographic("FEMALE")
+                .status(status)
+                .build();
+    }
+}

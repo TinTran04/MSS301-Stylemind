@@ -9,11 +9,32 @@ BE/target/
 BE/**/target/
 BE/.env
 BE/**/.env
+BE/.claude   
+
+# Docker Compose junk files
+docker-compose-separated.yml
+docker-compose.override.yml
+*.separated.yml
+docker-compose.full.yml
+
+# Scripts and harness files
+run-all.py
+*harness*
+*.harness.py
+*.harness.sh
 
 # Environment
 .env
 *.env
 !*.env.example
+
+# SECURITY: Certificates Directory
+# STRICT: Exclude entire certs directory to prevent any key leakage
+# This prevents backups, temporary files, or renamed keys from being committed
+.docker/certs/*
+
+# EXCEPTION: Preserve directory structure via .gitkeep
+!.docker/certs/.gitkeep
 
 # IDE
 .idea/
@@ -26,3 +47,38 @@ Thumbs.db
 
 # Logs
 *.log
+
+.codegraph/
+.superpowers/
+.venv/
+.agents/
+.claude/
+HIOS/
+change/
+.agent/skills/
+.playwright-cli/
+output/
+
+# Dev-only tools & AI agent files (local only, not for production/git)
+.devin/
+skills-lock.json
+
+# Dev-only docs and scripts (kept locally, not tracked)
+summary.md
+generate-rsa-keys.ps1
+DOCKER_DEBUG_GUIDE.md
+docs/reports/
+
+# Production Cleanup Exclusions (Documentation and Dev Scripts)
+docs/*
+!docs/architecture/
+scripts/*
+!scripts/full-up.sh
+README.md
+RUN_GUIDE.md
+README-WINDOWS.md
+BE/README.md
+BE/PROJECT_SPEC.md
+BE/init-scripts/00-create-databases.sh.backup
+BE/init-scripts/manual-patches/
+FE/README.md

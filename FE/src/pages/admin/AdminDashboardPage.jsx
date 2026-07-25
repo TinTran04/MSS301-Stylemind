@@ -1,108 +1,178 @@
-import { useState, useEffect } from 'react'
-import { DollarSign, TrendingUp, Brain, MousePointerClick } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { useCallback, useEffect, useState } from 'react'
+import { DollarSign, ShoppingCart, Package, Users, Bell, RefreshCw, CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
 import MetricCard from '../../components/admin/MetricCard'
 import ChartCard from '../../components/admin/ChartCard'
-import StatusBadge from '../../components/admin/StatusBadge'
-import { getDashboardMetrics, getTopProducts, getCTRData } from '../../features/analytics/analytics.api'
+import {
+  getOrderSummary,
+  getProductSummary,
+  getUserSummary,
+  getNotificationSummary,
+} from '../../features/admin/adminDashboard.api'
 import { formatCurrency, formatNumber } from '../../utils/formatCurrency'
+import { getAdminNetRevenue, getAdminRevenueMetrics } from './adminRevenue.utils'
+
+const INITIAL = { loading: true, error: null, data: null }
+
+// Renders a metric value that reflects the slice's real state — never a fake
+// fallback: '…' while loading, '—' on error, otherwise the formatted value.
+function statValue(slice, pick, format = formatNumber) {
+  if (slice.loading) return '…'
+  if (slice.error || !slice.data) return '—'
+  const val = pick(slice.data)
+  return format(val !== undefined && val !== null ? val : 0)
+}
+
+function ErrorBanner({ message }) {
+  return (
+    <div role="alert" className="rounded-lg border border-error/20 bg-error-container/40 px-4 py-3 text-sm text-error">
+      {message}
+    </div>
+  )
+}
 
 export default function AdminDashboardPage() {
-  const [metrics, setMetrics] = useState(null)
-  const [products, setProducts] = useState([])
-  const [ctrData, setCtrData] = useState([])
+  const [orders, setOrders] = useState(INITIAL)
+  const [products, setProducts] = useState(INITIAL)
+  const [users, setUsers] = useState(INITIAL)
+  const [notifications, setNotifications] = useState(INITIAL)
+  const [loadedAt, setLoadedAt] = useState(null)
 
-  useEffect(() => {
-    getDashboardMetrics().then(setMetrics)
-    getTopProducts().then(setProducts)
-    getCTRData().then(setCtrData)
+  const load = useCallback(() => {
+    setOrders(INITIAL)
+    setProducts(INITIAL)
+    setUsers(INITIAL)
+    setNotifications(INITIAL)
+
+    const run = (promise, setter) =>
+      promise
+        .then((data) => setter({ loading: false, error: null, data }))
+        .catch((err) => setter({ loading: false, error: err?.message || 'Không thể tải dữ liệu.', data: null }))
+
+    Promise.allSettled([
+      run(getOrderSummary(), setOrders),
+      run(getProductSummary(), setProducts),
+      run(getUserSummary(), setUsers),
+      run(getNotificationSummary(), setNotifications),
+    ]).finally(() => setLoadedAt(new Date()))
   }, [])
 
-  if (!metrics) return <div className="p-8 text-on-surface-variant">Loading...</div>
+  useEffect(() => {
+    load()
+  }, [load])
 
-  const funnel = [
-    { stage: 'Chats', count: 12500, rate: 100 },
-    { stage: 'Viewed', count: 8750, rate: 70 },
-    { stage: 'Clicked', count: 3125, rate: 25 },
-    { stage: 'Purchased', count: 1250, rate: 10 },
-  ]
+  const anyLoading = orders.loading || products.loading || users.loading || notifications.loading
+  const noOrders = !orders.loading && !orders.error && orders.data?.totalOrders === 0
+  const revenueMetrics = getAdminRevenueMetrics(orders.data)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-headline-md text-primary">Dashboard</h1>
-          <p className="text-sm text-on-surface-variant mt-1">Welcome back, Admin</p>
+          <h1 className="font-headline-md text-primary">Tổng quan</h1>
+          <p className="text-sm text-on-surface-variant mt-1">Chỉ số vận hành trực tiếp</p>
         </div>
-        <div className="text-xs text-on-surface-variant">Last updated: Just now</div>
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-on-surface-variant">
+            {anyLoading ? 'Đang tải…' : loadedAt ? `Cập nhật lần cuối: ${loadedAt.toLocaleTimeString('vi-VN')}` : ''}
+          </span>
+          <button
+            onClick={load}
+            disabled={anyLoading}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={anyLoading ? 'animate-spin' : ''} />
+            Làm mới
+          </button>
+        </div>
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Revenue" value={formatCurrency(metrics.revenue.current)} change={metrics.revenue.change} subtitle="vs last month" icon={DollarSign} />
-        <MetricCard title="Conversion" value={`${metrics.conversionRate.current}%`} change={metrics.conversionRate.change} icon={TrendingUp} />
-        <MetricCard title="AI Revenue" value={formatCurrency(metrics.aiRevenue.current)} change={metrics.aiRevenue.change} icon={Brain} />
-        <MetricCard title="CTR" value={`${metrics.ctr.current}%`} change={metrics.ctr.change} icon={MousePointerClick} />
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="AI Conversion Funnel">
-          <div className="space-y-3">
-            {funnel.map((f, idx) => (
-              <div key={f.stage} className="flex items-center gap-3">
-                <span className="text-xs text-on-surface-variant w-20">{f.stage}</span>
-                <div className="flex-1 h-6 bg-surface-container-high rounded-full overflow-hidden">
-                  <div className="h-full bg-primary rounded-full flex items-center px-3" style={{ width: `${f.rate}%` }}>
-                    <span className="text-[10px] text-on-primary font-medium">{formatNumber(f.count)}</span>
-                  </div>
-                </div>
-                <span className="text-xs text-on-surface-variant w-10 text-right">{f.rate}%</span>
+      {/* Orders & revenue */}
+      <section className="space-y-4">
+        <h2 className="font-title-lg text-primary">Đơn hàng &amp; doanh thu</h2>
+        {orders.error && <ErrorBanner message={`Không thể tải chỉ số đơn hàng: ${orders.error}`} />}
+        {noOrders && (
+          <p className="text-sm text-on-surface-variant">Chưa có đơn hàng nào — chỉ số sẽ tự cập nhật khi có đơn mới.</p>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard title="Tổng đơn hàng" value={statValue(orders, (d) => d.totalOrders)} icon={ShoppingCart} />
+          <MetricCard title="Doanh thu thuần" value={statValue(orders, getAdminNetRevenue, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Đơn hàng hôm nay" value={statValue(orders, (d) => d.todayOrders)} icon={ShoppingCart} />
+          <MetricCard title="Doanh thu thuần hôm nay" value={statValue(orders, (d) => d.todayNetRevenue ?? d.todayRevenue, formatCurrency)} icon={DollarSign} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <MetricCard title="VAT đã thu" value={statValue(orders, (d) => revenueMetrics.vatCollected, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Phí vận chuyển đã thu" value={statValue(orders, (d) => revenueMetrics.shippingFeesCollected, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Tổng tiền khách thanh toán" value={statValue(orders, (d) => revenueMetrics.grossCustomerPayments, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Hoàn tiền" value={statValue(orders, (d) => revenueMetrics.refundAmount, formatCurrency)} icon={DollarSign} />
+          <MetricCard title="Đơn được ghi nhận" value={statValue(orders, (d) => revenueMetrics.recognizedOrderCount)} icon={ShoppingCart} />
+        </div>
+        <ChartCard title="Phân bổ trạng thái đơn hàng">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Đang chờ', pick: (d) => d.pendingOrders },
+              { label: 'Đã thanh toán', pick: (d) => d.paidOrders },
+              { label: 'Hoàn tất', pick: (d) => d.completedOrders },
+              { label: 'Đã hủy', pick: (d) => d.cancelledOrders },
+            ].map(({ label, pick }) => (
+              <div key={label} className="text-center">
+                <p className="font-headline-md text-primary">{statValue(orders, pick)}</p>
+                <p className="font-label-sm uppercase text-on-surface-variant mt-1">{label}</p>
               </div>
             ))}
           </div>
         </ChartCard>
+      </section>
 
-        <ChartCard title="CTR & Revenue Trend">
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={ctrData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#efeded" />
-              <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip />
-              <Line type="monotone" dataKey="ctr" stroke="#000" strokeWidth={2} dot={{ fill: '#000' }} />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
-
-      {/* Top Products */}
-      <ChartCard title="Top AI Recommended Products">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-outline-variant/20">
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Product</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Recommendations</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Clicks</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Purchases</th>
-                <th className="text-left font-label-sm uppercase text-on-surface-variant text-xs px-4 py-2">Conv. Rate</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/5">
-              {products.map((p) => (
-                <tr key={p.id} className="hover:bg-surface-container-high/30">
-                  <td className="px-4 py-3 text-sm font-medium text-primary">{p.name}</td>
-                  <td className="px-4 py-3 text-sm text-on-surface-variant">{formatNumber(p.recommendations)}</td>
-                  <td className="px-4 py-3 text-sm text-on-surface-variant">{formatNumber(p.clicks)}</td>
-                  <td className="px-4 py-3 text-sm text-on-surface-variant">{p.purchases}</td>
-                  <td className="px-4 py-3 text-sm text-primary font-medium">{p.conversionRate}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Catalogue */}
+      <section className="space-y-4">
+        <h2 className="font-title-lg text-primary">Danh mục sản phẩm</h2>
+        {products.error && <ErrorBanner message={`Không thể tải chỉ số sản phẩm: ${products.error}`} />}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <MetricCard title="Tổng sản phẩm" value={statValue(products, (d) => d.totalProducts)} icon={Package} />
+          <MetricCard title="Đang bán" value={statValue(products, (d) => d.activeProducts)} icon={Package} />
+          <MetricCard title="Ngừng bán" value={statValue(products, (d) => d.inactiveProducts)} icon={Package} />
         </div>
-      </ChartCard>
+      </section>
+
+      {/* Users */}
+      <section className="space-y-4">
+        <h2 className="font-title-lg text-primary">Người dùng</h2>
+        {users.error && <ErrorBanner message={`Không thể tải chỉ số người dùng: ${users.error}`} />}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <MetricCard title="Tổng người dùng" value={statValue(users, (d) => d.totalUsers)} icon={Users} />
+          <MetricCard title="Khách hàng" value={statValue(users, (d) => d.totalCustomers)} icon={Users} />
+          <MetricCard title="Quản trị viên" value={statValue(users, (d) => d.totalAdmins)} icon={Users} />
+        </div>
+      </section>
+
+      {/* Notifications */}
+      <section className="space-y-4">
+        <h2 className="font-title-lg text-primary">Thông báo</h2>
+        {notifications.error && <ErrorBanner message={`Không thể tải chỉ số thông báo: ${notifications.error}`} />}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            title="Tổng thông báo"
+            value={statValue(notifications, (d) => d.totalNotifications)}
+            icon={Bell}
+          />
+          <MetricCard
+            title="Email đã gửi"
+            value={statValue(notifications, (d) => d.sentNotifications)}
+            icon={CheckCircle2}
+          />
+          <MetricCard
+            title="Chờ gửi email"
+            value={statValue(notifications, (d) => d.pendingNotifications)}
+            icon={Clock}
+          />
+          <MetricCard
+            title="Thông báo thất bại"
+            value={statValue(notifications, (d) => d.failedNotifications)}
+            icon={AlertTriangle}
+            status={!notifications.loading && !notifications.error && notifications.data?.failedNotifications > 0 ? 'warning' : undefined}
+          />
+        </div>
+      </section>
     </div>
   )
 }

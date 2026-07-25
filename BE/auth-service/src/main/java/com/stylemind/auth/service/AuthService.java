@@ -1,126 +1,56 @@
 package com.stylemind.auth.service;
 
-import com.stylemind.auth.dto.LoginRequest;
-import com.stylemind.auth.dto.RegisterRequest;
+import com.stylemind.auth.dto.AdminCreateUserRequest;
+import com.stylemind.auth.dto.AdminUserResponse;
+import com.stylemind.auth.dto.AdminUserSummaryResponse;
 import com.stylemind.auth.dto.AuthResponse;
+import com.stylemind.auth.dto.ForgotPasswordRequest;
+import com.stylemind.auth.dto.ForgotPasswordVerifyResponse;
+import com.stylemind.auth.dto.InternalUserEmailResponse;
+import com.stylemind.auth.dto.LoginRequest;
+import com.stylemind.auth.dto.PasswordSetupRequest;
+import com.stylemind.auth.dto.RegisterRequest;
+import com.stylemind.auth.dto.ResendRegisterOtpRequest;
+import com.stylemind.auth.dto.ResetForgotPasswordRequest;
 import com.stylemind.auth.dto.UserResponse;
-import com.stylemind.auth.entity.User;
-import com.stylemind.auth.repository.UserRepository;
-import com.stylemind.common.exception.BusinessException;
-import com.stylemind.common.security.JwtUtil;
-import com.stylemind.common.security.UserPrincipal;
-import com.stylemind.common.util.StringUtil;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.userdetails.UserDetails;
+import com.stylemind.auth.dto.VerifyForgotPasswordOtpRequest;
+import com.stylemind.auth.dto.VerifyRegisterOtpRequest;
+import com.stylemind.common.dto.PageResponse;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+public interface AuthService extends UserDetailsService {
 
-@Service
-@RequiredArgsConstructor
-@Slf4j
-@Transactional
-public class AuthService implements UserDetailsService {
+    AuthResponse.LoginResponse login(LoginRequest request);
 
-    private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
-    private final ObjectProvider<AuthenticationManager> authenticationManagerProvider;
+    void startRegistration(RegisterRequest request);
 
-    @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email)
-                .map(this::buildUserPrincipal)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
-    }
+    void verifyRegistrationOtp(VerifyRegisterOtpRequest request);
 
-    public AuthResponse.LoginResponse login(LoginRequest request) {
-        // Authenticate user
-        authenticationManagerProvider.getObject().authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+    void resendRegistrationOtp(ResendRegisterOtpRequest request);
 
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BusinessException("AUTH_INVALID_CREDENTIALS", "Email hoặc mật khẩu không đúng", 401));
+    UserResponse getCurrentUser(String userId);
 
-        if (!user.getEnabled()) {
-            throw new BusinessException("AUTH_ACCOUNT_DISABLED", "Tài khoản đã bị khóa", 403);
-        }
+    InternalUserEmailResponse getUserEmail(String userId);
 
-        String token = jwtUtil.generateAccessToken(
-                buildUserPrincipal(user),
-                user.getId(),
-                user.getRole()
-        );
+    void setupPassword(PasswordSetupRequest request);
 
-        return AuthResponse.LoginResponse.builder()
-                .token(token)
-                .user(buildUserResponse(user))
-                .build();
-    }
+    void requestForgotPasswordOtp(ForgotPasswordRequest request);
 
-    public AuthResponse.LoginResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BusinessException("EMAIL_ALREADY_EXISTS", "Email đã được sử dụng", 400);
-        }
+    ForgotPasswordVerifyResponse verifyForgotPasswordOtp(VerifyForgotPasswordOtpRequest request);
 
-        User user = User.builder()
-                .id(StringUtil.generateUniqueId())
-                .email(request.getEmail())
-                .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .fullName(request.getName())
-                .provider("LOCAL")
-                .role("CUSTOMER")
-                .enabled(true)
-                .build();
+    void resetForgotPassword(ResetForgotPasswordRequest request);
 
-        user = userRepository.save(user);
+    PageResponse<AdminUserResponse> listUsers(int page, int size, String search, String role, Boolean enabled);
 
-        String token = jwtUtil.generateAccessToken(
-                buildUserPrincipal(user),
-                user.getId(),
-                user.getRole()
-        );
+    AdminUserResponse getUserById(String userId);
 
-        return AuthResponse.LoginResponse.builder()
-                .token(token)
-                .user(buildUserResponse(user))
-                .build();
-    }
+    AdminUserSummaryResponse getUserSummary();
 
-    public UserResponse getCurrentUser(String userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException("USER_NOT_FOUND", "Không tìm thấy người dùng", 404));
-        return buildUserResponse(user);
-    }
+    AdminUserResponse createUserByAdmin(AdminCreateUserRequest request, String requesterId);
 
-    private UserPrincipal buildUserPrincipal(User user) {
-        return new UserPrincipal(
-                user.getId(),
-                user.getEmail(),
-                user.getPasswordHash(),
-                user.getRole(),
-                user.getProvider(),
-                user.getEnabled()
-        );
-    }
+    AdminUserResponse changeUserRole(String userId, String requesterId, String newRole);
 
-    private UserResponse buildUserResponse(User user) {
-        return UserResponse.builder()
-                .id(user.getId())
-                .email(user.getEmail())
-                .fullName(user.getFullName())
-                .role(user.getRole())
-                .provider(user.getProvider())
-                .createdAt(user.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toInstant())
-                .build();
-    }
+    AdminUserResponse changeUserEnabled(String userId, String requesterId, Boolean enabled);
+
+    void deleteUser(String userId, String requesterId);
 }

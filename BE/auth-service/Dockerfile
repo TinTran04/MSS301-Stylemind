@@ -10,8 +10,6 @@ COPY cart-service/pom.xml cart-service/pom.xml
 COPY order-service/pom.xml order-service/pom.xml
 COPY payment-service/pom.xml payment-service/pom.xml
 COPY notification-service/pom.xml notification-service/pom.xml
-COPY ai-agent-service/pom.xml ai-agent-service/pom.xml
-COPY inventory-service/pom.xml inventory-service/pom.xml
 RUN mvn dependency:go-offline -B
 
 COPY common-lib/src common-lib/src
@@ -21,7 +19,7 @@ RUN mvn clean install -pl common-lib -am -DskipTests -Dspring-boot.repackage.ski
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-COPY --from=builder /app/auth-service/target/*.jar app.jar
+COPY --from=builder /app/auth-service/target/auth-service-*.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
 EXPOSE 8081

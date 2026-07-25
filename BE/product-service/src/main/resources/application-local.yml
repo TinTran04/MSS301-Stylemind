@@ -1,0 +1,12 @@
+SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5435/product_db
+CLOUDINARY_FOLDER: stylemind/products
+
+spring:
+  config:
+    import:
+      # Local dev only - use .env.local for local development
+      - "optional:file:../.env.local[.properties]"
+      - "optional:file:.env.local[.properties]"
+      - "optional:file:../../.env.local[.properties]"
+      - "optional:file:BE/.env.local[.properties]"
+      - "optional:file:../BE/.env.local[.properties]"

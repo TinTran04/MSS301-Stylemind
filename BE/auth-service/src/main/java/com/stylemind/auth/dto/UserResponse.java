@@ -1,5 +1,6 @@
 package com.stylemind.auth.dto;
 
+import com.stylemind.auth.entity.AccountStatus;
 import lombok.*;
 
 import java.time.Instant;
@@ -11,8 +12,9 @@ import java.time.Instant;
 public class UserResponse {
     private String id;
     private String email;
-    private String fullName;
     private String role;
     private String provider;
+    private AccountStatus accountStatus;
+    private Boolean enabled;
     private Instant createdAt;
 }

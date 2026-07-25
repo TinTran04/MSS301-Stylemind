@@ -7,8 +7,6 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.domain.Page;
 
 import java.util.List;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Data
 @Builder
@@ -20,6 +18,7 @@ public class PageResponse<T> {
     private int size;
     private long totalElements;
     private int totalPages;
+    private int numberOfElements;
     private boolean first;
     private boolean last;
     private boolean empty;
@@ -31,6 +30,7 @@ public class PageResponse<T> {
                 .size(page.getSize())
                 .totalElements(page.getTotalElements())
                 .totalPages(page.getTotalPages())
+                .numberOfElements(page.getNumberOfElements())
                 .first(page.isFirst())
                 .last(page.isLast())
                 .empty(page.isEmpty())

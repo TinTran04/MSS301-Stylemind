@@ -1,32 +1,136 @@
 import { create } from 'zustand'
+import { peekGuestSessionId, resetGuestSessionId } from '../../services/apiClient'
+import { resolveVariant } from '../products/product.variant-selection.js'
+import { addToCart, getCart, mergeCart, removeCartItem, updateCartItem } from './cart.api'
+import usePaymentStore from '../payment/payment.store'
+
+// When no size/color is given (quick-add from a product card, AI
+// recommendations), fall back to the product's default variant. When a
+// selection IS given (Product Detail page), it must resolve to a real,
+// existing combination — never invent/guess one by silently falling back.
+function selectVariant(product, size, color) {
+  if (!size && !color) {
+    return product?.availableVariantId || null
+  }
+  return resolveVariant(product?.variants || [], size, color)?.id || null
+}
 
 const useCartStore = create((set, get) => ({
   items: [],
+  cartId: null,
+  loading: false,
+  error: null,
 
-  addItem: (product, quantity = 1, size = 'M', color = 'Default') => {
-    const { items } = get()
-    const existingIndex = items.findIndex(
-      (item) => item.id === product.id && item.size === size && item.color === color
-    )
-    if (existingIndex > -1) {
-      const updated = [...items]
-      updated[existingIndex].quantity += quantity
-      set({ items: updated })
-    } else {
-      set({ items: [...items, { ...product, quantity, size, color, cartItemId: Date.now() }] })
+  loadCart: async () => {
+    set({ loading: true, error: null })
+    try {
+      if (peekGuestSessionId()) {
+        const token = localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token')
+        if (token) {
+          await get().mergeGuestCart()
+        }
+      }
+      const cart = await getCart()
+      set({ items: cart.items, cartId: cart.cartId, loading: false })
+      return cart
+    } catch (err) {
+      set({ error: 'Không thể tải giỏ hàng.', loading: false })
+      return null
     }
   },
 
-  removeItem: (cartItemId) => {
-    set({ items: get().items.filter((item) => item.cartItemId !== cartItemId) })
+  addItem: async (product, quantity = 1, size = null, color = null, aiSource = null) => {
+    const variantId = selectVariant(product, size, color)
+    if (!variantId) {
+      set({ error: 'No variant available for this product.' })
+      return null
+    }
+
+    set({ loading: true, error: null })
+    try {
+      const payload = { variantId, quantity }
+      if (aiSource?.isAiRecommended) {
+        payload.isAiRecommended = true
+        if (aiSource.sourceBundleId) {
+          payload.sourceBundleId = aiSource.sourceBundleId
+        }
+      }
+      const cart = await addToCart(payload)
+      set({ items: cart.items, cartId: cart.cartId, loading: false })
+      const paymentStatus = usePaymentStore.getState().status
+      if (paymentStatus === 'success' || paymentStatus === 'failed') {
+        usePaymentStore.getState().reset()
+      }
+      return cart
+    } catch (err) {
+      set({ error: 'Không thể thêm sản phẩm vào giỏ hàng.', loading: false })
+      return null
+    }
   },
 
-  updateQuantity: (cartItemId, quantity) => {
-    if (quantity <= 0) { get().removeItem(cartItemId); return }
-    set({ items: get().items.map((item) => item.cartItemId === cartItemId ? { ...item, quantity } : item) })
+  removeItem: async (cartItemId) => {
+    const previousItems = get().items
+    set({ items: previousItems.filter((item) => item.cartItemId !== cartItemId), error: null })
+    try {
+      await removeCartItem(cartItemId)
+    } catch (err) {
+      set({ items: previousItems, error: 'Không thể xóa sản phẩm.' })
+    }
   },
 
-  clearCart: () => set({ items: [] }),
+  updateQuantity: async (cartItemId, quantity) => {
+    if (quantity <= 0) {
+      await get().removeItem(cartItemId)
+      return
+    }
+
+    const previousItems = get().items
+    set({
+      items: previousItems.map((item) => item.cartItemId === cartItemId ? { ...item, quantity } : item),
+      error: null,
+    })
+
+    try {
+      const cart = await updateCartItem(cartItemId, quantity)
+      set({ items: cart.items, cartId: cart.cartId })
+    } catch (err) {
+      set({ items: previousItems, error: 'Không thể cập nhật số lượng.' })
+    }
+  },
+
+  clearCart: async () => {
+    const currentItems = [...get().items]
+    set({ items: [], error: null })
+    await Promise.allSettled(currentItems.map((item) => removeCartItem(item.cartItemId)))
+  },
+
+  // Logout-only: drops the in-memory cart view without touching the server
+  // cart, so the previous user's items/badge count don't linger after logout.
+  resetLocalCart: () => {
+    set({ items: [], cartId: null, error: null, loading: false })
+  },
+
+  // Called right after login: folds the guest cart (if any) into the
+  // authenticated user's cart, then rotates the guest session id so a
+  // future logout/browse-as-guest cycle doesn't re-merge stale items.
+  mergeGuestCart: async () => {
+    const guestSessionId = peekGuestSessionId()
+    if (!guestSessionId) {
+      return
+    }
+
+    try {
+      const cart = await mergeCart(guestSessionId)
+      set({ items: cart.items, cartId: cart.cartId, error: null })
+      // Only clear the guest id once its cart has actually been folded in —
+      // clearing it on failure would silently orphan the guest cart forever.
+      resetGuestSessionId()
+    } catch (err) {
+      set({
+        error: 'Chưa thể đồng bộ giỏ hàng. Hệ thống chưa thể chuyển giỏ hàng tạm thời vào tài khoản của bạn. Vui lòng thử lại sau.',
+      })
+    }
+  },
 }))
 
 export default useCartStore

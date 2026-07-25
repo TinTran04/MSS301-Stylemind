@@ -4,8 +4,10 @@ server:
 spring:
   application:
     name: user-service
+  main:
+    allow-bean-definition-overriding: true
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/user_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5434/user_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
@@ -17,15 +19,33 @@ spring:
       max-lifetime: 1800000
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
   sql:
     init:
       mode: never
+
+# JWT Asymmetric Key Configuration (Consumer)
+jwt:
+  # Public Key Path ONLY - REQUIRED for token verification
+  # NO DEFAULT VALUE - Must be set via environment variable
+  public-key-path: ${JWT_PUBLIC_KEY_PATH}
+  
+  # Algorithm Configuration (must match issuer)
+  algorithm: ${JWT_ALGORITHM:RSA}
+  key-size: ${JWT_KEY_SIZE:2048}
+  
+  # Token Expiration (for validation checks)
+  access-token-expiration: ${JWT_ACCESS_TOKEN_EXPIRATION:3600000}
+  refresh-token-expiration: ${JWT_REFRESH_TOKEN_EXPIRATION:604800000}
 
 management:
   endpoints:

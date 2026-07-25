@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { motion } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
 import { formatTimestamp } from '../../features/ai-stylist/aiStylist.utils'
+import MessageContent from './MessageContent'
 
 export default function ChatBubble({ message, isAI = true }) {
   return (
@@ -20,10 +21,12 @@ export default function ChatBubble({ message, isAI = true }) {
         <div
           className={clsx(
             'px-4 py-3 rounded-2xl text-sm leading-relaxed',
-            isAI ? 'bg-surface-container-low text-on-surface' : 'bg-primary-container text-on-primary-container'
+            isAI
+              ? 'bg-surface-container-lowest text-on-surface border border-outline-variant/40 soft-shadow'
+              : 'bg-primary text-on-primary'
           )}
         >
-          {message.content}
+          {isAI ? <MessageContent content={message.content} /> : <span className="whitespace-pre-wrap">{message.content}</span>}
         </div>
         <p className={clsx('text-[10px] text-on-surface-variant mt-1', isAI ? 'text-left' : 'text-right')}>
           {formatTimestamp(message.timestamp)}
@@ -31,7 +34,7 @@ export default function ChatBubble({ message, isAI = true }) {
       </div>
       {!isAI && (
         <div className="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center shrink-0">
-          <span className="text-xs font-semibold text-on-secondary-container">You</span>
+          <span className="text-xs font-semibold text-on-secondary-container">Bạn</span>
         </div>
       )}
     </motion.div>

@@ -1,3 +1,1 @@
-export default function CustomerHeader() {
-  return null
-}
+export { default } from '../../features/header/CustomerHeader'

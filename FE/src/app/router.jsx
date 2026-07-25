@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import CustomerLayout from '../layouts/CustomerLayout'
 import AdminLayout from '../layouts/AdminLayout'
 import AuthLayout from '../layouts/AuthLayout'
+import { RequireAuth, RequireAdmin } from './ProtectedRoute'
 
 import HomePage from '../pages/customer/HomePage'
 import ProductCatalogPage from '../pages/customer/ProductCatalogPage'
@@ -10,19 +11,24 @@ import AIStylistChatPage from '../pages/customer/AIStylistChatPage'
 import CartPage from '../pages/customer/CartPage'
 import CheckoutPage from '../pages/customer/CheckoutPage'
 import OrderTrackingPage from '../pages/customer/OrderTrackingPage'
-import StyleProfilePage from '../pages/auth/StyleProfilePage'
+import NotificationsPage from '../pages/customer/NotificationsPage'
+import ProfilePage from '../pages/customer/ProfilePage'
 import LoginPage from '../pages/auth/LoginPage'
 import RegisterPage from '../pages/auth/RegisterPage'
+import ForgotPasswordPage from '../pages/auth/ForgotPasswordPage'
+import VerifyResetOtpPage from '../pages/auth/VerifyResetOtpPage'
+import ResetPasswordPage from '../pages/auth/ResetPasswordPage'
 
 import AdminDashboardPage from '../pages/admin/AdminDashboardPage'
 import ProductManagementPage from '../pages/admin/ProductManagementPage'
-import InventoryManagementPage from '../pages/admin/InventoryManagementPage'
 import OrderManagementPage from '../pages/admin/OrderManagementPage'
-import CustomerManagementPage from '../pages/admin/CustomerManagementPage'
+import AdminOrderDetailPage from '../pages/admin/AdminOrderDetailPage'
+import UserManagementPage from '../pages/admin/UserManagementPage'
 import AIPipelinePage from '../pages/admin/AIPipelinePage'
 import KnowledgeGraphPage from '../pages/admin/KnowledgeGraphPage'
 import RecommendationAnalyticsPage from '../pages/admin/RecommendationAnalyticsPage'
-import AdminSettingsPage from '../pages/admin/AdminSettingsPage'
+import NotificationManagementPage from '../pages/admin/NotificationManagementPage'
+import AdminReturnManagementPage from '../pages/admin/AdminReturnManagementPage'
 
 export default function AppRouter() {
   return (
@@ -31,7 +37,10 @@ export default function AppRouter() {
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/style-profile" element={<StyleProfilePage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/verify-reset-otp" element={<VerifyResetOtpPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/set-password" element={<ResetPasswordPage />} />
       </Route>
 
       {/* Customer Routes */}
@@ -41,21 +50,29 @@ export default function AppRouter() {
         <Route path="/products/:id" element={<ProductDetailPage />} />
         <Route path="/ai-stylist" element={<AIStylistChatPage />} />
         <Route path="/cart" element={<CartPage />} />
-        <Route path="/checkout" element={<CheckoutPage />} />
-        <Route path="/orders" element={<OrderTrackingPage />} />
+        {/* Checkout & order tracking require a signed-in user */}
+        <Route element={<RequireAuth />}>
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/orders" element={<OrderTrackingPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+        </Route>
       </Route>
 
-      {/* Admin Routes */}
-      <Route element={<AdminLayout />}>
-        <Route path="/admin" element={<AdminDashboardPage />} />
-        <Route path="/admin/products" element={<ProductManagementPage />} />
-        <Route path="/admin/inventory" element={<InventoryManagementPage />} />
-        <Route path="/admin/orders" element={<OrderManagementPage />} />
-        <Route path="/admin/customers" element={<CustomerManagementPage />} />
-        <Route path="/admin/ai-pipeline" element={<AIPipelinePage />} />
-        <Route path="/admin/knowledge-graph" element={<KnowledgeGraphPage />} />
-        <Route path="/admin/recommendations" element={<RecommendationAnalyticsPage />} />
-        <Route path="/admin/settings" element={<AdminSettingsPage />} />
+      {/* Admin Routes — admin role only */}
+      <Route element={<RequireAdmin />}>
+        <Route element={<AdminLayout />}>
+          <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/products" element={<ProductManagementPage />} />
+          <Route path="/admin/orders" element={<OrderManagementPage />} />
+          <Route path="/admin/orders/:orderId" element={<AdminOrderDetailPage />} />
+          <Route path="/admin/returns" element={<AdminReturnManagementPage />} />
+          <Route path="/admin/users" element={<UserManagementPage />} />
+          <Route path="/admin/ai-pipeline" element={<AIPipelinePage />} />
+          <Route path="/admin/knowledge-graph" element={<KnowledgeGraphPage />} />
+          <Route path="/admin/recommendations" element={<RecommendationAnalyticsPage />} />
+          <Route path="/admin/notifications" element={<NotificationManagementPage />} />
+        </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

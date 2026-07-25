@@ -1,0 +1,12 @@
+SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5436/cart_db
+AUTH_SERVICE_URL: http://localhost:8081
+PRODUCT_SERVICE_URL: http://localhost:8083
+
+spring:
+  config:
+    import:
+      - "optional:file:../.env.local[.properties]"
+      - "optional:file:.env.local[.properties]"
+      - "optional:file:../../.env.local[.properties]"
+      - "optional:file:BE/.env.local[.properties]"
+      - "optional:file:../BE/.env.local[.properties]"
