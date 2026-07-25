@@ -3,6 +3,7 @@ package com.stylemind.product.service.impl;
 import com.stylemind.common.dto.PageResponse;
 import com.stylemind.product.dto.*;
 import com.stylemind.product.entity.*;
+import com.stylemind.product.event.ProductVectorSyncEvent;
 import com.stylemind.product.repository.*;
 import com.stylemind.product.service.ProductService;
 import com.stylemind.product.service.image.ProductImageStorage;
@@ -12,6 +13,7 @@ import com.stylemind.common.util.StringUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -37,9 +39,17 @@ public class ProductServiceImpl implements ProductService {
     private final ProductCategoryRepository productCategoryRepository;
     private final ProductAuditLogRepository auditLogRepository;
     private final ProductImageStorage imageStorage;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.product.default-currency:VND}")
     private String defaultCurrency;
+
+    private void publishVectorSyncEvent(String productId, String status) {
+        ProductVectorSyncEvent.Action action = "ACTIVE".equals(status)
+                ? ProductVectorSyncEvent.Action.UPSERT
+                : ProductVectorSyncEvent.Action.DELETE;
+        eventPublisher.publishEvent(new ProductVectorSyncEvent(productId, action));
+    }
 
     private void recordAudit(String actorId, String action, String productId, String detail) {
         auditLogRepository.save(ProductAuditLog.builder()
@@ -111,6 +121,7 @@ public class ProductServiceImpl implements ProductService {
 
         product = productRepository.save(product);
         replaceProductCategories(product.getId(), categoryIds);
+        publishVectorSyncEvent(product.getId(), product.getStatus());
         return mapToResponse(product);
     }
 
@@ -132,6 +143,7 @@ public class ProductServiceImpl implements ProductService {
 
         product = productRepository.save(product);
         replaceProductCategories(id, categoryIds);
+        publishVectorSyncEvent(product.getId(), product.getStatus());
         return mapToResponse(product);
     }
 
@@ -143,6 +155,7 @@ public class ProductServiceImpl implements ProductService {
         product.setStatus("INACTIVE");
         productRepository.save(product);
         recordAudit(actorId, "DELETE_PRODUCT", id, null);
+        publishVectorSyncEvent(id, "INACTIVE");
     }
 
     @Override
@@ -229,6 +242,7 @@ public class ProductServiceImpl implements ProductService {
         ensureProductCanBeActive(id, status);
         product.setStatus(status);
         product = productRepository.save(product);
+        publishVectorSyncEvent(product.getId(), product.getStatus());
         return mapToResponse(product);
     }
 

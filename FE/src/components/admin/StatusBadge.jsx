@@ -4,6 +4,7 @@ const statusConfig = {
   synced: { color: 'bg-green-status/10 text-green-status', dot: 'bg-green-status', label: 'Đã đồng bộ' },
   processing: { color: 'bg-tertiary-fixed/30 text-tertiary', dot: 'bg-tertiary', label: 'Đang xử lý' },
   pending: { color: 'bg-surface-container-high text-on-surface-variant', dot: 'bg-on-surface-variant', label: 'Đang chờ' },
+  approved: { color: 'bg-green-status/10 text-green-status', dot: 'bg-green-status', label: 'Đã duyệt' },
   payment_pending: { color: 'bg-tertiary-fixed/30 text-tertiary', dot: 'bg-tertiary', label: 'Chờ thanh toán' },
   pending_payment: { color: 'bg-tertiary-fixed/30 text-tertiary', dot: 'bg-tertiary', label: 'Chờ thanh toán' },
   failed: { color: 'bg-error-container text-error', dot: 'bg-error', label: 'Thất bại' },
